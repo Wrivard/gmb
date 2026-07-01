@@ -5,13 +5,13 @@
 
 ## État courant
 
-- **Phase active : 0 — Fondations (en cours)**
-- Prochain jalon : vérifier build/lint/test, commit initial, puis Phase 1.
+- **Phase active : 1 — Auth app + données**
+- Phase 0 terminée et committée (build + lint + tests verts).
 
 ## Phases
 
-- [ ] **Phase 0 — Fondations** ← en cours
-- [ ] Phase 1 — Auth app + données
+- [x] Phase 0 — Fondations ✅ (commit `feat: fondations`)
+- [ ] **Phase 1 — Auth app + données** ← en cours
 - [ ] Phase 2 — Couche GBP (mock + real)
 - [ ] Phase 3 — Sync reviews + engine AI réponses
 - [ ] Phase 4 — Inbox Reviews (UI)
