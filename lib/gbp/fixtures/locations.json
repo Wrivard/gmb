@@ -1,0 +1,111 @@
+[
+  {
+    "name": "locations/2801539874651203748",
+    "title": "Toitures Bergeron",
+    "storefrontAddress": {
+      "addressLines": ["1245 boul. des Laurentides"],
+      "locality": "Laval",
+      "administrativeArea": "QC",
+      "postalCode": "H7M 2Y2"
+    },
+    "categories": { "primaryCategory": { "displayName": "Couvreur" } },
+    "phoneNumbers": { "primaryPhone": "450-555-0123" },
+    "websiteUri": "https://toituresbergeron.ca"
+  },
+  {
+    "name": "locations/5519274830165928374",
+    "title": "Garage Pro-Tech Mécanique",
+    "storefrontAddress": {
+      "addressLines": ["3820 ch. de Chambly"],
+      "locality": "Longueuil",
+      "administrativeArea": "QC",
+      "postalCode": "J4L 1N6"
+    },
+    "categories": {
+      "primaryCategory": { "displayName": "Atelier de réparation automobile" }
+    },
+    "phoneNumbers": { "primaryPhone": "450-555-0456" },
+    "websiteUri": "https://garageprotech.ca"
+  },
+  {
+    "name": "locations/8837465102947586921",
+    "title": "Paysagement Verdure",
+    "storefrontAddress": {
+      "addressLines": ["710 rue Saint-Louis"],
+      "locality": "Terrebonne",
+      "administrativeArea": "QC",
+      "postalCode": "J6W 1J1"
+    },
+    "categories": { "primaryCategory": { "displayName": "Paysagiste" } },
+    "phoneNumbers": { "primaryPhone": "450-555-0789" },
+    "websiteUri": "https://paysagementverdure.ca"
+  },
+  {
+    "name": "locations/1120394857610293847",
+    "title": "Restaurant La Bella Vita",
+    "storefrontAddress": {
+      "addressLines": ["2145 rue Beaubien Est"],
+      "locality": "Montréal",
+      "administrativeArea": "QC",
+      "postalCode": "H2G 1M5"
+    },
+    "categories": {
+      "primaryCategory": { "displayName": "Restaurant italien" }
+    },
+    "phoneNumbers": { "primaryPhone": "514-555-0234" },
+    "websiteUri": "https://labellavita.ca"
+  },
+  {
+    "name": "locations/6647382910573829105",
+    "title": "Plomberie Riviera",
+    "storefrontAddress": {
+      "addressLines": ["88 boul. Iberville"],
+      "locality": "Repentigny",
+      "administrativeArea": "QC",
+      "postalCode": "J6A 2A9"
+    },
+    "categories": { "primaryCategory": { "displayName": "Plombier" } },
+    "phoneNumbers": { "primaryPhone": "450-555-0912" },
+    "websiteUri": "https://plomberieriviera.ca"
+  },
+  {
+    "name": "locations/3958271046382910576",
+    "title": "Électricité Dumont",
+    "storefrontAddress": {
+      "addressLines": ["5210 boul. Taschereau"],
+      "locality": "Brossard",
+      "administrativeArea": "QC",
+      "postalCode": "J4Z 1A7"
+    },
+    "categories": { "primaryCategory": { "displayName": "Électricien" } },
+    "phoneNumbers": { "primaryPhone": "450-555-0345" },
+    "websiteUri": "https://electricitedumont.ca"
+  },
+  {
+    "name": "locations/7261849305718293645",
+    "title": "Clinique Dentaire Sourire Plus",
+    "storefrontAddress": {
+      "addressLines": ["450 rue Blainville Ouest"],
+      "locality": "Sainte-Thérèse",
+      "administrativeArea": "QC",
+      "postalCode": "J7E 1M9"
+    },
+    "categories": { "primaryCategory": { "displayName": "Dentiste" } },
+    "phoneNumbers": { "primaryPhone": "450-555-0678" },
+    "websiteUri": "https://sourireplus.ca"
+  },
+  {
+    "name": "locations/4830192756483920175",
+    "title": "Excavation Lachance",
+    "storefrontAddress": {
+      "addressLines": ["1590 rang Saint-Vincent"],
+      "locality": "Mirabel",
+      "administrativeArea": "QC",
+      "postalCode": "J7N 2W5"
+    },
+    "categories": {
+      "primaryCategory": { "displayName": "Entrepreneur en excavation" }
+    },
+    "phoneNumbers": { "primaryPhone": "450-555-0567" }
+  }
+]

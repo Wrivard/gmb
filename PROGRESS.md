@@ -5,15 +5,15 @@
 
 ## État courant
 
-- **Phase active : 1 — Auth app + données**
-- Phase 0 terminée et committée (build + lint + tests verts).
+- **Phase active : 3 — Sync reviews + engine AI réponses**
+- Phases 0 à 2 terminées et committées (build + lint + tests verts).
 
 ## Phases
 
 - [x] Phase 0 — Fondations ✅ (commit `feat: fondations`)
-- [ ] **Phase 1 — Auth app + données** ← en cours
-- [ ] Phase 2 — Couche GBP (mock + real)
-- [ ] Phase 3 — Sync reviews + engine AI réponses
+- [x] Phase 1 — Auth app + données ✅ (commit `feat: auth Supabase`)
+- [x] Phase 2 — Couche GBP (mock + real) ✅ (commit `feat: couche GBP`)
+- [ ] **Phase 3 — Sync reviews + engine AI réponses** ← en cours
 - [ ] Phase 4 — Inbox Reviews (UI)
 - [ ] Phase 5 — Module Posts
 - [ ] Phase 6 — Dashboard Kanban
@@ -32,7 +32,9 @@
 | 6 | Colonne `posts.angle` ajoutée au schéma | specs/07 exige de stocker l'angle et de le réinjecter pour la rotation des posts. |
 | 7 | Colonne `reviews.was_updated` ajoutée | specs/04 demande un flag quand une review répondue est modifiée. |
 | 8 | Supabase CLI via devDependency `supabase` (npm) | CLI non installé globalement sur la machine; `pnpm exec supabase` suffit. |
-| 9 | Engine AI = API Anthropic avec `ANTHROPIC_API_KEY` (stack imposé par specs/README) | Décision de stack explicite de la spec (« ne pas remettre en question »). Fallback stub tant que la clé manque. |
+| 9 | Engine AI = API Anthropic avec `ANTHROPIC_API_KEY` (stack imposé par specs/README) | Décision de stack explicite de la spec (« ne pas remettre en question »). Fallback stub tant que la clé manque. ⚠️ À confirmer avec William : conflit avec sa règle globale « zéro coût Claude API » (CLI subscription). |
+| 10 | `mock:new-review` = script Node pur (`.mjs`) via `node --env-file-if-exists` | Zéro dépendance ajoutée (pas de tsx/ts-node); Node 24 lit `.env.local` nativement. |
+| 11 | `Relationships: []` ajouté à la vue dans `lib/types/database.ts` | Sans lui, le type `Database` échoue la contrainte `GenericSchema` de supabase-js → toutes les requêtes typées `never`. |
 
 ## 🧍 Requis de William
 
@@ -43,6 +45,23 @@
 - [ ] Docker Desktop lancé si tu veux `supabase start` en local (sinon l'app tourne contre un projet Supabase distant).
 
 ## Journal
+
+### Phase 2 — Couche GBP (2026-07-02)
+- `lib/gbp/` : interface `GbpClient` + factory `getGbpClient()` (switch `GBP_MODE`), types GBP.
+- `MockGbpClient` : fixtures réalistes (8 clients QC, ~40 reviews), latence simulée 300–800 ms, ~5 % d'échecs (`GBP_MOCK_FAILURES=0` pour désactiver).
+- `RealGbpClient` : fetch natif, backoff exponentiel + jitter (5 essais), 429 persistant → `GbpAccessPendingError` (quota 0 / projet non approuvé).
+- `lib/crypto.ts` : AES-256-GCM pour le refresh token (+ tests Vitest).
+- `lib/google/token.ts` : cache mémoire jusqu'à expiry − 60 s, `invalid_grant` → connexion `revoked`.
+- OAuth agence : `/api/google/connect` (state CSRF; en mock → connexion factice immédiate) + `/api/google/callback` (échange code, chiffrement, upsert, découverte).
+- `lib/gbp/discovery.ts` : accounts.list → locations.list → upsert `clients` (nouvelles → active, disparues → disconnected, jamais supprimées).
+- Page Réglages complète : état de connexion Google, resync, liste des fiches avec toggle actif/pause, gestion d'équipe (owner), défauts d'agence.
+- Script `pnpm mock:new-review` : insère une review fake aléatoire sur un client actif.
+- Fix : `Relationships: []` manquant sur la vue dans `lib/types/database.ts` (toutes les requêtes typaient `never`).
+
+### Phase 1 — Auth app + données (2026-07-01)
+- Supabase Auth (Google + email/password), middleware de session, whitelist `agency_members` (AccessDenied si non listé), page login stylée.
+- `lib/auth.ts` : `getSessionContext()` (session + whitelist, cache par render).
+- Types TS de la base écrits à la main dans `lib/types/database.ts` (pas de stack locale pour `gen types`).
 
 ### Phase 0 — Fondations (2026-07-01, en cours)
 - Repo git initialisé (`main`), specs déplacées dans `specs/`.

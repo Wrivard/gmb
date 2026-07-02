@@ -408,6 +408,7 @@ export interface Database {
           posts_due: number;
           next_scheduled_post: string | null;
         };
+        Relationships: [];
       };
     };
     Functions: {

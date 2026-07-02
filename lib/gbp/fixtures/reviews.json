@@ -1,0 +1,82 @@
+[
+  {
+    "locationName": "accounts/108231694201573849275/locations/2801539874651203748",
+    "reviews": [
+      { "reviewId": "rev-tb-001", "displayName": "Marc-André Fortin", "starRating": "FIVE", "comment": "Toiture refaite en deux jours, équipe super propre, ils ont même passé l'aimant sur le terrain pour ramasser les clous. Je recommande à 100 %.", "ageHours": 8, "replied": false },
+      { "reviewId": "rev-tb-002", "displayName": "Julie Tremblay", "starRating": "TWO", "comment": "Le travail est correct mais on a attendu 3 semaines de plus que prévu et personne ne retournait nos appels. Décevant côté communication.", "ageHours": 48, "replied": false },
+      { "reviewId": "rev-tb-003", "displayName": "Pierre Gagnon", "starRating": "FIVE", "comment": "Excellent service, soumission claire, prix respecté. La nouvelle toiture a passé l'hiver sans problème.", "ageHours": 1080, "replied": true },
+      { "reviewId": "rev-tb-004", "displayName": "Sophie Bélanger", "starRating": "FOUR", "comment": "Bon travail sur notre réparation d'urgence après la tempête. Un peu de retard le matin mais rien de grave.", "ageHours": 1440, "replied": true },
+      { "reviewId": "rev-tb-005", "displayName": "Kevin Williams", "starRating": "FIVE", "comment": "Great crew, fast and clean work on our roof in Chomedey. Highly recommend!", "ageHours": 2160, "replied": true },
+      { "reviewId": "rev-tb-006", "displayName": null, "starRating": "FIVE", "comment": null, "ageHours": 5, "replied": false }
+    ]
+  },
+  {
+    "locationName": "accounts/108231694201573849275/locations/5519274830165928374",
+    "reviews": [
+      { "reviewId": "rev-gp-001", "displayName": "Nathalie Roy", "starRating": "FIVE", "comment": "Enfin un garage honnête! Ils m'ont montré la pièce usée avant de la changer et l'estimation a été respectée au dollar près.", "ageHours": 24, "replied": false },
+      { "reviewId": "rev-gp-002", "displayName": "Steve Bergeron", "starRating": "ONE", "comment": "Rendez-vous à 8h, ma voiture n'a pas bougé avant 11h. J'ai perdu mon avant-midi. Aucune excuse offerte.", "ageHours": 96, "replied": false },
+      { "reviewId": "rev-gp-003", "displayName": "Isabelle Côté", "starRating": "FIVE", "comment": "Service rapide pour mon changement de pneus, prix compétitif. Le café dans la salle d'attente est un plus!", "ageHours": 720, "replied": true },
+      { "reviewId": "rev-gp-004", "displayName": "Mathieu Lavoie", "starRating": "FOUR", "comment": "Bon diagnostic sur un bruit de suspension que deux autres garages n'avaient pas trouvé.", "ageHours": 1800, "replied": true },
+      { "reviewId": "rev-gp-005", "displayName": "John Miller", "starRating": "FOUR", "comment": "Good honest mechanics. They explained everything clearly even with my limited French.", "ageHours": 2400, "replied": true },
+      { "reviewId": "rev-gp-006", "displayName": null, "starRating": "ONE", "comment": null, "ageHours": 144, "replied": false }
+    ]
+  },
+  {
+    "locationName": "accounts/108231694201573849275/locations/8837465102947586921",
+    "reviews": [
+      { "reviewId": "rev-pv-001", "displayName": "Caroline Dubé", "starRating": "FIVE", "comment": "Notre cour arrière est méconnaissable! Le pavé uni est magnifique et l'équipe a tout nettoyé avant de partir. Merci Verdure!", "ageHours": 12, "replied": false },
+      { "reviewId": "rev-pv-002", "displayName": "François Pelletier", "starRating": "THREE", "comment": "Beau résultat final mais le chantier a traîné une semaine de plus, et la pelouse voisine a été un peu abîmée par la machinerie.", "ageHours": 72, "replied": false },
+      { "reviewId": "rev-pv-003", "displayName": "Mélanie Girard", "starRating": "FIVE", "comment": "Design d'aménagement au-delà de nos attentes. On nous arrête dans la rue pour demander qui a fait ça!", "ageHours": 960, "replied": true },
+      { "reviewId": "rev-pv-004", "displayName": "Daniel Morin", "starRating": "FIVE", "comment": "Entretien saisonnier impeccable depuis 2 ans. Toujours ponctuels.", "ageHours": 2880, "replied": true },
+      { "reviewId": "rev-pv-005", "displayName": null, "starRating": "FOUR", "comment": null, "ageHours": 360, "replied": false }
+    ]
+  },
+  {
+    "locationName": "accounts/108231694201573849275/locations/1120394857610293847",
+    "reviews": [
+      { "reviewId": "rev-bv-001", "displayName": "Amélie Lachapelle", "starRating": "FIVE", "comment": "Les pâtes carbonara sont divines et le service de Marco est toujours impeccable. Notre resto de quartier préféré depuis des années.", "ageHours": 10, "replied": false },
+      { "reviewId": "rev-bv-002", "displayName": "Simon Beaulieu", "starRating": "TWO", "comment": "Pizza correcte mais 45 minutes d'attente un mardi soir tranquille, et mon plat est arrivé tiède. Pas l'expérience habituelle.", "ageHours": 24, "replied": false },
+      { "reviewId": "rev-bv-003", "displayName": "Sarah Thompson", "starRating": "FIVE", "comment": "Best tiramisu in Montreal, hands down. Lovely family atmosphere.", "ageHours": 48, "replied": false },
+      { "reviewId": "rev-bv-004", "displayName": "Vincent Paradis", "starRating": "FIVE", "comment": "Soirée parfaite pour notre anniversaire de mariage. Le chef est venu nous saluer!", "ageHours": 600, "replied": true },
+      { "reviewId": "rev-bv-005", "displayName": "Chantal Lemieux", "starRating": "FOUR", "comment": "Très bonne cuisine, portions généreuses. Le stationnement est difficile dans le coin par contre.", "ageHours": 1200, "replied": true },
+      { "reviewId": "rev-bv-006", "displayName": null, "starRating": "FIVE", "comment": null, "ageHours": 480, "replied": true }
+    ]
+  },
+  {
+    "locationName": "accounts/108231694201573849275/locations/6647382910573829105",
+    "reviews": [
+      { "reviewId": "rev-pr-001", "displayName": "Éric Bouchard", "starRating": "FIVE", "comment": "Chauffe-eau brisé un dimanche soir, technicien chez nous en 1h30. Sauvé notre fin de semaine. Merci!", "ageHours": 4, "replied": false },
+      { "reviewId": "rev-pr-002", "displayName": "Linda Sauvé", "starRating": "ONE", "comment": "Facture beaucoup plus élevée que l'estimation verbale au téléphone. Je me suis sentie prise en otage une fois les travaux commencés.", "ageHours": 120, "replied": false },
+      { "reviewId": "rev-pr-003", "displayName": "Guillaume Fortier", "starRating": "FIVE", "comment": "Débouchage de drain efficace, plombier courtois qui a bien protégé les planchers.", "ageHours": 840, "replied": true },
+      { "reviewId": "rev-pr-004", "displayName": "Suzanne Leblanc", "starRating": "FOUR", "comment": "Bon service pour le remplacement de notre chauffe-eau. Ponctuel et propre.", "ageHours": 1920, "replied": true },
+      { "reviewId": "rev-pr-005", "displayName": null, "starRating": "FIVE", "comment": null, "ageHours": 240, "replied": true }
+    ]
+  },
+  {
+    "locationName": "accounts/108231694201573849275/locations/3958271046382910576",
+    "reviews": [
+      { "reviewId": "rev-ed-001", "displayName": "Patrick Nadeau", "starRating": "FIVE", "comment": "Installation de ma borne de recharge faite en une matinée, travail super propre, tout expliqué clairement. Rien à redire.", "ageHours": 18, "replied": false },
+      { "reviewId": "rev-ed-002", "displayName": "Marie-Claude Bissonnette", "starRating": "FIVE", "comment": "Mise aux normes de notre vieux panneau électrique. Équipe professionnelle, on se sent en sécurité maintenant.", "ageHours": 1320, "replied": true },
+      { "reviewId": "rev-ed-003", "displayName": "Robert Chen", "starRating": "FOUR", "comment": "Professional EV charger installation. Slightly delayed start but great communication throughout.", "ageHours": 2040, "replied": true },
+      { "reviewId": "rev-ed-004", "displayName": null, "starRating": "THREE", "comment": null, "ageHours": 216, "replied": false }
+    ]
+  },
+  {
+    "locationName": "accounts/108231694201573849275/locations/7261849305718293645",
+    "reviews": [
+      { "reviewId": "rev-cs-001", "displayName": "Valérie Ouellet", "starRating": "FIVE", "comment": "J'avais une phobie du dentiste et l'équipe a été d'une patience incroyable avec moi. Je n'ai plus peur d'y retourner!", "ageHours": 20, "replied": false },
+      { "reviewId": "rev-cs-002", "displayName": "Alexandre Lapointe", "starRating": "TWO", "comment": "Deux reports de rendez-vous en un mois et 40 minutes d'attente à ma visite. Le personnel est gentil mais l'horaire ne tient pas.", "ageHours": 72, "replied": false },
+      { "reviewId": "rev-cs-003", "displayName": "Josée Marchand", "starRating": "FIVE", "comment": "Excellente clinique familiale, mes enfants adorent y aller (oui oui, chez le dentiste!).", "ageHours": 1560, "replied": true },
+      { "reviewId": "rev-cs-004", "displayName": null, "starRating": "FIVE", "comment": null, "ageHours": 720, "replied": true }
+    ]
+  },
+  {
+    "locationName": "accounts/108231694201573849275/locations/4830192756483920175",
+    "reviews": [
+      { "reviewId": "rev-el-001", "displayName": "Benoît Grenier", "starRating": "FIVE", "comment": "Drain français installé rapidement malgré un terrain difficile. Machinerie impressionnante et opérateur d'expérience.", "ageHours": 30, "replied": false },
+      { "reviewId": "rev-el-002", "displayName": "Diane Perreault", "starRating": "FOUR", "comment": "Déneigement commercial fiable tout l'hiver. Quelques passages tardifs en tempête mais globalement satisfaite.", "ageHours": 2280, "replied": true },
+      { "reviewId": "rev-el-003", "displayName": "Martin Asselin", "starRating": "FIVE", "comment": "Excavation pour notre agrandissement faite dans les temps et le budget. Équipe franche et travaillante.", "ageHours": 3120, "replied": true },
+      { "reviewId": "rev-el-004", "displayName": null, "starRating": "TWO", "comment": null, "ageHours": 168, "replied": false }
+    ]
+  }
+]
