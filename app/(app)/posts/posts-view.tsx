@@ -1,0 +1,425 @@
+"use client";
+
+import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { format } from "date-fns";
+import { frCA } from "date-fns/locale";
+import { CalendarDays, ImageIcon, List, Sparkles } from "lucide-react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import type { PostStatus } from "@/lib/types/database";
+import { generatePostAction } from "./actions";
+
+export interface QueueClient {
+  id: string;
+  name: string;
+  remaining: number;
+  late: boolean;
+}
+
+export interface QueuePost {
+  id: string;
+  clientId: string;
+  clientName: string;
+  summary: string;
+  status: PostStatus;
+  scheduledFor: string | null;
+  publishedAt: string | null;
+  publishError: string | null;
+  imageUrl: string | null;
+}
+
+const STATUS_LABELS: Record<PostStatus, string> = {
+  draft: "Brouillon",
+  approved: "Approuvé",
+  scheduled: "Planifié",
+  publishing: "Publication…",
+  published: "Publié",
+  failed: "Échec",
+};
+
+function StatusBadge({ status }: { status: PostStatus }) {
+  const variant =
+    status === "failed"
+      ? "destructive"
+      : status === "published"
+        ? "secondary"
+        : status === "draft"
+          ? "outline"
+          : "default";
+  return <Badge variant={variant}>{STATUS_LABELS[status]}</Badge>;
+}
+
+export function PostsView({
+  clients,
+  posts,
+}: {
+  clients: QueueClient[];
+  posts: QueuePost[];
+}) {
+  const [view, setView] = useState<"queue" | "calendar">("queue");
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 rounded-lg border border-border bg-elevated p-1">
+          {(
+            [
+              ["queue", "File", List],
+              ["calendar", "Calendrier", CalendarDays],
+            ] as const
+          ).map(([value, label, Icon]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setView(value)}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors",
+                view === value
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Icon className="size-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
+        <BatchGenerateButton clients={clients} />
+      </div>
+
+      {view === "queue" ? (
+        <QueueView clients={clients} posts={posts} />
+      ) : (
+        <CalendarView posts={posts} />
+      )}
+    </div>
+  );
+}
+
+function BatchGenerateButton({ clients }: { clients: QueueClient[] }) {
+  const router = useRouter();
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(
+    null,
+  );
+  const [pending, startTransition] = useTransition();
+
+  const jobs = useMemo(
+    () =>
+      clients.flatMap((client) =>
+        Array.from({ length: client.remaining }, () => client),
+      ),
+    [clients],
+  );
+
+  if (!jobs.length) return null;
+
+  function run() {
+    startTransition(async () => {
+      setProgress({ done: 0, total: jobs.length });
+      let failures = 0;
+      // Séquentiel avec pause 500 ms entre les appels (specs/07).
+      for (let i = 0; i < jobs.length; i++) {
+        const result = await generatePostAction(jobs[i].id);
+        if (result.ok) {
+          toast.success(`Post généré pour ${jobs[i].name}.`);
+        } else {
+          failures++;
+          toast.error(`${jobs[i].name} : ${result.error}`);
+        }
+        setProgress({ done: i + 1, total: jobs.length });
+        if (i < jobs.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
+      setProgress(null);
+      router.refresh();
+      if (!failures) toast.success("Tous les posts dus sont générés.");
+    });
+  }
+
+  return (
+    <div className="ml-auto flex items-center gap-3">
+      {progress && (
+        <div className="flex items-center gap-2">
+          <div className="h-1.5 w-32 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${(progress.done / progress.total) * 100}%` }}
+            />
+          </div>
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {progress.done}/{progress.total}
+          </span>
+        </div>
+      )}
+      <Button size="sm" onClick={run} disabled={pending}>
+        <Sparkles />
+        {pending
+          ? "Génération…"
+          : `Générer tous les posts dus (${jobs.length})`}
+      </Button>
+    </div>
+  );
+}
+
+function QueueView({
+  clients,
+  posts,
+}: {
+  clients: QueueClient[];
+  posts: QueuePost[];
+}) {
+  const due = clients.filter((c) => c.remaining > 0);
+  const drafts = posts.filter((p) => p.status === "draft");
+  const failed = posts.filter((p) => p.status === "failed");
+  const scheduled = posts.filter(
+    (p) =>
+      p.status === "scheduled" ||
+      p.status === "approved" ||
+      p.status === "publishing",
+  );
+  const published = posts.filter((p) => p.status === "published");
+
+  return (
+    <div className="flex flex-col gap-6">
+      <Section
+        title={`Dus (${due.length})`}
+        empty="Aucun client dû — la cadence du mois est couverte 🎉"
+        isEmpty={!due.length}
+      >
+        <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {due.map((client) => (
+            <DueClientCard key={client.id} client={client} />
+          ))}
+        </ul>
+      </Section>
+
+      {failed.length > 0 && (
+        <Section title={`Échecs (${failed.length})`} isEmpty={false} empty="">
+          <PostGrid posts={failed} />
+        </Section>
+      )}
+
+      <Section
+        title={`Brouillons (${drafts.length})`}
+        empty="Aucun brouillon à réviser."
+        isEmpty={!drafts.length}
+      >
+        <PostGrid posts={drafts} />
+      </Section>
+
+      <Section
+        title={`Planifiés (${scheduled.length})`}
+        empty="Rien de planifié pour l'instant."
+        isEmpty={!scheduled.length}
+      >
+        <PostGrid posts={scheduled} />
+      </Section>
+
+      <Section
+        title={`Publiés ce mois (${published.length})`}
+        empty="Rien de publié ce mois-ci."
+        isEmpty={!published.length}
+      >
+        <PostGrid posts={published} />
+      </Section>
+    </div>
+  );
+}
+
+function Section({
+  title,
+  empty,
+  isEmpty,
+  children,
+}: {
+  title: string;
+  empty: string;
+  isEmpty: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section>
+      <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
+        {title}
+      </h2>
+      {isEmpty ? (
+        <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+          {empty}
+        </p>
+      ) : (
+        children
+      )}
+    </section>
+  );
+}
+
+function DueClientCard({ client }: { client: QueueClient }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <li className="flex items-center gap-3 rounded-lg border border-border bg-elevated px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-sm font-medium">{client.name}</span>
+          {client.late && <Badge variant="destructive">En retard</Badge>}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {client.remaining} post{client.remaining > 1 ? "s" : ""} restant
+          {client.remaining > 1 ? "s" : ""} ce mois-ci
+        </p>
+      </div>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={pending}
+        onClick={() =>
+          startTransition(async () => {
+            const result = await generatePostAction(client.id);
+            if (result.ok) {
+              toast.success(`Post généré pour ${client.name}.`);
+              router.refresh();
+            } else {
+              toast.error(result.error);
+            }
+          })
+        }
+      >
+        <Sparkles />
+        {pending ? "Rédaction…" : "Générer le post"}
+      </Button>
+    </li>
+  );
+}
+
+function PostGrid({ posts }: { posts: QueuePost[] }) {
+  return (
+    <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      {posts.map((post) => (
+        <li key={post.id}>
+          <Link
+            href={`/posts/${post.id}`}
+            className="flex gap-3 rounded-lg border border-border bg-elevated p-3 transition-colors hover:border-ring"
+          >
+            <div className="size-16 shrink-0 overflow-hidden rounded-md bg-muted">
+              {post.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- miniature Storage
+                <img
+                  src={post.imageUrl}
+                  alt=""
+                  className="size-full object-cover"
+                />
+              ) : (
+                <div className="flex size-full items-center justify-center text-muted-foreground">
+                  <ImageIcon className="size-4" />
+                </div>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-xs font-medium">
+                  {post.clientName}
+                </span>
+                <StatusBadge status={post.status} />
+              </div>
+              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                {post.summary}
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {post.status === "published" && post.publishedAt
+                  ? `Publié le ${format(new Date(post.publishedAt), "d MMM", { locale: frCA })}`
+                  : post.scheduledFor
+                    ? `Prévu le ${format(new Date(post.scheduledFor), "d MMM à HH:mm", { locale: frCA })}`
+                    : "Sans date"}
+              </p>
+              {post.publishError && (
+                <p className="mt-1 line-clamp-1 text-[11px] text-destructive">
+                  {post.publishError}
+                </p>
+              )}
+            </div>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function CalendarView({ posts }: { posts: QueuePost[] }) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  // Lundi = colonne 1.
+  const offset = (firstDay.getDay() + 6) % 7;
+
+  const byDay = new Map<number, QueuePost[]>();
+  for (const post of posts) {
+    const iso =
+      post.status === "published" ? post.publishedAt : post.scheduledFor;
+    if (!iso) continue;
+    const date = new Date(iso);
+    if (date.getFullYear() !== year || date.getMonth() !== month) continue;
+    const day = date.getDate();
+    byDay.set(day, [...(byDay.get(day) ?? []), post]);
+  }
+
+  return (
+    <div>
+      <h2 className="mb-2 text-sm font-semibold capitalize text-muted-foreground">
+        {format(now, "MMMM yyyy", { locale: frCA })}
+      </h2>
+      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-border bg-border">
+        {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((label) => (
+          <div
+            key={label}
+            className="bg-elevated px-2 py-1.5 text-center text-xs font-medium text-muted-foreground"
+          >
+            {label}
+          </div>
+        ))}
+        {Array.from({ length: offset }).map((_, i) => (
+          <div key={`pad-${i}`} className="min-h-24 bg-background" />
+        ))}
+        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => (
+          <div key={day} className="min-h-24 bg-elevated p-1.5">
+            <span
+              className={cn(
+                "text-xs",
+                day === now.getDate()
+                  ? "font-semibold text-primary"
+                  : "text-muted-foreground",
+              )}
+            >
+              {day}
+            </span>
+            <div className="mt-1 flex flex-col gap-1">
+              {(byDay.get(day) ?? []).map((post) => (
+                <Link
+                  key={post.id}
+                  href={`/posts/${post.id}`}
+                  className={cn(
+                    "truncate rounded px-1.5 py-0.5 text-[11px]",
+                    post.status === "published"
+                      ? "bg-muted text-muted-foreground"
+                      : post.status === "failed"
+                        ? "bg-destructive/15 text-destructive"
+                        : "bg-primary/15 text-primary",
+                  )}
+                >
+                  {post.clientName}
+                </Link>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,112 @@
+import "server-only";
+
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getGbpClient } from "@/lib/gbp/client";
+import { logActivity } from "@/lib/activity";
+import type { LocalPostInput } from "@/lib/gbp/types";
+import type { PostStatus } from "@/lib/types/database";
+
+// Publication d'un post vers Google (partagé cron publish-posts +
+// action « Publier maintenant »). Lock optimiste via le statut.
+
+export type PublishResult =
+  | { ok: true }
+  | { ok: false; error: string; locked?: boolean };
+
+export async function publishPost(
+  postId: string,
+  fromStatuses: PostStatus[],
+  actor: string,
+): Promise<PublishResult> {
+  const supabase = createAdminClient();
+
+  // Lock optimiste : ne prendre le post que s'il est dans un statut attendu.
+  const { data: post } = await supabase
+    .from("posts")
+    .update({ status: "publishing" })
+    .eq("id", postId)
+    .in("status", fromStatuses)
+    .select("*")
+    .maybeSingle();
+  if (!post) {
+    return { ok: false, error: "Post déjà en cours de publication.", locked: true };
+  }
+
+  const { data: client } = await supabase
+    .from("clients")
+    .select("*")
+    .eq("id", post.client_id)
+    .single();
+  if (!client) {
+    return { ok: false, error: "Client introuvable." };
+  }
+
+  try {
+    const input: LocalPostInput = {
+      languageCode: client.language,
+      topicType: "STANDARD",
+      summary: post.summary,
+      ...(post.cta_type
+        ? {
+            callToAction: {
+              actionType: post.cta_type,
+              ...(post.cta_url ? { url: post.cta_url } : {}),
+            },
+          }
+        : {}),
+      ...(post.image_path
+        ? {
+            media: [
+              {
+                mediaFormat: "PHOTO" as const,
+                sourceUrl: supabase.storage
+                  .from("post-images")
+                  .getPublicUrl(post.image_path).data.publicUrl,
+              },
+            ],
+          }
+        : {}),
+    };
+
+    const result = await getGbpClient().createLocalPost(
+      `${client.gbp_account_id}/${client.gbp_location_id}`,
+      input,
+    );
+
+    if (result.state === "REJECTED") {
+      const error = "Rejeté par la modération Google.";
+      await supabase
+        .from("posts")
+        .update({ status: "failed", publish_error: error })
+        .eq("id", post.id);
+      return { ok: false, error };
+    }
+
+    await supabase
+      .from("posts")
+      .update({
+        status: "published",
+        published_at: new Date().toISOString(),
+        gbp_post_name: result.name,
+        publish_error: null,
+      })
+      .eq("id", post.id);
+
+    await logActivity({
+      agencyId: client.agency_id,
+      clientId: client.id,
+      actor,
+      action: "post_published",
+      payload: { post_id: post.id },
+    });
+    return { ok: true };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "publication échouée";
+    await supabase
+      .from("posts")
+      .update({ status: "failed", publish_error: message })
+      .eq("id", post.id);
+    return { ok: false, error: message };
+  }
+}

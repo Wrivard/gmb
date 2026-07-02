@@ -5,8 +5,8 @@
 
 ## État courant
 
-- **Phase active : 5 — Module Posts**
-- Phases 0 à 4 terminées et committées (build + lint + tests verts).
+- **Phase active : 6 — Dashboard Kanban**
+- Phases 0 à 5 terminées et committées (build + lint + tests verts).
 - Remote GitHub : `Wrivard/gmb` (push autonome autorisé).
 
 ## Phases
@@ -16,7 +16,8 @@
 - [x] Phase 2 — Couche GBP (mock + real) ✅ (commit `feat: couche GBP`)
 - [x] Phase 3 — Sync reviews + engine AI ✅ (commit `feat: cron sync-reviews`)
 - [x] Phase 4 — Inbox Reviews (UI) ✅ (commit `feat: inbox reviews`)
-- [ ] **Phase 5 — Module Posts** ← en cours
+- [x] Phase 5 — Module Posts ✅ (commit `feat: module posts`)
+- [ ] **Phase 6 — Dashboard Kanban** ← en cours
 - [ ] Phase 4 — Inbox Reviews (UI)
 - [ ] Phase 5 — Module Posts
 - [ ] Phase 6 — Dashboard Kanban
@@ -50,6 +51,17 @@
 - [ ] Docker Desktop lancé si tu veux `supabase start` en local (sinon l'app tourne contre un projet Supabase distant).
 
 ## Journal
+
+### Phase 5 — Module Posts (2026-07-02)
+- `lib/due.ts` (+ 10 tests) : restants du mois, retard (> 20 du mois), suggestion de dates (réparties, jours de semaine, 10 h, fuseau America/Toronto sans dépendance — conversion itérative via `Intl`).
+- `lib/ai/posts.ts` : prompt post mensuel de specs/07 (rotation d'angles via les 6 derniers posts, saison QC), parsing + limite 1500 chars, stub saisonnier sans clé.
+- `lib/ai/images.ts` : génération Gemini (`gemini-2.5-flash-image`, surchargeable via `GEMINI_IMAGE_MODEL`), 2 tentatives, null sans clé → badge « image à ajouter ».
+- `lib/posts/generate.ts` : orchestration contenu → image → sharp 1200×900 JPEG 85 → Storage `post-images/{client}/{post}.jpg` → draft (ou `scheduled` si `auto_publish_posts`).
+- `lib/posts/publish.ts` : publication partagée cron + « Publier maintenant » (lock optimiste par statut, `REJECTED` → failed).
+- `/api/cron/publish-posts` : posts `scheduled` échus + filet des réponses de reviews `approved` jamais parties.
+- `/posts` : vue queue (Dus → Échecs → Brouillons → Planifiés → Publiés ce mois) + calendrier mensuel, batch « Générer tous les posts dus » séquentiel (500 ms) avec barre de progression.
+- Éditeur `/posts/[id]` : split view formulaire + `<PostPreview>` fidèle Google temps réel, image régénérable avec directive ou remplaçable par upload, approuver/planifier/publier maintenant.
+- Dépendance ajoutée : `sharp` (imposé par specs/06 pour le pipeline image).
 
 ### Phase 4 — Inbox Reviews (2026-07-02)
 - `/reviews` complet (specs/05) : liste triée date desc, filtres statut (« En attente » par défaut) / client / note (4–5, 1–3), panneau de réponse inline (textarea éditable, compteur /4096).
