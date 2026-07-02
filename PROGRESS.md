@@ -5,8 +5,8 @@
 
 ## État courant
 
-- **Phase active : 8 — Prod readiness** 🧍
-- Phases 0 à 7 terminées et committées (build + lint + tests verts).
+- **Build terminé** — les 8 phases sont committées (build + lint + 36 tests verts).
+- Il reste le smoke test réel (§4 de DEPLOY.md), impossible sans projet Supabase branché → voir « Requis de William ».
 - Remote GitHub : `Wrivard/gmb` (push autonome autorisé).
 
 ## Phases
@@ -19,7 +19,7 @@
 - [x] Phase 5 — Module Posts ✅ (commit `feat: module posts`)
 - [x] Phase 6 — Dashboard Kanban ✅ (commit `feat: dashboard kanban`)
 - [x] Phase 7 — Polish & robustesse ✅ (commit `polish: ...`)
-- [ ] **Phase 8 — Prod readiness** 🧍 ← en cours
+- [x] Phase 8 — Prod readiness ✅ (commit `feat: prod readiness`) — smoke test en attente d'un env 🧍
 - [ ] Phase 4 — Inbox Reviews (UI)
 - [ ] Phase 5 — Module Posts
 - [ ] Phase 6 — Dashboard Kanban
@@ -46,13 +46,21 @@
 
 ## 🧍 Requis de William
 
+Tout est encodé dans **DEPLOY.md** (checklist ordonnée). En résumé :
+
+- [ ] **Projet Supabase** (dev et/ou prod `ca-central-1`) + `.env.local` rempli — c'est LE bloqueur : rien n'est testable de bout en bout sans ça (ou Docker Desktop + `supabase start` en local).
 - [ ] Checklist Google complète de `specs/00-PREREQUIS-GOOGLE.md` (projet GCP, APIs, OAuth consent, client ID, demande Basic API Access).
-- [ ] Clé `OPENAI_API_KEY` (engine réponses/posts — stub en attendant).
-- [ ] Clé `GEMINI_API_KEY` (images de posts — placeholder en attendant).
-- [ ] Projet Supabase prod (région `ca-central-1`) au moment du déploiement (Phase 8).
-- [ ] Docker Desktop lancé si tu veux `supabase start` en local (sinon l'app tourne contre un projet Supabase distant).
+- [ ] Clé `OPENAI_API_KEY` (engine réponses/posts — stub déterministe en attendant).
+- [ ] Clé `GEMINI_API_KEY` (images de posts — placeholder « image à ajouter » en attendant).
+- [ ] Smoke test §4 de DEPLOY.md une fois l'env branché (je peux le dérouler dès que `.env.local` existe).
 
 ## Journal
+
+### Phase 8 — Prod readiness (2026-07-02)
+- `vercel.json` : 3 crons (sync-reviews */30, publish-posts */15, compute-due 1x/jour à 10 h UTC). Vercel injecte `CRON_SECRET` en header automatiquement.
+- `/api/cron/compute-due` : log quotidien des compteurs dûs (`due_computed`, base des notifications futures) + découverte hebdomadaire (dimanche) pour rafraîchir les snapshots de fiches.
+- `DEPLOY.md` : checklist ordonnée Supabase (migrations, bucket, seed prod minimal, auth) → Vercel (env vars avec pièges — `ENCRYPTION_KEY` immuable) → Google (Basic API Access, passage `GBP_MODE=real` sans changement de code) + smoke test mock + rollback.
+- Smoke test réel non exécuté : aucun `.env.local` / projet Supabase sur cette machine (voir 🧍).
 
 ### Phase 7 — Polish & robustesse (2026-07-02)
 - Command palette ⌘K (cmdk) : recherche client + navigation, câblée au bouton de la topbar.
