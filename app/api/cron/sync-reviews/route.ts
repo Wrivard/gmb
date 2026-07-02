@@ -227,7 +227,6 @@ async function syncOneReview(
         .update({
           published_text: draft.reply,
           published_at: now,
-          approved_by: "auto",
           publish_error: null,
         })
         .eq("review_id", reviewId);

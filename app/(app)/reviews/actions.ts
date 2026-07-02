@@ -61,7 +61,7 @@ export async function publishReplyAction(
         draft_text: trimmed,
         published_text: trimmed,
         published_at: now,
-        approved_by: member.email,
+        approved_by: member.id,
         publish_error: null,
       },
       { onConflict: "review_id" },

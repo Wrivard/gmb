@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
-    "mock:new-review": "node --env-file-if-exists=.env.local scripts/mock-new-review.mjs"
+    "mock:new-review": "node --env-file-if-exists=.env.local scripts/mock-new-review.mjs",
+    "create-user": "node --env-file-if-exists=.env.local scripts/create-user.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

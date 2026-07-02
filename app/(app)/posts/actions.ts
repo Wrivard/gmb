@@ -132,7 +132,7 @@ export async function approvePostAction(postId: string): Promise<ActionResult> {
       .from("posts")
       .update({
         status: "scheduled",
-        approved_by: member.email,
+        approved_by: member.id,
         publish_error: null,
       })
       .eq("id", postId);
