@@ -5,15 +5,17 @@
 
 ## État courant
 
-- **Phase active : 3 — Sync reviews + engine AI réponses**
-- Phases 0 à 2 terminées et committées (build + lint + tests verts).
+- **Phase active : 4 — Inbox Reviews (UI)**
+- Phases 0 à 3 terminées et committées (build + lint + tests verts).
+- Remote GitHub : `Wrivard/gmb` (push autonome autorisé).
 
 ## Phases
 
 - [x] Phase 0 — Fondations ✅ (commit `feat: fondations`)
 - [x] Phase 1 — Auth app + données ✅ (commit `feat: auth Supabase`)
 - [x] Phase 2 — Couche GBP (mock + real) ✅ (commit `feat: couche GBP`)
-- [ ] **Phase 3 — Sync reviews + engine AI réponses** ← en cours
+- [x] Phase 3 — Sync reviews + engine AI ✅ (commit `feat: cron sync-reviews`)
+- [ ] **Phase 4 — Inbox Reviews (UI)** ← en cours
 - [ ] Phase 4 — Inbox Reviews (UI)
 - [ ] Phase 5 — Module Posts
 - [ ] Phase 6 — Dashboard Kanban
@@ -32,19 +34,28 @@
 | 6 | Colonne `posts.angle` ajoutée au schéma | specs/07 exige de stocker l'angle et de le réinjecter pour la rotation des posts. |
 | 7 | Colonne `reviews.was_updated` ajoutée | specs/04 demande un flag quand une review répondue est modifiée. |
 | 8 | Supabase CLI via devDependency `supabase` (npm) | CLI non installé globalement sur la machine; `pnpm exec supabase` suffit. |
-| 9 | Engine AI = API Anthropic avec `ANTHROPIC_API_KEY` (stack imposé par specs/README) | Décision de stack explicite de la spec (« ne pas remettre en question »). Fallback stub tant que la clé manque. ⚠️ À confirmer avec William : conflit avec sa règle globale « zéro coût Claude API » (CLI subscription). |
+| 9 | Engine AI = **OpenAI** (`OPENAI_API_KEY`), pas Anthropic | Décision de William (2026-07-02) — remplace le choix Anthropic de la spec pour éviter tout coût API Claude en double de son abonnement. Fallback stub tant que la clé manque. |
 | 10 | `mock:new-review` = script Node pur (`.mjs`) via `node --env-file-if-exists` | Zéro dépendance ajoutée (pas de tsx/ts-node); Node 24 lit `.env.local` nativement. |
 | 11 | `Relationships: []` ajouté à la vue dans `lib/types/database.ts` | Sans lui, le type `Database` échoue la contrainte `GenericSchema` de supabase-js → toutes les requêtes typées `never`. |
+| 12 | Modèle OpenAI par défaut : `gpt-4.1-mini` (surchargeable via `OPENAI_MODEL`) | Supporte `temperature` (specs/07 exige 0.5/0.7) et `response_format: json_object`, contrairement à la famille gpt-5 (reasoning) qui verrouille la température. Bon ratio qualité/coût pour du texte court. |
+| 13 | Auto-publish des réponses ≥ 4★ fait dans le cron sync (pas un cron séparé) | Le draft vient d'être généré, le client est en main; en cas d'échec → `approved` + `publish_error`, le cron publish (phase 5) sert de filet de retry. |
 
 ## 🧍 Requis de William
 
 - [ ] Checklist Google complète de `specs/00-PREREQUIS-GOOGLE.md` (projet GCP, APIs, OAuth consent, client ID, demande Basic API Access).
-- [ ] Clé `ANTHROPIC_API_KEY` (engine réponses/posts — stub en attendant).
+- [ ] Clé `OPENAI_API_KEY` (engine réponses/posts — stub en attendant).
 - [ ] Clé `GEMINI_API_KEY` (images de posts — placeholder en attendant).
 - [ ] Projet Supabase prod (région `ca-central-1`) au moment du déploiement (Phase 8).
 - [ ] Docker Desktop lancé si tu veux `supabase start` en local (sinon l'app tourne contre un projet Supabase distant).
 
 ## Journal
+
+### Phase 3 — Sync reviews + engine AI (2026-07-02)
+- `lib/gbp/mapping.ts` : mapping GBP → ligne `reviews` + `decideSync` (insert/update/skip, `was_updated`, répondu-ailleurs) — fonctions pures, 12 tests.
+- `lib/ai/` : `openai.ts` (fetch natif, timeout 30 s, 1 retry réseau/5xx, `response_format: json_object`), `prompts.ts` (gabarits specs/07), `parse.ts` (parsing défensif, 8 tests), `replies.ts` (draft + 1 retry de parse, stub déterministe sans clé, log `generation`).
+- `/api/cron/sync-reviews` (GET, `Authorization: Bearer CRON_SECRET`) : clients actifs groupés par compte → `batchGetReviews` paginé → upsert → draft AI immédiat (`draft_ready`) → auto-publish ≥ 4★ si `auto_publish_replies` (échec → `approved` + `publish_error`).
+- `GbpAccessPendingError` du batch → log `gbp_access_pending`, le sync continue sur les autres comptes.
+- `.env.example` : `ANTHROPIC_API_KEY` → `OPENAI_API_KEY` + `OPENAI_MODEL`.
 
 ### Phase 2 — Couche GBP (2026-07-02)
 - `lib/gbp/` : interface `GbpClient` + factory `getGbpClient()` (switch `GBP_MODE`), types GBP.
