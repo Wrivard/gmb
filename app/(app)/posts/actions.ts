@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getSessionContext } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { generatePostForClient, processAndUploadImage } from "@/lib/posts/generate";
 import { publishPost } from "@/lib/posts/publish";
 import { generatePostImage } from "@/lib/ai/images";
@@ -21,7 +21,7 @@ async function requireMember() {
 
 async function loadPostForMember(postId: string) {
   const member = await requireMember();
-  const supabase = createAdminClient();
+  const supabase = await getDb();
 
   const { data: post } = await supabase
     .from("posts")
@@ -51,7 +51,7 @@ export async function generatePostAction(
 ): Promise<ActionResult & { postId?: string }> {
   try {
     const member = await requireMember();
-    const supabase = createAdminClient();
+    const supabase = await getDb();
     const { data: client } = await supabase
       .from("clients")
       .select("*")

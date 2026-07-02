@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionContext } from "@/lib/auth";
 import { encrypt } from "@/lib/crypto";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { runDiscovery } from "@/lib/gbp/discovery";
 import { logActivity } from "@/lib/activity";
 import { clearTokenCache } from "@/lib/google/token";
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const supabase = createAdminClient();
+  const supabase = await getDb();
   await supabase.from("google_connections").upsert(
     {
       agency_id: member.agency_id,

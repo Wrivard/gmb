@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getSessionContext } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { getGbpClient } from "@/lib/gbp/client";
 import { generateReplyDraft } from "@/lib/ai/replies";
 import { logActivity } from "@/lib/activity";
@@ -16,7 +16,7 @@ async function loadReviewForMember(reviewId: string) {
   const { member } = await getSessionContext();
   if (!member) throw new Error("Non autorisé.");
 
-  const supabase = createAdminClient();
+  const supabase = await getDb();
   const { data: review } = await supabase
     .from("reviews")
     .select("*")

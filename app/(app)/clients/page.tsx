@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getSessionContext } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +30,7 @@ export default async function ClientsPage() {
   const { member } = await getSessionContext();
   if (!member) return null; // Le layout gère la whitelist.
 
-  const supabase = createAdminClient();
+  const supabase = await getDb();
   const { data: clients } = await supabase
     .from("clients")
     .select("*")

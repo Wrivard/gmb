@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { getGbpClient } from "./client";
 import type { GbpLocation } from "./types";
 import type { BrandProfile } from "@/lib/types/database";
@@ -45,7 +45,7 @@ export async function runDiscovery(
   actor: string,
 ): Promise<DiscoveryResult> {
   const gbp = getGbpClient();
-  const supabase = createAdminClient();
+  const supabase = await getDb();
 
   const { data: agency } = await supabase
     .from("agencies")

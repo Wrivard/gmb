@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import type { Json } from "@/lib/types/database";
 
 export async function logActivity(entry: {
@@ -10,7 +10,7 @@ export async function logActivity(entry: {
   action: string;
   payload?: Json;
 }): Promise<void> {
-  const supabase = createAdminClient();
+  const supabase = await getDb();
   const { error } = await supabase.from("activity_log").insert({
     agency_id: entry.agencyId ?? null,
     client_id: entry.clientId ?? null,

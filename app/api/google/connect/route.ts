@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { getSessionContext } from "@/lib/auth";
 import { encrypt } from "@/lib/crypto";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { runDiscovery } from "@/lib/gbp/discovery";
 import { logActivity } from "@/lib/activity";
 import { env } from "@/lib/env";
@@ -22,7 +22,7 @@ export async function GET() {
   }
 
   if (env.gbpMode === "mock") {
-    const supabase = createAdminClient();
+    const supabase = await getDb();
     await supabase.from("google_connections").upsert(
       {
         agency_id: member.agency_id,

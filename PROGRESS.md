@@ -44,16 +44,17 @@
 | 12 | Modèle OpenAI par défaut : `gpt-4.1-mini` (surchargeable via `OPENAI_MODEL`) | Supporte `temperature` (specs/07 exige 0.5/0.7) et `response_format: json_object`, contrairement à la famille gpt-5 (reasoning) qui verrouille la température. Bon ratio qualité/coût pour du texte court. |
 | 13 | Auto-publish des réponses ≥ 4★ fait dans le cron sync (pas un cron séparé) | Le draft vient d'être généré, le client est en main; en cas d'échec → `approved` + `publish_error`, le cron publish (phase 5) sert de filet de retry. |
 | 14 | Crons fréquents via GitHub Actions, `vercel.json` ne garde que compute-due | Le plan Vercel Hobby limite ses crons à 1x/jour (erreur au déploiement sinon). GH Actions est gratuit : workflow aux 15 min (publish-posts), sync-reviews aux 30 min via garde sur la minute. Secrets GitHub requis : `CRON_SECRET` + var `APP_URL`. |
+| 15 | `getDb()` : service role si dispo, sinon client de session (RLS) | La clé service_role n'est pas récupérable via le MCP Supabase. Les pages/actions passent par `lib/supabase/db.ts` — RLS membre couvre tout (migration 003 ajoute les policies insert manquantes : activity_log + storage). Les crons gardent `createAdminClient` (pas de session) et exigeront la clé au déploiement. Défense en profondeur en bonus. |
 
 ## 🧍 Requis de William
 
 Tout est encodé dans **DEPLOY.md** (checklist ordonnée). En résumé :
 
-- [ ] **Projet Supabase** (dev et/ou prod `ca-central-1`) + `.env.local` rempli — c'est LE bloqueur : rien n'est testable de bout en bout sans ça (ou Docker Desktop + `supabase start` en local).
+- [x] **Projet Supabase** : `kua-locale` (`czugrjtabomdngbxzhhr`, ca-central-1, free tier) créé le 2026-07-02 via MCP — migrations + seed appliqués, `.env.local` écrit. Compte de William créé (`wrivard@kua.quebec`, mdp temporaire connu de lui). ⚠️ Kua-coif et kua-loop-engine ont été **pausés** pour libérer les slots free (réactivables depuis le dashboard).
+- [ ] Clé `SUPABASE_SERVICE_ROLE_KEY` (dashboard → Settings → API keys) — requise seulement pour les **crons** et le déploiement Vercel; l'app locale fonctionne sans (voir décision #15).
 - [ ] Checklist Google complète de `specs/00-PREREQUIS-GOOGLE.md` (projet GCP, APIs, OAuth consent, client ID, demande Basic API Access).
 - [ ] Clé `OPENAI_API_KEY` (engine réponses/posts — stub déterministe en attendant).
 - [ ] Clé `GEMINI_API_KEY` (images de posts — placeholder « image à ajouter » en attendant).
-- [ ] Smoke test §4 de DEPLOY.md une fois l'env branché (je peux le dérouler dès que `.env.local` existe).
 
 ## Journal
 

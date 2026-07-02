@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { getGbpClient } from "@/lib/gbp/client";
 import { logActivity } from "@/lib/activity";
 import type { LocalPostInput } from "@/lib/gbp/types";
@@ -18,7 +18,7 @@ export async function publishPost(
   fromStatuses: PostStatus[],
   actor: string,
 ): Promise<PublishResult> {
-  const supabase = createAdminClient();
+  const supabase = await getDb();
 
   // Lock optimiste : ne prendre le post que s'il est dans un statut attendu.
   const { data: post } = await supabase

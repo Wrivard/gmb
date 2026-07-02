@@ -1,5 +1,5 @@
 import { getSessionContext } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
 import { torontoParts } from "@/lib/due";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -22,7 +22,7 @@ export default async function DashboardPage() {
   const { member } = await getSessionContext();
   if (!member) return null; // Le layout gère la whitelist.
 
-  const supabase = createAdminClient();
+  const supabase = await getDb();
   const now = new Date();
 
   const [{ data: board }, { data: connection }, { data: clients }] =

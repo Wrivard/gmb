@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getSessionContext } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { runDiscovery } from "@/lib/gbp/discovery";
 import { logActivity } from "@/lib/activity";
 
@@ -38,7 +38,7 @@ export async function toggleClientActiveAction(
 ): Promise<ActionResult> {
   try {
     const member = await requireMember();
-    const supabase = createAdminClient();
+    const supabase = await getDb();
     const { error } = await supabase
       .from("clients")
       .update({ status: active ? "active" : "paused" })
@@ -70,7 +70,7 @@ export async function addMemberAction(
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmed)) {
       return { ok: false, error: "Courriel invalide." };
     }
-    const supabase = createAdminClient();
+    const supabase = await getDb();
     const { error } = await supabase.from("agency_members").insert({
       agency_id: member.agency_id,
       email: trimmed,
@@ -109,7 +109,7 @@ export async function removeMemberAction(
     if (member.id === memberId) {
       return { ok: false, error: "Tu ne peux pas te retirer toi-même." };
     }
-    const supabase = createAdminClient();
+    const supabase = await getDb();
     const { error } = await supabase
       .from("agency_members")
       .delete()
@@ -136,7 +136,7 @@ export async function updateAgencyDefaultsAction(input: {
       return { ok: false, error: "Seul un admin peut modifier les défauts." };
     }
     const posts = Math.max(0, Math.min(10, Math.round(input.defaultPostsPerMonth)));
-    const supabase = createAdminClient();
+    const supabase = await getDb();
     const { error } = await supabase
       .from("agencies")
       .update({

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { frCA } from "date-fns/locale";
 import { getSessionContext } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
 import { isLate, remainingPosts, torontoMonthRange } from "@/lib/due";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -58,7 +58,7 @@ export default async function ClientDetailPage({
   const { member } = await getSessionContext();
   if (!member) return null; // Le layout gère la whitelist.
 
-  const supabase = createAdminClient();
+  const supabase = await getDb();
   const { data: client } = await supabase
     .from("clients")
     .select("*")
@@ -134,7 +134,7 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 async function OverviewTab({ clientId }: { clientId: string }) {
-  const supabase = createAdminClient();
+  const supabase = await getDb();
   const now = new Date();
 
   const [{ data: board }, { data: activity }, { data: reviews }] =
@@ -250,7 +250,7 @@ async function ReviewsTab({
   clientId: string;
   clientName: string;
 }) {
-  const supabase = createAdminClient();
+  const supabase = await getDb();
   const { data: reviews } = await supabase
     .from("reviews")
     .select("*")
@@ -298,7 +298,7 @@ async function PostsTab({
     posts_per_month: number;
   };
 }) {
-  const supabase = createAdminClient();
+  const supabase = await getDb();
   const now = new Date();
   const range = torontoMonthRange(now);
 

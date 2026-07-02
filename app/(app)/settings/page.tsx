@@ -1,7 +1,7 @@
 import { formatDistanceToNow } from "date-fns";
 import { frCA } from "date-fns/locale";
 import { getSessionContext } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { env, supabaseConfigured } from "@/lib/env";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +58,7 @@ export default async function SettingsPage({
   if (!member) return null; // Le layout gère la whitelist.
   const isOwner = member.role === "owner";
 
-  const supabase = createAdminClient();
+  const supabase = await getDb();
   const [
     { data: connection },
     { data: clients },

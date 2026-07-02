@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getSessionContext } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { logActivity } from "@/lib/activity";
 import type { BrandProfile } from "@/lib/types/database";
 
@@ -12,7 +12,7 @@ async function loadClientForMember(clientId: string) {
   const { member } = await getSessionContext();
   if (!member) throw new Error("Non autorisé.");
 
-  const supabase = createAdminClient();
+  const supabase = await getDb();
   const { data: client } = await supabase
     .from("clients")
     .select("*")

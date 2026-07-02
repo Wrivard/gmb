@@ -1,7 +1,7 @@
 import "server-only";
 
 import sharp from "sharp";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { generatePostContent } from "@/lib/ai/posts";
 import { generatePostImage } from "@/lib/ai/images";
 import { logActivity } from "@/lib/activity";
@@ -23,7 +23,7 @@ export async function processAndUploadImage(
   clientId: string,
   postId: string,
 ): Promise<string | null> {
-  const supabase = createAdminClient();
+  const supabase = await getDb();
   const jpeg = await sharp(raw)
     .resize(1200, 900, { fit: "cover" })
     .jpeg({ quality: 85 })
@@ -51,7 +51,7 @@ export async function generatePostForClient(
   actor: string,
   now: Date = new Date(),
 ): Promise<GeneratedPost> {
-  const supabase = createAdminClient();
+  const supabase = await getDb();
   const range = torontoMonthRange(now);
 
   // Contexte du mois : cadence restante + posts récents pour la rotation.

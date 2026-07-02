@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { decrypt } from "@/lib/crypto";
 
 // Gestion du access token Google (specs/02 §B).
@@ -36,7 +36,7 @@ export async function getAccessToken(): Promise<string> {
     return cache.accessToken;
   }
 
-  const supabase = createAdminClient();
+  const supabase = await getDb();
   const { data: connection } = await supabase
     .from("google_connections")
     .select("*")

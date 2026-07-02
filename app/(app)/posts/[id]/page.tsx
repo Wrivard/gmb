@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getSessionContext } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PostEditor } from "./post-editor";
@@ -28,7 +28,7 @@ export default async function PostEditorPage({
   const { member } = await getSessionContext();
   if (!member) return null; // Le layout gère la whitelist.
 
-  const supabase = createAdminClient();
+  const supabase = await getDb();
   const { data: post } = await supabase
     .from("posts")
     .select("*")

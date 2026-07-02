@@ -4,7 +4,7 @@ import { AccessDenied } from "@/components/layout/access-denied";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { GlobalBanners } from "@/components/layout/global-banners";
 import { getSessionContext } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
 
 export default async function AppLayout({
@@ -28,7 +28,7 @@ export default async function AppLayout({
     userRole = member?.role ?? null;
 
     if (member) {
-      const supabase = createAdminClient();
+      const supabase = await getDb();
       const [
         { data: board },
         { data: connection },
