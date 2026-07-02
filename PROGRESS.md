@@ -5,8 +5,8 @@
 
 ## État courant
 
-- **Phase active : 6 — Dashboard Kanban**
-- Phases 0 à 5 terminées et committées (build + lint + tests verts).
+- **Phase active : 7 — Polish & robustesse**
+- Phases 0 à 6 terminées et committées (build + lint + tests verts).
 - Remote GitHub : `Wrivard/gmb` (push autonome autorisé).
 
 ## Phases
@@ -17,7 +17,8 @@
 - [x] Phase 3 — Sync reviews + engine AI ✅ (commit `feat: cron sync-reviews`)
 - [x] Phase 4 — Inbox Reviews (UI) ✅ (commit `feat: inbox reviews`)
 - [x] Phase 5 — Module Posts ✅ (commit `feat: module posts`)
-- [ ] **Phase 6 — Dashboard Kanban** ← en cours
+- [x] Phase 6 — Dashboard Kanban ✅ (commit `feat: dashboard kanban`)
+- [ ] **Phase 7 — Polish & robustesse** ← en cours
 - [ ] Phase 4 — Inbox Reviews (UI)
 - [ ] Phase 5 — Module Posts
 - [ ] Phase 6 — Dashboard Kanban
@@ -51,6 +52,14 @@
 - [ ] Docker Desktop lancé si tu veux `supabase start` en local (sinon l'app tourne contre un projet Supabase distant).
 
 ## Journal
+
+### Phase 6 — Dashboard Kanban (2026-07-02)
+- `/` : kanban d'états calculés sur la vue `client_board_state` — 4 colonnes priorisées (Reviews à répondre → Posts dus → En attente d'approbation → À jour), un client = une colonne, animations layout.
+- Cartes : badges compteurs cliquables (→ onglet filtré de la fiche), pire note en attente, note moyenne + total d'avis, liseré rouge si retard (review > 72 h ou posts dus passé le 20), actions rapides au hover (Répondre / Générer).
+- Header contextuel : compteurs globaux, CTA « Traiter les reviews (X) » sinon « Générer les posts dus (Y) », pastille sync (vert/rouge « Reconnexion requise »).
+- Realtime : migration `20260702000002` (publication `supabase_realtime` sur reviews + posts) + `<RealtimeRefresh>` (router.refresh débouncé 400 ms).
+- Fiche client `/clients/[id]` : 4 onglets URL-addressables (`?tab=`) — Aperçu (6 stats + activité récente), Reviews (ReviewsInbox réutilisé filtré), Posts (PostsView réutilisé mono-client), Réglages (cadence, langue, 2 toggles auto-publish avec avertissement, statut, `brand_profile` complet).
+- `/clients` : liste des fiches (placeholder remplacé — la page indiquait « livré en phase 2 » à tort).
 
 ### Phase 5 — Module Posts (2026-07-02)
 - `lib/due.ts` (+ 10 tests) : restants du mois, retard (> 20 du mois), suggestion de dates (réparties, jours de semaine, 10 h, fuseau America/Toronto sans dépendance — conversion itérative via `Intl`).
