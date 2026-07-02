@@ -5,8 +5,8 @@
 
 ## État courant
 
-- **Phase active : 7 — Polish & robustesse**
-- Phases 0 à 6 terminées et committées (build + lint + tests verts).
+- **Phase active : 8 — Prod readiness** 🧍
+- Phases 0 à 7 terminées et committées (build + lint + tests verts).
 - Remote GitHub : `Wrivard/gmb` (push autonome autorisé).
 
 ## Phases
@@ -18,7 +18,8 @@
 - [x] Phase 4 — Inbox Reviews (UI) ✅ (commit `feat: inbox reviews`)
 - [x] Phase 5 — Module Posts ✅ (commit `feat: module posts`)
 - [x] Phase 6 — Dashboard Kanban ✅ (commit `feat: dashboard kanban`)
-- [ ] **Phase 7 — Polish & robustesse** ← en cours
+- [x] Phase 7 — Polish & robustesse ✅ (commit `polish: ...`)
+- [ ] **Phase 8 — Prod readiness** 🧍 ← en cours
 - [ ] Phase 4 — Inbox Reviews (UI)
 - [ ] Phase 5 — Module Posts
 - [ ] Phase 6 — Dashboard Kanban
@@ -52,6 +53,14 @@
 - [ ] Docker Desktop lancé si tu veux `supabase start` en local (sinon l'app tourne contre un projet Supabase distant).
 
 ## Journal
+
+### Phase 7 — Polish & robustesse (2026-07-02)
+- Command palette ⌘K (cmdk) : recherche client + navigation, câblée au bouton de la topbar.
+- Sidebar : pastilles compteurs (reviews en attente, posts dus) alimentées par la vue board.
+- Banners globaux : rouge « Connexion Google expirée » (status `revoked`), bleu « Accès API en attente d'approbation » (log `gbp_access_pending` < 24 h).
+- Inbox reviews : toast undo sur « Ignorer » (action `unignoreReviewAction`), hint quand un draft a été régénéré ≥ 3 fois (enrichir le brand_profile), modal `?` des raccourcis clavier.
+- Skeletons `loading.tsx` : app (kanban), reviews, posts, fiche client — jamais de spinner plein écran.
+- Non fait (assumé) : micro-texte rotatif des boutons AI (statique « Rédaction… »), audit Lighthouse (impossible sans env branché — au smoke test de la phase 8).
 
 ### Phase 6 — Dashboard Kanban (2026-07-02)
 - `/` : kanban d'états calculés sur la vue `client_board_state` — 4 colonnes priorisées (Reviews à répondre → Posts dus → En attente d'approbation → À jour), un client = une colonne, animations layout.

@@ -39,7 +39,7 @@ export default async function ReviewsPage() {
   const { data: replies } = reviewIds.length
     ? await supabase
         .from("review_replies")
-        .select("review_id, draft_text, published_text")
+        .select("review_id, draft_text, published_text, generation_count")
         .in("review_id", reviewIds)
     : { data: [] };
   const replyByReview = new Map(
@@ -60,6 +60,7 @@ export default async function ReviewsPage() {
       wasUpdated: review.was_updated,
       draftText: reply?.draft_text ?? null,
       publishedText: reply?.published_text ?? null,
+      generationCount: reply?.generation_count ?? 0,
     };
   });
 

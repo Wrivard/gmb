@@ -36,6 +36,9 @@ export function Topbar() {
       <div className="flex-1" />
       <button
         type="button"
+        onClick={() =>
+          window.dispatchEvent(new Event("kua:open-command-palette"))
+        }
         className="flex items-center gap-2 rounded-md border border-border bg-elevated px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-hover"
       >
         <Search className="size-3.5" />

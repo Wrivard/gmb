@@ -1,0 +1,26 @@
+import { Skeleton } from "@/components/ui/skeleton";
+
+export default function PostsLoading() {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-6 w-32" />
+        <Skeleton className="h-4 w-80" />
+      </div>
+      <div className="flex gap-2">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="ml-auto h-8 w-56" />
+      </div>
+      {Array.from({ length: 3 }).map((_, section) => (
+        <div key={section} className="flex flex-col gap-2">
+          <Skeleton className="h-4 w-32" />
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, card) => (
+              <Skeleton key={card} className="h-24 w-full rounded-lg" />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

@@ -27,9 +27,16 @@ import { StarRating } from "@/components/reviews/star-rating";
 import { cn } from "@/lib/utils";
 import type { ReviewStatus } from "@/lib/types/database";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   ignoreReviewAction,
   publishReplyAction,
   regenerateReplyAction,
+  unignoreReviewAction,
 } from "./actions";
 
 export interface InboxReview {
@@ -44,6 +51,7 @@ export interface InboxReview {
   wasUpdated: boolean;
   draftText: string | null;
   publishedText: string | null;
+  generationCount: number;
 }
 
 const MAX_REPLY_LENGTH = 4096;
@@ -82,6 +90,7 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>("all");
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   const merged = useMemo(
     () => reviews.map((r) => ({ ...r, ...overrides[r.id] })),
@@ -142,6 +151,11 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
       }
       if (typing) return;
 
+      if (event.key === "?") {
+        event.preventDefault();
+        setShortcutsOpen(true);
+        return;
+      }
       if (event.key === "j" || event.key === "k") {
         event.preventDefault();
         const ids = visible.map((r) => r.id);
@@ -228,13 +242,43 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
           </SelectContent>
         </Select>
 
-        <span className="ml-auto text-xs text-muted-foreground">
-          <kbd className="rounded border border-border px-1">j</kbd>/
-          <kbd className="rounded border border-border px-1">k</kbd> naviguer ·{" "}
-          <kbd className="rounded border border-border px-1">e</kbd> éditer ·{" "}
-          <kbd className="rounded border border-border px-1">⌘↵</kbd> publier
-        </span>
+        <button
+          type="button"
+          onClick={() => setShortcutsOpen(true)}
+          className="ml-auto text-xs text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Raccourcis <kbd className="rounded border border-border px-1">?</kbd>
+        </button>
       </div>
+
+      <Dialog open={shortcutsOpen} onOpenChange={setShortcutsOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Raccourcis clavier</DialogTitle>
+          </DialogHeader>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+            {(
+              [
+                ["j / k", "Naviguer entre les reviews"],
+                ["e", "Éditer le draft sélectionné"],
+                ["⌘↵ / Ctrl↵", "Publier la réponse"],
+                ["Échap", "Fermer le panneau"],
+                ["⌘K / CtrlK", "Rechercher un client"],
+                ["?", "Afficher cette aide"],
+              ] as const
+            ).map(([key, label]) => (
+              <div key={key} className="contents">
+                <dt>
+                  <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs">
+                    {key}
+                  </kbd>
+                </dt>
+                <dd className="text-muted-foreground">{label}</dd>
+              </div>
+            ))}
+          </dl>
+        </DialogContent>
+      </Dialog>
 
       {visible.length === 0 ? (
         <div className="rounded-lg border border-border bg-elevated px-6 py-16 text-center">
@@ -440,7 +484,15 @@ function ReplyPanel({
     startIgnore(async () => {
       const result = await ignoreReviewAction(review.id);
       if (result.ok) {
-        toast.success("Review ignorée.");
+        toast.success("Review ignorée.", {
+          action: {
+            label: "Annuler",
+            onClick: () => {
+              onOverride(review.id, { status: snapshot });
+              void unignoreReviewAction(review.id);
+            },
+          },
+        });
       } else {
         onOverride(review.id, { status: snapshot });
         toast.error(result.error);
@@ -450,6 +502,13 @@ function ReplyPanel({
 
   return (
     <div className="flex flex-col gap-3 border-t border-border px-4 py-3">
+      {review.generationCount >= 3 && (
+        <p className="text-xs text-amber-500">
+          Ce draft a été régénéré {review.generationCount} fois — le profil de
+          marque du client mérite probablement d&apos;être enrichi (fiche
+          client → Réglages).
+        </p>
+      )}
       <Textarea
         id={`draft-${review.id}`}
         value={text}

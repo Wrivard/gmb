@@ -144,6 +144,36 @@ export async function regenerateReplyAction(
   }
 }
 
+/** Annule un « Ignorer » (toast undo) : redonne le statut d'attente. */
+export async function unignoreReviewAction(
+  reviewId: string,
+): Promise<ActionResult> {
+  try {
+    const { supabase, review } = await loadReviewForMember(reviewId);
+    if (review.status !== "ignored") return { ok: true };
+
+    const { data: reply } = await supabase
+      .from("review_replies")
+      .select("draft_text")
+      .eq("review_id", review.id)
+      .maybeSingle();
+
+    await supabase
+      .from("reviews")
+      .update({ status: reply?.draft_text ? "draft_ready" : "needs_reply" })
+      .eq("id", review.id);
+
+    revalidatePath("/reviews");
+    revalidatePath("/");
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "L'annulation a échoué.",
+    };
+  }
+}
+
 export async function ignoreReviewAction(
   reviewId: string,
 ): Promise<ActionResult> {

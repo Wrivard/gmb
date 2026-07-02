@@ -23,11 +23,19 @@ const navItems = [
 export function Sidebar({
   userEmail,
   userRole,
+  pendingReviews = 0,
+  postsDue = 0,
 }: {
   userEmail: string | null;
   userRole: string | null;
+  pendingReviews?: number;
+  postsDue?: number;
 }) {
   const pathname = usePathname();
+  const counters: Record<string, number> = {
+    "/reviews": pendingReviews,
+    "/posts": postsDue,
+  };
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-border bg-sidebar">
@@ -55,6 +63,11 @@ export function Sidebar({
             >
               <Icon className="size-4" strokeWidth={active ? 2.2 : 1.8} />
               <span className="flex-1">{label}</span>
+              {(counters[href] ?? 0) > 0 && (
+                <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground tabular-nums">
+                  {counters[href]}
+                </span>
+              )}
             </Link>
           );
         })}
