@@ -5,8 +5,8 @@
 
 ## État courant
 
-- **Phase active : 4 — Inbox Reviews (UI)**
-- Phases 0 à 3 terminées et committées (build + lint + tests verts).
+- **Phase active : 5 — Module Posts**
+- Phases 0 à 4 terminées et committées (build + lint + tests verts).
 - Remote GitHub : `Wrivard/gmb` (push autonome autorisé).
 
 ## Phases
@@ -15,7 +15,8 @@
 - [x] Phase 1 — Auth app + données ✅ (commit `feat: auth Supabase`)
 - [x] Phase 2 — Couche GBP (mock + real) ✅ (commit `feat: couche GBP`)
 - [x] Phase 3 — Sync reviews + engine AI ✅ (commit `feat: cron sync-reviews`)
-- [ ] **Phase 4 — Inbox Reviews (UI)** ← en cours
+- [x] Phase 4 — Inbox Reviews (UI) ✅ (commit `feat: inbox reviews`)
+- [ ] **Phase 5 — Module Posts** ← en cours
 - [ ] Phase 4 — Inbox Reviews (UI)
 - [ ] Phase 5 — Module Posts
 - [ ] Phase 6 — Dashboard Kanban
@@ -49,6 +50,13 @@
 - [ ] Docker Desktop lancé si tu veux `supabase start` en local (sinon l'app tourne contre un projet Supabase distant).
 
 ## Journal
+
+### Phase 4 — Inbox Reviews (2026-07-02)
+- `/reviews` complet (specs/05) : liste triée date desc, filtres statut (« En attente » par défaut) / client / note (4–5, 1–3), panneau de réponse inline (textarea éditable, compteur /4096).
+- Actions : Publier (`putReviewReply` via Server Action, optimistic + rollback/toast), Régénérer avec directive optionnelle (réinjecte le draft précédent), Ignorer.
+- Raccourcis clavier : `j`/`k` naviguer, `e` éditer, `⌘↵` publier, `Esc` fermer (légende dans la barre de filtres).
+- Badges d'ancienneté (rouge si > 72 h en attente), badge « Avis modifié » (`was_updated`), animations Framer Motion (layout + fade des items traités).
+- `<StarRating>` réutilisable (`components/reviews/`), empty state « Aucune review en attente 🎉 ».
 
 ### Phase 3 — Sync reviews + engine AI (2026-07-02)
 - `lib/gbp/mapping.ts` : mapping GBP → ligne `reviews` + `decideSync` (insert/update/skip, `was_updated`, répondu-ailleurs) — fonctions pures, 12 tests.

@@ -1,0 +1,516 @@
+"use client";
+
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+} from "react";
+import { formatDistanceToNow } from "date-fns";
+import { frCA } from "date-fns/locale";
+import { motion, AnimatePresence } from "framer-motion";
+import { Sparkles } from "lucide-react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { StarRating } from "@/components/reviews/star-rating";
+import { cn } from "@/lib/utils";
+import type { ReviewStatus } from "@/lib/types/database";
+import {
+  ignoreReviewAction,
+  publishReplyAction,
+  regenerateReplyAction,
+} from "./actions";
+
+export interface InboxReview {
+  id: string;
+  clientId: string;
+  clientName: string;
+  reviewerName: string | null;
+  starRating: number;
+  comment: string | null;
+  createdAt: string;
+  status: ReviewStatus;
+  wasUpdated: boolean;
+  draftText: string | null;
+  publishedText: string | null;
+}
+
+const MAX_REPLY_LENGTH = 4096;
+const PENDING_STATUSES: ReviewStatus[] = [
+  "needs_reply",
+  "draft_ready",
+  "approved",
+];
+
+type StatusFilter = "pending" | "all" | "replied" | "ignored";
+type RatingFilter = "all" | "high" | "low";
+
+function isPending(status: ReviewStatus): boolean {
+  return PENDING_STATUSES.includes(status);
+}
+
+function ageInHours(iso: string): number {
+  return (Date.now() - new Date(iso).getTime()) / 3600_000;
+}
+
+function initials(name: string | null): string {
+  if (!name) return "?";
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((part) => part[0] ?? "")
+    .join("")
+    .toUpperCase();
+}
+
+export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
+  const [overrides, setOverrides] = useState<
+    Record<string, Partial<InboxReview>>
+  >({});
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
+  const [ratingFilter, setRatingFilter] = useState<RatingFilter>("all");
+  const [clientFilter, setClientFilter] = useState<string>("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const merged = useMemo(
+    () => reviews.map((r) => ({ ...r, ...overrides[r.id] })),
+    [reviews, overrides],
+  );
+
+  const clients = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const review of reviews) map.set(review.clientId, review.clientName);
+    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [reviews]);
+
+  const visible = useMemo(
+    () =>
+      merged.filter((review) => {
+        if (statusFilter === "pending" && !isPending(review.status))
+          return false;
+        if (statusFilter === "replied" && review.status !== "replied")
+          return false;
+        if (statusFilter === "ignored" && review.status !== "ignored")
+          return false;
+        if (ratingFilter === "high" && review.starRating < 4) return false;
+        if (ratingFilter === "low" && review.starRating > 3) return false;
+        if (clientFilter !== "all" && review.clientId !== clientFilter)
+          return false;
+        return true;
+      }),
+    [merged, statusFilter, ratingFilter, clientFilter],
+  );
+
+  const applyOverride = useCallback(
+    (id: string, patch: Partial<InboxReview> | null) => {
+      setOverrides((prev) => {
+        if (patch === null) {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        }
+        return { ...prev, [id]: { ...prev[id], ...patch } };
+      });
+    },
+    [],
+  );
+
+  // Raccourcis clavier : j/k naviguer, e éditer, Escape fermer (specs/05).
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement;
+      const typing =
+        target.tagName === "TEXTAREA" ||
+        target.tagName === "INPUT" ||
+        target.isContentEditable;
+
+      if (event.key === "Escape") {
+        setSelectedId(null);
+        (target as HTMLElement).blur?.();
+        return;
+      }
+      if (typing) return;
+
+      if (event.key === "j" || event.key === "k") {
+        event.preventDefault();
+        const ids = visible.map((r) => r.id);
+        if (!ids.length) return;
+        const index = selectedId ? ids.indexOf(selectedId) : -1;
+        const next =
+          event.key === "j"
+            ? ids[Math.min(index + 1, ids.length - 1)]
+            : ids[Math.max(index - 1, 0)];
+        setSelectedId(next);
+        document
+          .getElementById(`review-${next}`)
+          ?.scrollIntoView({ block: "nearest" });
+      }
+      if (event.key === "e" && selectedId) {
+        event.preventDefault();
+        document
+          .getElementById(`draft-${selectedId}`)
+          ?.focus();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [visible, selectedId]);
+
+  const pendingCount = merged.filter((r) => isPending(r.status)).length;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1 rounded-lg border border-border bg-elevated p-1">
+          {(
+            [
+              ["pending", `En attente (${pendingCount})`],
+              ["all", "Toutes"],
+              ["replied", "Répondues"],
+              ["ignored", "Ignorées"],
+            ] as Array<[StatusFilter, string]>
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setStatusFilter(value)}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-sm transition-colors",
+                statusFilter === value
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <Select
+          value={clientFilter}
+          onValueChange={(v) => setClientFilter(v as string)}
+        >
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les clients</SelectItem>
+            {clients.map(([id, name]) => (
+              <SelectItem key={id} value={id}>
+                {name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={ratingFilter}
+          onValueChange={(v) => setRatingFilter(v as RatingFilter)}
+        >
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Toutes les notes</SelectItem>
+            <SelectItem value="high">4–5 ★</SelectItem>
+            <SelectItem value="low">1–3 ★</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <span className="ml-auto text-xs text-muted-foreground">
+          <kbd className="rounded border border-border px-1">j</kbd>/
+          <kbd className="rounded border border-border px-1">k</kbd> naviguer ·{" "}
+          <kbd className="rounded border border-border px-1">e</kbd> éditer ·{" "}
+          <kbd className="rounded border border-border px-1">⌘↵</kbd> publier
+        </span>
+      </div>
+
+      {visible.length === 0 ? (
+        <div className="rounded-lg border border-border bg-elevated px-6 py-16 text-center">
+          <p className="text-lg">
+            {statusFilter === "pending"
+              ? "Aucune review en attente 🎉"
+              : "Aucune review ne correspond aux filtres."}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {statusFilter === "pending"
+              ? "Tout est répondu. Le sync tourne aux 30 minutes."
+              : "Ajuste les filtres pour voir plus de reviews."}
+          </p>
+        </div>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          <AnimatePresence initial={false}>
+            {visible.map((review) => (
+              <motion.li
+                key={review.id}
+                layout
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+              >
+                <ReviewItem
+                  review={review}
+                  selected={selectedId === review.id}
+                  onSelect={() =>
+                    setSelectedId((current) =>
+                      current === review.id ? null : review.id,
+                    )
+                  }
+                  onOverride={applyOverride}
+                />
+              </motion.li>
+            ))}
+          </AnimatePresence>
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ReviewItem({
+  review,
+  selected,
+  onSelect,
+  onOverride,
+}: {
+  review: InboxReview;
+  selected: boolean;
+  onSelect: () => void;
+  onOverride: (id: string, patch: Partial<InboxReview> | null) => void;
+}) {
+  const pending = isPending(review.status);
+  const late = pending && ageInHours(review.createdAt) > 72;
+
+  return (
+    <div
+      id={`review-${review.id}`}
+      className={cn(
+        "rounded-lg border bg-elevated transition-colors",
+        selected ? "border-ring" : "border-border",
+      )}
+    >
+      <button
+        type="button"
+        onClick={onSelect}
+        className="flex w-full items-start gap-3 px-4 py-3 text-left"
+      >
+        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
+          {initials(review.reviewerName)}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium">
+              {review.reviewerName ?? "Utilisateur Google"}
+            </span>
+            <StarRating value={review.starRating} size="sm" />
+            <Badge variant="outline">{review.clientName}</Badge>
+            {review.wasUpdated && (
+              <Badge variant="secondary">Avis modifié</Badge>
+            )}
+            <StatusBadge status={review.status} />
+          </span>
+          {review.comment ? (
+            <span
+              className={cn(
+                "mt-1 block text-sm text-muted-foreground",
+                !selected && "line-clamp-2",
+              )}
+            >
+              {review.comment}
+            </span>
+          ) : (
+            <span className="mt-1 block text-sm italic text-muted-foreground">
+              (avis sans texte)
+            </span>
+          )}
+        </span>
+        <span className="flex shrink-0 flex-col items-end gap-1">
+          <span
+            className={cn(
+              "text-xs",
+              late ? "font-medium text-destructive" : "text-muted-foreground",
+            )}
+          >
+            {formatDistanceToNow(new Date(review.createdAt), {
+              addSuffix: true,
+              locale: frCA,
+            })}
+          </span>
+          {late && <Badge variant="destructive">&gt; 72 h</Badge>}
+        </span>
+      </button>
+
+      {selected && pending && (
+        <ReplyPanel review={review} onOverride={onOverride} />
+      )}
+      {selected && review.status === "replied" && review.publishedText && (
+        <div className="border-t border-border px-4 py-3">
+          <p className="text-xs font-medium text-muted-foreground">
+            Réponse publiée
+          </p>
+          <p className="mt-1 whitespace-pre-wrap text-sm">
+            {review.publishedText}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: ReviewStatus }) {
+  switch (status) {
+    case "needs_reply":
+      return <Badge variant="destructive">Sans draft</Badge>;
+    case "draft_ready":
+      return <Badge variant="default">Draft prêt</Badge>;
+    case "approved":
+      return <Badge variant="secondary">À publier</Badge>;
+    case "replied":
+      return <Badge variant="secondary">Répondue</Badge>;
+    case "ignored":
+      return <Badge variant="outline">Ignorée</Badge>;
+  }
+}
+
+function ReplyPanel({
+  review,
+  onOverride,
+}: {
+  review: InboxReview;
+  onOverride: (id: string, patch: Partial<InboxReview> | null) => void;
+}) {
+  const [text, setText] = useState(review.draftText ?? "");
+  const [directive, setDirective] = useState("");
+  const [publishing, startPublish] = useTransition();
+  const [regenerating, startRegenerate] = useTransition();
+  const [ignoring, startIgnore] = useTransition();
+
+  const busy = publishing || regenerating || ignoring;
+
+  function publish() {
+    const snapshot = review.status;
+    // Optimistic : l'item quitte la liste « en attente » immédiatement.
+    onOverride(review.id, { status: "replied", publishedText: text.trim() });
+    startPublish(async () => {
+      const result = await publishReplyAction(review.id, text);
+      if (result.ok) {
+        toast.success("Réponse publiée.");
+      } else {
+        onOverride(review.id, { status: snapshot, publishedText: null });
+        toast.error(result.error);
+      }
+    });
+  }
+
+  function regenerate() {
+    startRegenerate(async () => {
+      const result = await regenerateReplyAction(
+        review.id,
+        directive || undefined,
+      );
+      if (result.ok && result.draft) {
+        setText(result.draft);
+        setDirective("");
+        onOverride(review.id, {
+          status: "draft_ready",
+          draftText: result.draft,
+        });
+      } else if (!result.ok) {
+        toast.error(result.error);
+      }
+    });
+  }
+
+  function ignore() {
+    const snapshot = review.status;
+    onOverride(review.id, { status: "ignored" });
+    startIgnore(async () => {
+      const result = await ignoreReviewAction(review.id);
+      if (result.ok) {
+        toast.success("Review ignorée.");
+      } else {
+        onOverride(review.id, { status: snapshot });
+        toast.error(result.error);
+      }
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-border px-4 py-3">
+      <Textarea
+        id={`draft-${review.id}`}
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        onKeyDown={(event) => {
+          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+            event.preventDefault();
+            if (text.trim() && !busy) publish();
+          }
+        }}
+        rows={4}
+        maxLength={MAX_REPLY_LENGTH}
+        placeholder={
+          review.status === "needs_reply"
+            ? "Pas encore de draft — régénère ou écris la réponse."
+            : undefined
+        }
+        className="text-sm"
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          onClick={publish}
+          disabled={busy || !text.trim()}
+        >
+          {publishing ? "Publication…" : "Publier"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={regenerate}
+          disabled={busy}
+        >
+          <Sparkles />
+          {regenerating ? "Rédaction…" : "Régénérer"}
+        </Button>
+        <Input
+          value={directive}
+          onChange={(event) => setDirective(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !busy) {
+              event.preventDefault();
+              regenerate();
+            }
+          }}
+          placeholder="Directive (optionnel) : « plus court », « mentionne la garantie »…"
+          className="h-7 w-80 text-xs"
+        />
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={ignore}
+          disabled={busy}
+          className="ml-auto text-muted-foreground"
+        >
+          {ignoring ? "…" : "Ignorer"}
+        </Button>
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {text.length}/{MAX_REPLY_LENGTH}
+        </span>
+      </div>
+    </div>
+  );
+}
