@@ -1,0 +1,36 @@
+# Crons fréquents via GitHub Actions — le plan Hobby de Vercel limite
+# ses crons à 1x/jour (seul compute-due y reste, voir vercel.json).
+# Requiert : secret CRON_SECRET + variable APP_URL (Settings → Secrets
+# and variables → Actions).
+name: crons
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  publish-posts:
+    runs-on: ubuntu-latest
+    if: vars.APP_URL != ''
+    steps:
+      - name: publish-posts (aux 15 min)
+        run: |
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ vars.APP_URL }}/api/cron/publish-posts"
+
+  sync-reviews:
+    runs-on: ubuntu-latest
+    if: vars.APP_URL != ''
+    steps:
+      - name: sync-reviews (aux 30 min — on saute :15 et :45)
+        run: |
+          minute=$(date -u +%M)
+          if [ "$minute" -ge 15 ] && [ "$minute" -lt 30 ] || [ "$minute" -ge 45 ]; then
+            echo "Pas l'heure du sync (minute $minute) — skip."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ vars.APP_URL }}/api/cron/sync-reviews"

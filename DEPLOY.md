@@ -41,7 +41,12 @@ Checklist de mise en production. Ordre recommandé : Supabase → Vercel → Goo
    | `CRON_SECRET` | `openssl rand -hex 32` — Vercel l'injecte automatiquement en header `Authorization: Bearer` sur les crons |
    | `NEXT_PUBLIC_APP_URL` | `https://<domaine>` |
 
-3. Crons (déclarés dans `vercel.json`) : sync-reviews aux 30 min, publish-posts aux 15 min, compute-due 1x/jour. Vérifier dans l'onglet Crons après le premier déploiement.
+3. Crons — le plan Hobby de Vercel limite ses crons à **1x/jour** :
+   - `vercel.json` ne porte que `compute-due` (quotidien, autorisé sur Hobby).
+   - Les crons fréquents (sync-reviews aux 30 min, publish-posts aux 15 min) passent par **GitHub Actions** (`.github/workflows/crons.yml`, gratuit). Configurer dans le repo GitHub → Settings → Secrets and variables → Actions :
+     - secret `CRON_SECRET` = la même valeur que sur Vercel;
+     - variable `APP_URL` = `https://<domaine>` (sans slash final).
+   - Sur plan Pro : remettre les 3 crons dans `vercel.json` et supprimer le workflow si désiré.
 
 ## 3. Google Cloud (checklist complète : specs/00-PREREQUIS-GOOGLE.md)
 

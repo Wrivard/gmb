@@ -43,6 +43,7 @@
 | 11 | `Relationships: []` ajouté à la vue dans `lib/types/database.ts` | Sans lui, le type `Database` échoue la contrainte `GenericSchema` de supabase-js → toutes les requêtes typées `never`. |
 | 12 | Modèle OpenAI par défaut : `gpt-4.1-mini` (surchargeable via `OPENAI_MODEL`) | Supporte `temperature` (specs/07 exige 0.5/0.7) et `response_format: json_object`, contrairement à la famille gpt-5 (reasoning) qui verrouille la température. Bon ratio qualité/coût pour du texte court. |
 | 13 | Auto-publish des réponses ≥ 4★ fait dans le cron sync (pas un cron séparé) | Le draft vient d'être généré, le client est en main; en cas d'échec → `approved` + `publish_error`, le cron publish (phase 5) sert de filet de retry. |
+| 14 | Crons fréquents via GitHub Actions, `vercel.json` ne garde que compute-due | Le plan Vercel Hobby limite ses crons à 1x/jour (erreur au déploiement sinon). GH Actions est gratuit : workflow aux 15 min (publish-posts), sync-reviews aux 30 min via garde sur la minute. Secrets GitHub requis : `CRON_SECRET` + var `APP_URL`. |
 
 ## 🧍 Requis de William
 
