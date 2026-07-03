@@ -21,6 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { DemoBanner } from "@/components/layout/demo-banner";
+import { demoClientRows } from "@/lib/demo";
 import { ResyncButton } from "./resync-button";
 import { ClientActiveToggle } from "./client-toggle";
 import { TeamSection } from "./team-section";
@@ -45,12 +47,111 @@ export default async function SettingsPage({
 
   if (!supabaseConfigured()) {
     return (
-      <Alert>
-        <AlertDescription>
-          Supabase n&apos;est pas encore configuré — remplis les variables dans
-          `.env.local` (voir PROGRESS.md).
-        </AlertDescription>
-      </Alert>
+      <div className="flex max-w-4xl flex-col gap-6">
+        <DemoBanner />
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Réglages</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Connexion Google de l&apos;agence, fiches clients, équipe et
+            défauts.
+          </p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Connexion Google</CardTitle>
+            <CardDescription>
+              Le compte manager qui donne accès aux fiches Google Business
+              Profile des clients.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-center gap-4">
+            <p className="flex-1 text-sm text-muted-foreground">
+              Aucun compte Google connecté. Les fiches clients apparaîtront
+              automatiquement après la connexion.
+            </p>
+            <Button size="sm" disabled>
+              Connecter Google
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Fiches clients</CardTitle>
+            <CardDescription>
+              Les fiches découvertes sur le compte connecté.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Catégorie</TableHead>
+                  <TableHead>Statut</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {demoClientRows().map((client) => (
+                  <TableRow key={client.id}>
+                    <TableCell className="font-medium">
+                      {client.name}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {client.primary_category ?? "—"}
+                    </TableCell>
+                    <TableCell>
+                      {client.status === "active" ? (
+                        <Badge variant="default">Actif</Badge>
+                      ) : (
+                        <Badge variant="secondary">En pause</Badge>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Équipe</CardTitle>
+            <CardDescription>
+              Les membres autorisés à se connecter à l&apos;app.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Courriel</TableHead>
+                  <TableHead>Rôle</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow>
+                  <TableCell className="font-medium">
+                    wrivard@kua.quebec
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="default">Admin</Badge>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium">
+                    gestion@kua.quebec
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">Membre</Badge>
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 

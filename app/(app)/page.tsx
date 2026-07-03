@@ -2,20 +2,32 @@ import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
 import { torontoParts } from "@/lib/due";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RealtimeRefresh } from "@/components/dashboard/realtime-refresh";
+import { DemoBanner } from "@/components/layout/demo-banner";
+import { demoBoardClients } from "@/lib/demo";
 import { DashboardKanban, type BoardClient } from "./kanban";
 import { DashboardHeader } from "./dashboard-header";
 
 export default async function DashboardPage() {
   if (!supabaseConfigured()) {
+    const demoClients = demoBoardClients();
     return (
-      <Alert>
-        <AlertDescription>
-          Supabase n&apos;est pas encore configuré — remplis les variables dans
-          `.env.local` (voir PROGRESS.md).
-        </AlertDescription>
-      </Alert>
+      <div className="flex flex-col gap-5">
+        <DemoBanner />
+        <DashboardHeader
+          totals={{
+            unreplied: demoClients.reduce((sum, c) => sum + c.unreplied, 0),
+            postsDue: demoClients.reduce((sum, c) => sum + c.postsDue, 0),
+            drafts: demoClients.reduce(
+              (sum, c) => sum + c.draftReplies + c.draftPosts,
+              0,
+            ),
+          }}
+          connectionStatus={null}
+          lastSyncedAt={null}
+        />
+        <DashboardKanban clients={demoClients} />
+      </div>
     );
   }
 

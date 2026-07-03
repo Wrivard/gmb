@@ -2,7 +2,8 @@ import Link from "next/link";
 import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { DemoBanner } from "@/components/layout/demo-banner";
+import { demoClientRows, type DemoClientRow } from "@/lib/demo";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -16,29 +17,27 @@ import {
 export const metadata = { title: "Clients" };
 
 export default async function ClientsPage() {
-  if (!supabaseConfigured()) {
-    return (
-      <Alert>
-        <AlertDescription>
-          Supabase n&apos;est pas encore configuré — remplis les variables dans
-          `.env.local` (voir PROGRESS.md).
-        </AlertDescription>
-      </Alert>
-    );
+  const demo = !supabaseConfigured();
+  let clients: DemoClientRow[] = [];
+
+  if (demo) {
+    clients = demoClientRows();
+  } else {
+    const { member } = await getSessionContext();
+    if (!member) return null; // Le layout gère la whitelist.
+
+    const supabase = await getDb();
+    const { data } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("agency_id", member.agency_id)
+      .order("name");
+    clients = data ?? [];
   }
-
-  const { member } = await getSessionContext();
-  if (!member) return null; // Le layout gère la whitelist.
-
-  const supabase = await getDb();
-  const { data: clients } = await supabase
-    .from("clients")
-    .select("*")
-    .eq("agency_id", member.agency_id)
-    .order("name");
 
   return (
     <div className="flex flex-col gap-4">
+      {demo && <DemoBanner />}
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Clients</h1>
         <p className="mt-1 text-sm text-muted-foreground">

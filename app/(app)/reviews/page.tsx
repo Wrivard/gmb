@@ -1,7 +1,8 @@
 import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { DemoBanner } from "@/components/layout/demo-banner";
+import { demoInboxReviews } from "@/lib/demo";
 import { ReviewsInbox, type InboxReview } from "./reviews-inbox";
 
 export const metadata = { title: "Reviews" };
@@ -9,12 +10,18 @@ export const metadata = { title: "Reviews" };
 export default async function ReviewsPage() {
   if (!supabaseConfigured()) {
     return (
-      <Alert>
-        <AlertDescription>
-          Supabase n&apos;est pas encore configuré — remplis les variables dans
-          `.env.local` (voir PROGRESS.md).
-        </AlertDescription>
-      </Alert>
+      <div className="flex flex-col gap-4">
+        <DemoBanner />
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">
+            Inbox Reviews
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Lis le draft, ajuste au besoin, publie. 10 secondes par review.
+          </p>
+        </div>
+        <ReviewsInbox reviews={demoInboxReviews()} />
+      </div>
     );
   }
 

@@ -3,6 +3,7 @@ import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { DemoBanner } from "@/components/layout/demo-banner";
 import { PostEditor } from "./post-editor";
 
 export const metadata = { title: "Éditeur de post" };
@@ -16,12 +17,15 @@ export default async function PostEditorPage({
 
   if (!supabaseConfigured()) {
     return (
-      <Alert>
-        <AlertDescription>
-          Supabase n&apos;est pas encore configuré — remplis les variables dans
-          `.env.local` (voir PROGRESS.md).
-        </AlertDescription>
-      </Alert>
+      <div className="flex flex-col gap-4">
+        <DemoBanner />
+        <Alert>
+          <AlertDescription>
+            L&apos;éditeur de post travaille sur de vraies données — il sera
+            disponible une fois Supabase branché.
+          </AlertDescription>
+        </Alert>
+      </div>
     );
   }
 

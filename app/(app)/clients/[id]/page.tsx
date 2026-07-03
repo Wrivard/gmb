@@ -7,6 +7,7 @@ import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
 import { isLate, remainingPosts, torontoMonthRange } from "@/lib/due";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { DemoBanner } from "@/components/layout/demo-banner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
@@ -46,12 +47,15 @@ export default async function ClientDetailPage({
 
   if (!supabaseConfigured()) {
     return (
-      <Alert>
-        <AlertDescription>
-          Supabase n&apos;est pas encore configuré — remplis les variables dans
-          `.env.local` (voir PROGRESS.md).
-        </AlertDescription>
-      </Alert>
+      <div className="flex flex-col gap-4">
+        <DemoBanner />
+        <Alert>
+          <AlertDescription>
+            La fiche client travaille sur de vraies données — elle sera
+            disponible une fois Supabase branché.
+          </AlertDescription>
+        </Alert>
+      </div>
     );
   }
 

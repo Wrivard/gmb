@@ -6,6 +6,7 @@ import { GlobalBanners } from "@/components/layout/global-banners";
 import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
+import { demoBoardClients } from "@/lib/demo";
 
 export default async function AppLayout({
   children,
@@ -72,6 +73,14 @@ export default async function AppLayout({
       accessPending = Boolean(pendingLog?.length);
       paletteClients = clients ?? [];
     }
+  } else {
+    // Mode exemple (lib/demo.ts) : shell rempli sans backend.
+    const demoClients = demoBoardClients();
+    userEmail = "demo@kua.quebec";
+    userRole = "owner";
+    pendingReviews = demoClients.reduce((sum, c) => sum + c.unreplied, 0);
+    postsDue = demoClients.reduce((sum, c) => sum + c.postsDue, 0);
+    paletteClients = demoClients.map(({ id, name }) => ({ id, name }));
   }
 
   return (

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { supabaseConfigured } from "@/lib/env";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { LoginForm } from "./login-form";
@@ -28,13 +29,21 @@ export default function LoginPage() {
             <LoginForm />
           </Suspense>
         ) : (
-          <Alert>
-            <AlertDescription>
-              Supabase n&apos;est pas encore configuré — remplis
-              `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-              dans `.env.local` (voir PROGRESS.md).
-            </AlertDescription>
-          </Alert>
+          <div className="flex flex-col gap-4">
+            <Alert>
+              <AlertDescription>
+                Supabase n&apos;est pas encore configuré — remplis
+                `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+                dans `.env.local` (voir PROGRESS.md).
+              </AlertDescription>
+            </Alert>
+            <Link
+              href="/"
+              className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Explorer l&apos;app avec des données d&apos;exemple
+            </Link>
+          </div>
         )}
       </div>
     </div>
