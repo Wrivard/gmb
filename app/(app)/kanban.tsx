@@ -152,8 +152,8 @@ function ClientCard({ client }: { client: BoardClient }) {
           )}
         </span>
 
-        {/* Actions rapides au hover */}
-        <span className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        {/* Actions rapides — toujours visibles : c'est le geste principal. */}
+        <span className="flex gap-1">
           {column === "reviews" && (
             <Button
               size="xs"

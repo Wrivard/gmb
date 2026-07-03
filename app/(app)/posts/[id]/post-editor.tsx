@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { PostPreview } from "@/components/posts/post-preview";
+import { cn } from "@/lib/utils";
 import type { CtaType, PostStatus } from "@/lib/types/database";
 import {
   approvePostAction,
@@ -240,34 +241,63 @@ export function PostEditor({
           </div>
 
           {/* Image */}
-          <div className="flex flex-col gap-2 rounded-lg border border-border bg-elevated p-3">
-            <Label>Image du post</Label>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={regenerateImage}
-                disabled={busy || readOnly}
+          <div className="flex flex-col gap-3 rounded-lg border border-border bg-elevated p-3">
+            <div className="flex items-center justify-between">
+              <Label>Image du post</Label>
+              <span
+                className={cn(
+                  "text-xs",
+                  post.imageUrl ? "text-success" : "text-warning",
+                )}
               >
-                <Sparkles />
-                {imageBusy ? "Génération…" : "Régénérer l'image"}
-              </Button>
-              <Input
-                value={imageDirective}
-                onChange={(event) => setImageDirective(event.target.value)}
-                placeholder="Directive (optionnel) : « plus lumineux », « en hiver »…"
-                className="h-7 w-72 text-xs"
-                disabled={readOnly}
-              />
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={busy || readOnly}
-              >
-                <Upload />
-                Téléverser
-              </Button>
+                {post.imageUrl ? "Image en place" : "À choisir"}
+              </span>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="flex flex-1 flex-col gap-1.5 rounded-md border border-border bg-background p-2.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={regenerateImage}
+                  disabled={busy || readOnly}
+                  className="justify-center"
+                >
+                  <Sparkles />
+                  {imageBusy
+                    ? "Génération…"
+                    : post.imageUrl
+                      ? "Générer une autre image"
+                      : "Générer une image IA"}
+                </Button>
+                <Input
+                  value={imageDirective}
+                  onChange={(event) => setImageDirective(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !busy && !readOnly) {
+                      event.preventDefault();
+                      regenerateImage();
+                    }
+                  }}
+                  placeholder="Directive : « plus lumineux », « en hiver »…"
+                  className="h-7 text-xs"
+                  disabled={readOnly}
+                />
+              </div>
+              <div className="flex flex-1 flex-col gap-1.5 rounded-md border border-border bg-background p-2.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={busy || readOnly}
+                  className="justify-center"
+                >
+                  <Upload />
+                  Choisir un fichier…
+                </Button>
+                <p className="text-center text-xs text-muted-foreground">
+                  JPEG, PNG ou WebP — recadrée en 1200×900.
+                </p>
+              </div>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -282,31 +312,46 @@ export function PostEditor({
             </div>
             {!post.imageUrl && (
               <p className="text-xs text-muted-foreground">
-                Pas encore d&apos;image — le post peut partir sans, mais
-                l&apos;objectif est toujours avec image.
+                Le post peut partir sans image, mais un post avec image
+                performe nettement mieux sur Google.
               </p>
             )}
           </div>
 
           {/* Actions */}
           {!readOnly && (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="outline" onClick={() => save()} disabled={busy}>
-                {saving ? "Enregistrement…" : "Enregistrer"}
-              </Button>
-              {(post.status === "draft" || post.status === "failed") && (
-                <Button size="sm" onClick={approve} disabled={busy}>
-                  {approving ? "…" : "Approuver et planifier"}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                {(post.status === "draft" || post.status === "failed") && (
+                  <Button size="sm" onClick={approve} disabled={busy}>
+                    {approving ? "…" : "Approuver et planifier"}
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant={
+                    post.status === "scheduled" ? "default" : "secondary"
+                  }
+                  onClick={publishNow}
+                  disabled={busy}
+                >
+                  {publishing ? "Publication…" : "Publier maintenant"}
                 </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => save()}
+                  disabled={busy}
+                >
+                  {saving ? "Enregistrement…" : "Enregistrer sans approuver"}
+                </Button>
+              </div>
+              {(post.status === "draft" || post.status === "failed") && (
+                <p className="text-xs text-muted-foreground">
+                  Approuver = le post part tout seul à la date « Publication
+                  prévue ». Rien d&apos;autre à faire.
+                </p>
               )}
-              <Button
-                size="sm"
-                variant={post.status === "scheduled" ? "default" : "secondary"}
-                onClick={publishNow}
-                disabled={busy}
-              >
-                {publishing ? "Publication…" : "Publier maintenant"}
-              </Button>
             </div>
           )}
         </div>

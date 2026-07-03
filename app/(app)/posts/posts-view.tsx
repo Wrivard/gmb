@@ -5,7 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { frCA } from "date-fns/locale";
-import { CalendarDays, ImageIcon, List, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarDays,
+  CheckCircle2,
+  ImageIcon,
+  List,
+  Sparkles,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -68,7 +75,7 @@ export function PostsView({
         <div className="flex items-center gap-1 rounded-lg border border-border bg-elevated p-1">
           {(
             [
-              ["queue", "File", List],
+              ["queue", "À traiter", List],
               ["calendar", "Calendrier", CalendarDays],
             ] as const
           ).map(([value, label, Icon]) => (
@@ -184,76 +191,115 @@ function QueueView({
   );
   const published = posts.filter((p) => p.status === "published");
 
+  const remainingTotal = due.reduce((sum, c) => sum + c.remaining, 0);
+  const todoCount = remainingTotal + drafts.length + failed.length;
+  const nextScheduled = scheduled.find((p) => p.scheduledFor);
+
   return (
     <div className="flex flex-col gap-6">
-      <Section
-        title={`Dus (${due.length})`}
-        empty="Aucun client dû — la cadence du mois est couverte 🎉"
-        isEmpty={!due.length}
-      >
-        <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {due.map((client) => (
-            <DueClientCard key={client.id} client={client} />
-          ))}
-        </ul>
-      </Section>
+      {/* Zone action : ce qui attend une décision humaine. */}
+      {todoCount === 0 ? (
+        <div className="flex flex-col items-center gap-2 rounded-lg border border-success/30 bg-success/5 px-6 py-12 text-center">
+          <CheckCircle2 className="size-8 text-success" />
+          <p className="text-base font-medium">
+            Tout est fait — rien à traiter.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {nextScheduled?.scheduledFor
+              ? `Prochain post : ${nextScheduled.clientName}, le ${format(
+                  new Date(nextScheduled.scheduledFor),
+                  "d MMMM à HH:mm",
+                  { locale: frCA },
+                )} (publication automatique).`
+              : "La cadence du mois est couverte pour tous les clients."}
+          </p>
+        </div>
+      ) : (
+        <>
+          {failed.length > 0 && (
+            <Section
+              accent="bg-destructive"
+              title={`À corriger (${failed.length})`}
+              hint="La publication a échoué chez Google. Ouvre le post, ajuste, puis réessaie."
+            >
+              <PostGrid posts={failed} />
+            </Section>
+          )}
 
-      {failed.length > 0 && (
-        <Section title={`Échecs (${failed.length})`} isEmpty={false} empty="">
-          <PostGrid posts={failed} />
-        </Section>
+          {due.length > 0 && (
+            <Section
+              accent="bg-warning"
+              title={`À créer (${remainingTotal})`}
+              hint="Ces clients n'ont pas encore leurs posts du mois. Un clic génère le texte et l'image."
+            >
+              <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {due.map((client) => (
+                  <DueClientCard key={client.id} client={client} />
+                ))}
+              </ul>
+            </Section>
+          )}
+
+          {drafts.length > 0 && (
+            <Section
+              accent="bg-info"
+              title={`À réviser (${drafts.length})`}
+              hint="Drafts prêts. Vérifie le texte et l'image, puis approuve pour planifier."
+            >
+              <PostGrid posts={drafts} />
+            </Section>
+          )}
+        </>
       )}
 
-      <Section
-        title={`Brouillons (${drafts.length})`}
-        empty="Aucun brouillon à réviser."
-        isEmpty={!drafts.length}
-      >
-        <PostGrid posts={drafts} />
-      </Section>
+      {/* Zone automatique : rien à faire, l'app s'en occupe. */}
+      {(scheduled.length > 0 || published.length > 0) && (
+        <div className="flex flex-col gap-6 border-t border-border pt-6">
+          {scheduled.length > 0 && (
+            <Section
+              accent="bg-success"
+              title={`Publication automatique (${scheduled.length})`}
+              hint="Rien à faire : chaque post partira tout seul à la date prévue."
+            >
+              <PostGrid posts={scheduled} />
+            </Section>
+          )}
 
-      <Section
-        title={`Planifiés (${scheduled.length})`}
-        empty="Rien de planifié pour l'instant."
-        isEmpty={!scheduled.length}
-      >
-        <PostGrid posts={scheduled} />
-      </Section>
-
-      <Section
-        title={`Publiés ce mois (${published.length})`}
-        empty="Rien de publié ce mois-ci."
-        isEmpty={!published.length}
-      >
-        <PostGrid posts={published} />
-      </Section>
+          {published.length > 0 && (
+            <Section
+              accent="bg-muted-foreground"
+              title={`Publiés ce mois (${published.length})`}
+            >
+              <PostGrid posts={published} />
+            </Section>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 function Section({
   title,
-  empty,
-  isEmpty,
+  hint,
+  accent,
   children,
 }: {
   title: string;
-  empty: string;
-  isEmpty: boolean;
+  hint?: string;
+  accent: string;
   children: React.ReactNode;
 }) {
   return (
     <section>
-      <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
+      <h2 className="flex items-center gap-2 text-sm font-medium">
+        <span className={cn("size-1.5 shrink-0 rounded-full", accent)} />
         {title}
       </h2>
-      {isEmpty ? (
-        <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-          {empty}
-        </p>
-      ) : (
-        children
+      {hint && (
+        <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
       )}
+      <div className="mt-2">{children}</div>
     </section>
   );
 }
@@ -276,7 +322,6 @@ function DueClientCard({ client }: { client: QueueClient }) {
       </div>
       <Button
         size="sm"
-        variant="outline"
         disabled={pending}
         onClick={() =>
           startTransition(async () => {
@@ -297,55 +342,79 @@ function DueClientCard({ client }: { client: QueueClient }) {
   );
 }
 
+/** Libellé d'action explicite par statut — la carte dit quoi faire. */
+function actionLabel(status: PostStatus): string | null {
+  switch (status) {
+    case "draft":
+      return "Réviser";
+    case "failed":
+      return "Corriger";
+    default:
+      return null;
+  }
+}
+
 function PostGrid({ posts }: { posts: QueuePost[] }) {
   return (
     <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-      {posts.map((post) => (
-        <li key={post.id}>
-          <Link
-            href={`/posts/${post.id}`}
-            className="flex gap-3 rounded-lg border border-border bg-elevated p-3 transition-colors hover:border-ring"
-          >
-            <div className="size-16 shrink-0 overflow-hidden rounded-md bg-muted">
-              {post.imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element -- miniature Storage
-                <img
-                  src={post.imageUrl}
-                  alt=""
-                  className="size-full object-cover"
-                />
-              ) : (
-                <div className="flex size-full items-center justify-center text-muted-foreground">
-                  <ImageIcon className="size-4" />
-                </div>
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="truncate text-xs font-medium">
-                  {post.clientName}
-                </span>
-                <StatusBadge status={post.status} />
+      {posts.map((post) => {
+        const action = actionLabel(post.status);
+        return (
+          <li key={post.id}>
+            <Link
+              href={`/posts/${post.id}`}
+              className="group flex gap-3 rounded-lg border border-border bg-elevated p-3 transition-colors hover:border-ring"
+            >
+              <div className="size-16 shrink-0 overflow-hidden rounded-md bg-muted">
+                {post.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- miniature Storage
+                  <img
+                    src={post.imageUrl}
+                    alt=""
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <div className="flex size-full flex-col items-center justify-center gap-0.5 text-muted-foreground">
+                    <ImageIcon className="size-4" />
+                    <span className="text-[9px]">à choisir</span>
+                  </div>
+                )}
               </div>
-              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                {post.summary}
-              </p>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                {post.status === "published" && post.publishedAt
-                  ? `Publié le ${format(new Date(post.publishedAt), "d MMM", { locale: frCA })}`
-                  : post.scheduledFor
-                    ? `Prévu le ${format(new Date(post.scheduledFor), "d MMM à HH:mm", { locale: frCA })}`
-                    : "Sans date"}
-              </p>
-              {post.publishError && (
-                <p className="mt-1 line-clamp-1 text-[11px] text-destructive">
-                  {post.publishError}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-xs font-medium">
+                    {post.clientName}
+                  </span>
+                  <StatusBadge status={post.status} />
+                </div>
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                  {post.summary}
                 </p>
-              )}
-            </div>
-          </Link>
-        </li>
-      ))}
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <p className="text-[11px] text-muted-foreground">
+                    {post.status === "published" && post.publishedAt
+                      ? `Publié le ${format(new Date(post.publishedAt), "d MMM", { locale: frCA })}`
+                      : post.scheduledFor
+                        ? `Prévu le ${format(new Date(post.scheduledFor), "d MMM à HH:mm", { locale: frCA })}`
+                        : "Sans date"}
+                  </p>
+                  {action && (
+                    <span className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-primary">
+                      {action}
+                      <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                  )}
+                </div>
+                {post.publishError && (
+                  <p className="mt-1 line-clamp-1 text-[11px] text-destructive">
+                    {post.publishError}
+                  </p>
+                )}
+              </div>
+            </Link>
+          </li>
+        );
+      })}
     </ul>
   );
 }

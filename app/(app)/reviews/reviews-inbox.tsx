@@ -135,6 +135,34 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
     [],
   );
 
+  // Ouvre la première review en attente d'office : le draft et le bouton
+  // Publier sont visibles sans clic.
+  useEffect(() => {
+    if (selectedId === null && statusFilter === "pending" && visible.length) {
+      setSelectedId(visible[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- à l'arrivée seulement
+  }, []);
+
+  // Après Publier/Ignorer : passe à la review en attente suivante.
+  const advanceFrom = useCallback(
+    (id: string) => {
+      const ids = visible.map((r) => r.id);
+      const index = ids.indexOf(id);
+      const next =
+        ids.slice(index + 1).find((candidate) => candidate !== id) ??
+        ids.slice(0, index).find((candidate) => candidate !== id) ??
+        null;
+      setSelectedId(next);
+      if (next) {
+        document
+          .getElementById(`review-${next}`)
+          ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+    },
+    [visible],
+  );
+
   // Raccourcis clavier : j/k naviguer, e éditer, Escape fermer (specs/05).
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -314,6 +342,7 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
                     )
                   }
                   onOverride={applyOverride}
+                  onDone={advanceFrom}
                 />
               </motion.li>
             ))}
@@ -329,11 +358,13 @@ function ReviewItem({
   selected,
   onSelect,
   onOverride,
+  onDone,
 }: {
   review: InboxReview;
   selected: boolean;
   onSelect: () => void;
   onOverride: (id: string, patch: Partial<InboxReview> | null) => void;
+  onDone: (id: string) => void;
 }) {
   const pending = isPending(review.status);
   const late = pending && ageInHours(review.createdAt) > 72;
@@ -380,6 +411,11 @@ function ReviewItem({
               (avis sans texte)
             </span>
           )}
+          {!selected && pending && review.draftText && (
+            <span className="mt-1 line-clamp-1 block text-xs text-success">
+              Draft prêt : « {review.draftText} »
+            </span>
+          )}
         </span>
         <span className="flex shrink-0 flex-col items-end gap-1">
           <span
@@ -398,7 +434,7 @@ function ReviewItem({
       </button>
 
       {selected && pending && (
-        <ReplyPanel review={review} onOverride={onOverride} />
+        <ReplyPanel review={review} onOverride={onOverride} onDone={onDone} />
       )}
       {selected && review.status === "replied" && review.publishedText && (
         <div className="border-t border-border px-4 py-3">
@@ -432,9 +468,11 @@ function StatusBadge({ status }: { status: ReviewStatus }) {
 function ReplyPanel({
   review,
   onOverride,
+  onDone,
 }: {
   review: InboxReview;
   onOverride: (id: string, patch: Partial<InboxReview> | null) => void;
+  onDone: (id: string) => void;
 }) {
   const [text, setText] = useState(review.draftText ?? "");
   const [directive, setDirective] = useState("");
@@ -448,6 +486,7 @@ function ReplyPanel({
     const snapshot = review.status;
     // Optimistic : l'item quitte la liste « en attente » immédiatement.
     onOverride(review.id, { status: "replied", publishedText: text.trim() });
+    onDone(review.id);
     startPublish(async () => {
       const result = await publishReplyAction(review.id, text);
       if (result.ok) {
@@ -481,6 +520,7 @@ function ReplyPanel({
   function ignore() {
     const snapshot = review.status;
     onOverride(review.id, { status: "ignored" });
+    onDone(review.id);
     startIgnore(async () => {
       const result = await ignoreReviewAction(review.id);
       if (result.ok) {
@@ -534,7 +574,7 @@ function ReplyPanel({
           onClick={publish}
           disabled={busy || !text.trim()}
         >
-          {publishing ? "Publication…" : "Publier"}
+          {publishing ? "Publication…" : "Publier la réponse"}
         </Button>
         <Button
           size="sm"

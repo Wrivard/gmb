@@ -2,6 +2,7 @@ import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
 import { DemoBanner } from "@/components/layout/demo-banner";
+import { RealtimeRefresh } from "@/components/dashboard/realtime-refresh";
 import { demoInboxReviews } from "@/lib/demo";
 import { ReviewsInbox, type InboxReview } from "./reviews-inbox";
 
@@ -73,6 +74,7 @@ export default async function ReviewsPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      <RealtimeRefresh />
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Inbox Reviews</h1>
         <p className="mt-1 text-sm text-muted-foreground">

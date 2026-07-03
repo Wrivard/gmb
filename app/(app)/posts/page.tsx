@@ -3,6 +3,7 @@ import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
 import { isLate, remainingPosts, torontoMonthRange } from "@/lib/due";
 import { DemoBanner } from "@/components/layout/demo-banner";
+import { RealtimeRefresh } from "@/components/dashboard/realtime-refresh";
 import { demoQueueClients, demoQueuePosts } from "@/lib/demo";
 import { PostsView, type QueueClient, type QueuePost } from "./posts-view";
 
@@ -92,6 +93,7 @@ export default async function PostsPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      <RealtimeRefresh />
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Posts GBP</h1>
         <p className="mt-1 text-sm text-muted-foreground">
