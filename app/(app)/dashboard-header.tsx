@@ -31,7 +31,7 @@ export function DashboardHeader({
             className={cn(
               "size-2 rounded-full",
               connectionStatus === "active"
-                ? "bg-emerald-500"
+                ? "bg-success"
                 : connectionStatus === "revoked"
                   ? "bg-destructive"
                   : "bg-muted-foreground",

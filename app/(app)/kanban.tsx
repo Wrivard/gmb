@@ -29,10 +29,10 @@ export interface BoardClient {
 type ColumnKey = "reviews" | "posts" | "approval" | "ok";
 
 const COLUMNS: Array<{ key: ColumnKey; title: string; accent: string }> = [
-  { key: "reviews", title: "🔴 Reviews à répondre", accent: "border-t-destructive" },
-  { key: "posts", title: "📝 Posts dus", accent: "border-t-amber-500" },
-  { key: "approval", title: "⏳ En attente d'approbation", accent: "border-t-blue-500" },
-  { key: "ok", title: "✅ À jour", accent: "border-t-emerald-600" },
+  { key: "reviews", title: "Reviews à répondre", accent: "bg-destructive" },
+  { key: "posts", title: "Posts dus", accent: "bg-warning" },
+  { key: "approval", title: "En attente d'approbation", accent: "bg-info" },
+  { key: "ok", title: "À jour", accent: "bg-success" },
 ];
 
 /** Un client = UNE colonne, la plus urgente (specs/08). */
@@ -60,15 +60,15 @@ export function DashboardKanban({ clients }: { clients: BoardClient[] }) {
       {COLUMNS.map((column) => (
         <section
           key={column.key}
-          className={cn(
-            "flex flex-col gap-2 rounded-lg border border-border border-t-2 bg-background/40 p-2",
-            column.accent,
-          )}
+          className="flex flex-col gap-2 rounded-lg border border-border bg-card p-2"
         >
-          <h2 className="px-1 text-sm font-semibold">
-            {column.title}{" "}
-            <span className="text-muted-foreground">
-              ({byColumn[column.key].length})
+          <h2 className="flex items-center gap-2 px-1 py-1 text-[13px] font-medium">
+            <span
+              className={cn("size-1.5 shrink-0 rounded-full", column.accent)}
+            />
+            {column.title}
+            <span className="ml-auto font-normal text-muted-foreground tabular-nums">
+              {byColumn[column.key].length}
             </span>
           </h2>
           <AnimatePresence initial={false}>
@@ -87,7 +87,7 @@ export function DashboardKanban({ clients }: { clients: BoardClient[] }) {
           </AnimatePresence>
           {!byColumn[column.key].length && (
             <p className="px-1 py-4 text-center text-xs text-muted-foreground">
-              {column.key === "ok" ? "—" : "Rien ici 🎉"}
+              {column.key === "ok" ? "—" : "Rien ici"}
             </p>
           )}
         </section>
