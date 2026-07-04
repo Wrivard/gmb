@@ -358,6 +358,23 @@ export function demoQueuePosts(): QueuePost[] {
   ];
 }
 
+export interface DemoActivityEntry {
+  id: string;
+  label: string;
+  actor: string;
+  at: string;
+}
+
+export function demoActivity(): DemoActivityEntry[] {
+  return [
+    { id: "a1", label: "Réponse publiée", actor: "wrivard@kua.quebec", at: hoursAgo(3) },
+    { id: "a2", label: "Post généré", actor: "wrivard@kua.quebec", at: hoursAgo(20) },
+    { id: "a3", label: "Réponse auto-publiée", actor: "Système", at: hoursAgo(26) },
+    { id: "a4", label: "Sync terminé", actor: "Système", at: hoursAgo(31) },
+    { id: "a5", label: "Post publié", actor: "Système", at: hoursAgo(50) },
+  ];
+}
+
 export interface DemoClientRow {
   id: string;
   name: string;

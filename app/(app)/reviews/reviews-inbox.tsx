@@ -391,7 +391,9 @@ function ReviewItem({
               {review.reviewerName ?? "Utilisateur Google"}
             </span>
             <StarRating value={review.starRating} size="sm" />
-            <Badge variant="outline">{review.clientName}</Badge>
+            <span className="text-xs text-muted-foreground">
+              {review.clientName}
+            </span>
             {review.wasUpdated && (
               <Badge variant="secondary">Avis modifié</Badge>
             )}
@@ -412,8 +414,9 @@ function ReviewItem({
             </span>
           )}
           {!selected && pending && review.draftText && (
-            <span className="mt-1 line-clamp-1 block text-xs text-success">
-              Draft prêt : « {review.draftText} »
+            <span className="mt-1 line-clamp-1 block text-xs text-muted-foreground">
+              <span className="text-success">Draft :</span> «{" "}
+              {review.draftText} »
             </span>
           )}
         </span>

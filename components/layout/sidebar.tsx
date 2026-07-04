@@ -64,7 +64,7 @@ export function Sidebar({
               <Icon className="size-4" strokeWidth={active ? 2.2 : 1.8} />
               <span className="flex-1">{label}</span>
               {(counters[href] ?? 0) > 0 && (
-                <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground tabular-nums">
+                <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary tabular-nums">
                   {counters[href]}
                 </span>
               )}

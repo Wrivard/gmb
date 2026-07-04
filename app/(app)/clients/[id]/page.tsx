@@ -8,6 +8,13 @@ import { supabaseConfigured } from "@/lib/env";
 import { isLate, remainingPosts, torontoMonthRange } from "@/lib/due";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DemoBanner } from "@/components/layout/demo-banner";
+import {
+  demoActivity,
+  demoBoardClients,
+  demoClientRows,
+  demoInboxReviews,
+  demoQueuePosts,
+} from "@/lib/demo";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
@@ -46,15 +53,131 @@ export default async function ClientDetailPage({
     : "apercu";
 
   if (!supabaseConfigured()) {
+    const board = demoBoardClients().find((c) => c.id === id);
+    if (!board) notFound();
+    const row = demoClientRows().find((c) => c.id === id);
+    const reviews = demoInboxReviews().filter((r) => r.clientId === id);
+    const posts = demoQueuePosts().filter((p) => p.clientId === id);
+
+    const stats = [
+      { label: "Reviews en attente", value: board.unreplied },
+      { label: "Drafts de réponses", value: board.draftReplies },
+      { label: "Posts dus ce mois", value: board.postsDue, alert: board.late },
+      {
+        label: "Posts publiés ce mois",
+        value: posts.filter((p) => p.status === "published").length,
+      },
+      {
+        label: "Note moyenne",
+        value: board.avgRating !== null ? `${board.avgRating.toFixed(1)} ★` : "—",
+      },
+      { label: "Total d'avis", value: board.reviewCount },
+    ];
+
     return (
       <div className="flex flex-col gap-4">
         <DemoBanner />
-        <Alert>
-          <AlertDescription>
-            La fiche client travaille sur de vraies données — elle sera
-            disponible une fois Supabase branché.
-          </AlertDescription>
-        </Alert>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-xl font-semibold tracking-tight">
+            {board.name}
+          </h1>
+          <Badge variant={row?.status === "paused" ? "secondary" : "default"}>
+            {row?.status === "paused" ? "En pause" : "Actif"}
+          </Badge>
+          <span className="text-sm text-muted-foreground">
+            {[board.category, row?.address].filter(Boolean).join(" · ")}
+          </span>
+        </div>
+
+        <nav className="flex gap-1 border-b border-border">
+          {TABS.map((entry) => (
+            <Link
+              key={entry.key}
+              href={`/clients/${id}?tab=${entry.key}`}
+              className={cn(
+                "-mb-px border-b-2 px-3 py-2 text-sm transition-colors",
+                tab === entry.key
+                  ? "border-primary font-medium text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {entry.label}
+            </Link>
+          ))}
+        </nav>
+
+        {tab === "apercu" && (
+          <div className="flex flex-col gap-6">
+            <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+              {stats.map((stat) => (
+                <div
+                  key={stat.label}
+                  className="rounded-lg border border-border bg-elevated px-3 py-2.5"
+                >
+                  <div
+                    className={cn(
+                      "text-lg font-semibold tabular-nums",
+                      stat.alert && "text-destructive",
+                    )}
+                  >
+                    {stat.value}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {stat.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <section>
+              <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
+                Activité récente
+              </h2>
+              <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-elevated px-4">
+                {demoActivity().map((entry) => (
+                  <li
+                    key={entry.id}
+                    className="flex items-center gap-3 py-2 text-sm"
+                  >
+                    <span className="flex-1">
+                      {entry.label}
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        par {entry.actor}
+                      </span>
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(entry.at), {
+                        addSuffix: true,
+                        locale: frCA,
+                      })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </div>
+        )}
+        {tab === "reviews" && <ReviewsInbox reviews={reviews} />}
+        {tab === "posts" && (
+          <PostsView
+            clients={[
+              {
+                id: board.id,
+                name: board.name,
+                remaining: board.postsDue,
+                late: board.late,
+              },
+            ]}
+            posts={posts}
+          />
+        )}
+        {tab === "settings" && (
+          <Alert>
+            <AlertDescription>
+              Les réglages du client (cadence, langue, auto-publication,
+              profil de marque) seront modifiables une fois Supabase branché.
+            </AlertDescription>
+          </Alert>
+        )}
       </div>
     );
   }

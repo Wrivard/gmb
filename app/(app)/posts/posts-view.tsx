@@ -196,14 +196,12 @@ function QueueView({
   const nextScheduled = scheduled.find((p) => p.scheduledFor);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex max-w-3xl flex-col gap-8">
       {/* Zone action : ce qui attend une décision humaine. */}
       {todoCount === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-lg border border-success/30 bg-success/5 px-6 py-12 text-center">
-          <CheckCircle2 className="size-8 text-success" />
-          <p className="text-base font-medium">
-            Tout est fait — rien à traiter.
-          </p>
+        <div className="flex flex-col items-center gap-2 rounded-lg border border-border bg-elevated px-6 py-14 text-center">
+          <CheckCircle2 className="size-7 text-success" />
+          <p className="text-base font-medium">Rien à traiter.</p>
           <p className="text-sm text-muted-foreground">
             {nextScheduled?.scheduledFor
               ? `Prochain post : ${nextScheduled.clientName}, le ${format(
@@ -218,23 +216,23 @@ function QueueView({
         <>
           {failed.length > 0 && (
             <Section
-              accent="bg-destructive"
-              title={`À corriger (${failed.length})`}
-              hint="La publication a échoué chez Google. Ouvre le post, ajuste, puis réessaie."
+              title="À corriger"
+              count={failed.length}
+              hint="La publication a échoué chez Google. Ouvre le post, ajuste, réessaie."
             >
-              <PostGrid posts={failed} />
+              <PostRows posts={failed} action="Corriger" />
             </Section>
           )}
 
           {due.length > 0 && (
             <Section
-              accent="bg-warning"
-              title={`À créer (${remainingTotal})`}
-              hint="Ces clients n'ont pas encore leurs posts du mois. Un clic génère le texte et l'image."
+              title="À créer"
+              count={remainingTotal}
+              hint="Un clic génère le texte et l'image, à réviser ensuite."
             >
-              <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <ul className="divide-y divide-border rounded-lg border border-border bg-elevated">
                 {due.map((client) => (
-                  <DueClientCard key={client.id} client={client} />
+                  <DueClientRow key={client.id} client={client} />
                 ))}
               </ul>
             </Section>
@@ -242,11 +240,11 @@ function QueueView({
 
           {drafts.length > 0 && (
             <Section
-              accent="bg-info"
-              title={`À réviser (${drafts.length})`}
-              hint="Drafts prêts. Vérifie le texte et l'image, puis approuve pour planifier."
+              title="À réviser"
+              count={drafts.length}
+              hint="Vérifie le texte et l'image, puis approuve."
             >
-              <PostGrid posts={drafts} />
+              <PostRows posts={drafts} action="Réviser" />
             </Section>
           )}
         </>
@@ -254,23 +252,21 @@ function QueueView({
 
       {/* Zone automatique : rien à faire, l'app s'en occupe. */}
       {(scheduled.length > 0 || published.length > 0) && (
-        <div className="flex flex-col gap-6 border-t border-border pt-6">
+        <div className="flex flex-col gap-8 border-t border-border pt-8">
           {scheduled.length > 0 && (
             <Section
-              accent="bg-success"
-              title={`Publication automatique (${scheduled.length})`}
-              hint="Rien à faire : chaque post partira tout seul à la date prévue."
+              title="Publication automatique"
+              count={scheduled.length}
+              hint="Chaque post part tout seul à la date prévue."
+              quiet
             >
-              <PostGrid posts={scheduled} />
+              <PostRows posts={scheduled} quiet />
             </Section>
           )}
 
           {published.length > 0 && (
-            <Section
-              accent="bg-muted-foreground"
-              title={`Publiés ce mois (${published.length})`}
-            >
-              <PostGrid posts={published} />
+            <Section title="Publiés ce mois" count={published.length} quiet>
+              <PostRows posts={published} quiet />
             </Section>
           )}
         </div>
@@ -281,47 +277,63 @@ function QueueView({
 
 function Section({
   title,
+  count,
   hint,
-  accent,
+  quiet = false,
   children,
 }: {
   title: string;
+  count: number;
   hint?: string;
-  accent: string;
+  quiet?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <section>
-      <h2 className="flex items-center gap-2 text-sm font-medium">
-        <span className={cn("size-1.5 shrink-0 rounded-full", accent)} />
-        {title}
-      </h2>
-      {hint && (
-        <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
-      )}
+      <div className="flex items-baseline gap-2">
+        <h2
+          className={cn(
+            "text-sm font-medium",
+            quiet && "text-muted-foreground",
+          )}
+        >
+          {title}
+        </h2>
+        <span className="text-sm tabular-nums text-muted-foreground">
+          {count}
+        </span>
+        {hint && (
+          <p className="ml-2 hidden text-xs text-muted-foreground sm:block">
+            {hint}
+          </p>
+        )}
+      </div>
       <div className="mt-2">{children}</div>
     </section>
   );
 }
 
-function DueClientCard({ client }: { client: QueueClient }) {
+function DueClientRow({ client }: { client: QueueClient }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   return (
-    <li className="flex items-center gap-3 rounded-lg border border-border bg-elevated px-4 py-3">
+    <li className="flex items-center gap-3 px-4 py-2.5">
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium">{client.name}</span>
-          {client.late && <Badge variant="destructive">En retard</Badge>}
-        </div>
-        <p className="text-xs text-muted-foreground">
+        <span className="text-sm">{client.name}</span>
+        <span className="ml-2 text-xs text-muted-foreground">
           {client.remaining} post{client.remaining > 1 ? "s" : ""} restant
-          {client.remaining > 1 ? "s" : ""} ce mois-ci
-        </p>
+          {client.remaining > 1 ? "s" : ""}
+        </span>
+        {client.late && (
+          <span className="ml-2 text-xs font-medium text-destructive">
+            en retard
+          </span>
+        )}
       </div>
       <Button
         size="sm"
+        variant="outline"
         disabled={pending}
         onClick={() =>
           startTransition(async () => {
@@ -336,85 +348,92 @@ function DueClientCard({ client }: { client: QueueClient }) {
         }
       >
         <Sparkles />
-        {pending ? "Rédaction…" : "Générer le post"}
+        {pending ? "Rédaction…" : "Générer"}
       </Button>
     </li>
   );
 }
 
-/** Libellé d'action explicite par statut — la carte dit quoi faire. */
-function actionLabel(status: PostStatus): string | null {
-  switch (status) {
-    case "draft":
-      return "Réviser";
-    case "failed":
-      return "Corriger";
-    default:
-      return null;
+function postDateLabel(post: QueuePost): string {
+  if (post.status === "published" && post.publishedAt) {
+    return `Publié le ${format(new Date(post.publishedAt), "d MMM", { locale: frCA })}`;
   }
+  if (post.scheduledFor) {
+    return `le ${format(new Date(post.scheduledFor), "d MMM à HH:mm", { locale: frCA })}`;
+  }
+  return "Sans date";
 }
 
-function PostGrid({ posts }: { posts: QueuePost[] }) {
+function PostRows({
+  posts,
+  action,
+  quiet = false,
+}: {
+  posts: QueuePost[];
+  action?: string;
+  quiet?: boolean;
+}) {
   return (
-    <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-      {posts.map((post) => {
-        const action = actionLabel(post.status);
-        return (
-          <li key={post.id}>
-            <Link
-              href={`/posts/${post.id}`}
-              className="group flex gap-3 rounded-lg border border-border bg-elevated p-3 transition-colors hover:border-ring"
+    <ul
+      className={cn(
+        "divide-y divide-border rounded-lg border border-border",
+        quiet ? "bg-transparent" : "bg-elevated",
+      )}
+    >
+      {posts.map((post) => (
+        <li key={post.id}>
+          <Link
+            href={`/posts/${post.id}`}
+            className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-hover/50"
+          >
+            <div
+              className={cn(
+                "shrink-0 overflow-hidden rounded bg-muted",
+                quiet ? "size-8" : "size-10",
+              )}
             >
-              <div className="size-16 shrink-0 overflow-hidden rounded-md bg-muted">
-                {post.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- miniature Storage
-                  <img
-                    src={post.imageUrl}
-                    alt=""
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <div className="flex size-full flex-col items-center justify-center gap-0.5 text-muted-foreground">
-                    <ImageIcon className="size-4" />
-                    <span className="text-[9px]">à choisir</span>
-                  </div>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-xs font-medium">
-                    {post.clientName}
-                  </span>
-                  <StatusBadge status={post.status} />
+              {post.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- miniature Storage
+                <img
+                  src={post.imageUrl}
+                  alt=""
+                  className="size-full object-cover"
+                />
+              ) : (
+                <div className="flex size-full items-center justify-center text-muted-foreground">
+                  <ImageIcon className="size-3.5" />
                 </div>
-                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm">{post.clientName}</span>
+                <span className="truncate text-xs text-muted-foreground">
                   {post.summary}
-                </p>
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  <p className="text-[11px] text-muted-foreground">
-                    {post.status === "published" && post.publishedAt
-                      ? `Publié le ${format(new Date(post.publishedAt), "d MMM", { locale: frCA })}`
-                      : post.scheduledFor
-                        ? `Prévu le ${format(new Date(post.scheduledFor), "d MMM à HH:mm", { locale: frCA })}`
-                        : "Sans date"}
-                  </p>
-                  {action && (
-                    <span className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-primary">
-                      {action}
-                      <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
-                    </span>
-                  )}
-                </div>
-                {post.publishError && (
-                  <p className="mt-1 line-clamp-1 text-[11px] text-destructive">
-                    {post.publishError}
-                  </p>
-                )}
+                </span>
               </div>
-            </Link>
-          </li>
-        );
-      })}
+              {post.publishError && (
+                <p className="mt-0.5 line-clamp-1 text-xs text-destructive">
+                  {post.publishError}
+                </p>
+              )}
+            </div>
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {postDateLabel(post)}
+            </span>
+            {action ? (
+              <span className="flex w-20 shrink-0 items-center justify-end gap-1 text-xs font-medium text-foreground">
+                {action}
+                <ArrowRight className="size-3 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+              </span>
+            ) : (
+              <span className="flex w-20 shrink-0 justify-end">
+                <StatusBadge status={post.status} />
+              </span>
+            )}
+          </Link>
+        </li>
+      ))}
     </ul>
   );
 }
