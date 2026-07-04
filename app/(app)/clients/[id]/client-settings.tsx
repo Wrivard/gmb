@@ -33,7 +33,24 @@ function textToList(text: string): string[] | undefined {
   return items.length ? items : undefined;
 }
 
-export function ClientSettings({ client }: { client: Client }) {
+type ClientSettingsClient = Pick<
+  Client,
+  | "id"
+  | "posts_per_month"
+  | "language"
+  | "auto_publish_replies"
+  | "auto_publish_posts"
+  | "status"
+  | "brand_profile"
+>;
+
+export function ClientSettings({
+  client,
+  readOnly = false,
+}: {
+  client: ClientSettingsClient;
+  readOnly?: boolean;
+}) {
   const router = useRouter();
   const profile: BrandProfile = client.brand_profile ?? {};
 
@@ -110,6 +127,7 @@ export function ClientSettings({ client }: { client: Client }) {
             <Input
               id="posts-per-month"
               type="number"
+              disabled={readOnly}
               min={0}
               max={10}
               value={postsPerMonth}
@@ -120,6 +138,7 @@ export function ClientSettings({ client }: { client: Client }) {
           <div className="flex flex-col gap-1.5">
             <Label>Langue</Label>
             <Select
+              disabled={readOnly}
               value={language}
               onValueChange={(value) => setLanguage(value as string)}
             >
@@ -140,6 +159,7 @@ export function ClientSettings({ client }: { client: Client }) {
               checked={autoReplies}
               onCheckedChange={(checked) => setAutoReplies(Boolean(checked))}
               aria-label="Auto-publication des réponses"
+              disabled={readOnly}
             />
             <div className="text-sm">
               Auto-publier les réponses aux reviews 4–5★
@@ -154,6 +174,7 @@ export function ClientSettings({ client }: { client: Client }) {
               checked={autoPosts}
               onCheckedChange={(checked) => setAutoPosts(Boolean(checked))}
               aria-label="Auto-publication des posts"
+              disabled={readOnly}
             />
             <div className="text-sm">
               Auto-planifier les posts générés
@@ -168,6 +189,7 @@ export function ClientSettings({ client }: { client: Client }) {
               checked={active}
               onCheckedChange={(checked) => setActive(Boolean(checked))}
               aria-label="Client actif"
+              disabled={readOnly}
             />
             <div className="text-sm">
               Client actif
@@ -179,14 +201,16 @@ export function ClientSettings({ client }: { client: Client }) {
           </div>
         </div>
 
-        <Button
-          size="sm"
-          className="self-start"
-          onClick={saveSettings}
-          disabled={savingSettings}
-        >
-          {savingSettings ? "Enregistrement…" : "Enregistrer les réglages"}
-        </Button>
+        {!readOnly && (
+          <Button
+            size="sm"
+            className="self-start"
+            onClick={saveSettings}
+            disabled={savingSettings}
+          >
+            {savingSettings ? "Enregistrement…" : "Enregistrer les réglages"}
+          </Button>
+        )}
       </section>
 
       {/* Brand profile */}
@@ -203,6 +227,7 @@ export function ClientSettings({ client }: { client: Client }) {
             <Label htmlFor="bp-tone">Ton</Label>
             <Input
               id="bp-tone"
+              disabled={readOnly}
               value={tone}
               onChange={(e) => setTone(e.target.value)}
               placeholder="chaleureux et professionnel"
@@ -212,6 +237,7 @@ export function ClientSettings({ client }: { client: Client }) {
             <Label htmlFor="bp-vertical">Métier</Label>
             <Input
               id="bp-vertical"
+              disabled={readOnly}
               value={vertical}
               onChange={(e) => setVertical(e.target.value)}
               placeholder="toiture"
@@ -221,6 +247,7 @@ export function ClientSettings({ client }: { client: Client }) {
             <Label htmlFor="bp-city">Ville</Label>
             <Input
               id="bp-city"
+              disabled={readOnly}
               value={city}
               onChange={(e) => setCity(e.target.value)}
               placeholder="Laval"
@@ -230,6 +257,7 @@ export function ClientSettings({ client }: { client: Client }) {
             <Label htmlFor="bp-phone">Téléphone</Label>
             <Input
               id="bp-phone"
+              disabled={readOnly}
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="450-555-0123"
@@ -239,6 +267,7 @@ export function ClientSettings({ client }: { client: Client }) {
             <Label htmlFor="bp-services">Services clés (séparés par des virgules)</Label>
             <Input
               id="bp-services"
+              disabled={readOnly}
               value={services}
               onChange={(e) => setServices(e.target.value)}
               placeholder="réfection de toiture, bardeaux d'asphalte"
@@ -248,6 +277,7 @@ export function ClientSettings({ client }: { client: Client }) {
             <Label htmlFor="bp-args">Arguments (séparés par des virgules)</Label>
             <Input
               id="bp-args"
+              disabled={readOnly}
               value={args}
               onChange={(e) => setArgs(e.target.value)}
               placeholder="garantie 10 ans, soumission gratuite"
@@ -257,6 +287,7 @@ export function ClientSettings({ client }: { client: Client }) {
             <Label htmlFor="bp-signature">Signature</Label>
             <Input
               id="bp-signature"
+              disabled={readOnly}
               value={signature}
               onChange={(e) => setSignature(e.target.value)}
               placeholder="L'équipe Toitures Bergeron"
@@ -266,6 +297,7 @@ export function ClientSettings({ client }: { client: Client }) {
             <Label htmlFor="bp-avoid">À éviter (séparés par des virgules)</Label>
             <Input
               id="bp-avoid"
+              disabled={readOnly}
               value={avoid}
               onChange={(e) => setAvoid(e.target.value)}
               placeholder="prix précis, promesses de délai"
@@ -275,6 +307,7 @@ export function ClientSettings({ client }: { client: Client }) {
             <Label htmlFor="bp-notes">Notes</Label>
             <Textarea
               id="bp-notes"
+              disabled={readOnly}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
@@ -282,14 +315,16 @@ export function ClientSettings({ client }: { client: Client }) {
             />
           </div>
         </div>
-        <Button
-          size="sm"
-          className="self-start"
-          onClick={saveProfile}
-          disabled={savingProfile}
-        >
-          {savingProfile ? "Enregistrement…" : "Enregistrer le profil"}
-        </Button>
+        {!readOnly && (
+          <Button
+            size="sm"
+            className="self-start"
+            onClick={saveProfile}
+            disabled={savingProfile}
+          >
+            {savingProfile ? "Enregistrement…" : "Enregistrer le profil"}
+          </Button>
+        )}
       </section>
     </div>
   );

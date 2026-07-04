@@ -6,7 +6,6 @@ import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
 import { isLate, remainingPosts, torontoMonthRange } from "@/lib/due";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DemoBanner } from "@/components/layout/demo-banner";
 import {
   demoActivity,
@@ -171,12 +170,35 @@ export default async function ClientDetailPage({
           />
         )}
         {tab === "settings" && (
-          <Alert>
-            <AlertDescription>
-              Les réglages du client (cadence, langue, auto-publication,
-              profil de marque) seront modifiables une fois Supabase branché.
-            </AlertDescription>
-          </Alert>
+          <div className="flex flex-col gap-4">
+            <p className="text-xs text-muted-foreground">
+              Lecture seule en mode exemple — modifiable une fois Supabase
+              branché.
+            </p>
+            <ClientSettings
+              readOnly
+              client={{
+                id: board.id,
+                posts_per_month: board.postsDue > 1 ? 2 : 1,
+                language: "fr-CA",
+                auto_publish_replies: true,
+                auto_publish_posts: false,
+                status: row?.status ?? "active",
+                brand_profile: {
+                  tone: "chaleureux et professionnel",
+                  vertical: board.category ?? "",
+                  city: board.city ?? "",
+                  services_cles: ["service principal", "service secondaire"],
+                  arguments: ["garantie 10 ans", "soumission gratuite"],
+                  signature: `L'équipe ${board.name}`,
+                  a_eviter: ["prix précis", "promesses de délai"],
+                  phone: "450-555-0182",
+                  notes:
+                    "Entreprise familiale, 2e génération. Insister sur la fiabilité.",
+                },
+              }}
+            />
+          </div>
         )}
       </div>
     );
