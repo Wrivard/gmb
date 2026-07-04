@@ -31,6 +31,15 @@ import {
 
 const MAX_SUMMARY_LENGTH = 1500;
 
+const STATUS_LABELS: Record<PostStatus, string> = {
+  draft: "Brouillon",
+  approved: "Approuvé",
+  scheduled: "Planifié",
+  publishing: "Publication…",
+  published: "Publié",
+  failed: "Échec",
+};
+
 interface EditorPost {
   id: string;
   summary: string;
@@ -167,7 +176,7 @@ export function PostEditor({
         </Button>
         <h1 className="text-xl font-semibold tracking-tight">{clientName}</h1>
         <Badge variant={post.status === "failed" ? "destructive" : "secondary"}>
-          {post.status}
+          {STATUS_LABELS[post.status]}
         </Badge>
       </div>
 

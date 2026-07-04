@@ -2,8 +2,8 @@ import { notFound } from "next/navigation";
 import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DemoBanner } from "@/components/layout/demo-banner";
+import { demoQueuePosts } from "@/lib/demo";
 import { PostEditor } from "./post-editor";
 
 export const metadata = { title: "Éditeur de post" };
@@ -16,15 +16,28 @@ export default async function PostEditorPage({
   const { id } = await params;
 
   if (!supabaseConfigured()) {
+    const demoPost = demoQueuePosts().find((p) => p.id === id);
+    if (!demoPost) notFound();
+
     return (
       <div className="flex flex-col gap-4">
         <DemoBanner />
-        <Alert>
-          <AlertDescription>
-            L&apos;éditeur de post travaille sur de vraies données — il sera
-            disponible une fois Supabase branché.
-          </AlertDescription>
-        </Alert>
+        <PostEditor
+          post={{
+            id: demoPost.id,
+            summary: demoPost.summary,
+            ctaType: "LEARN_MORE",
+            ctaUrl: "https://exemple.kua.quebec",
+            status: demoPost.status,
+            scheduledFor: demoPost.scheduledFor,
+            publishedAt: demoPost.publishedAt,
+            publishError: demoPost.publishError,
+            imagePrompt: "Photo réaliste liée au métier du client, saison en cours au Québec.",
+            imageUrl: demoPost.imageUrl,
+          }}
+          clientName={demoPost.clientName}
+          clientWebsite="https://exemple.kua.quebec"
+        />
       </div>
     );
   }
