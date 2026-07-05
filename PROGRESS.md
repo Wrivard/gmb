@@ -5,8 +5,9 @@
 
 ## État courant
 
-- **Build terminé** — les 8 phases sont committées (build + lint + 36 tests verts).
-- Il reste le smoke test réel (§4 de DEPLOY.md), impossible sans projet Supabase branché → voir « Requis de William ».
+- **Déployé en production** : https://kua-locale.vercel.app (projet Vercel `kua-locale`, repo GitHub connecté — push sur `main` = déploiement auto).
+- **Smoke test §4 passé** (2026-07-04, local + prod, mode mock) : auth/whitelist, 5 pages branchées Supabase (données réelles, pas de fallback démo), connexion Google mock (`connected=1`), crons protégés (401 sans bearer).
+- Les crons ne s'exécutent pas encore : `SUPABASE_SERVICE_ROLE_KEY` manquante sur Vercel (dashboard seulement) → voir « Requis de William ».
 - Remote GitHub : `Wrivard/gmb` (push autonome autorisé).
 
 ## Phases
@@ -51,12 +52,21 @@
 Tout est encodé dans **DEPLOY.md** (checklist ordonnée). En résumé :
 
 - [x] **Projet Supabase** : `kua-locale` (`czugrjtabomdngbxzhhr`, ca-central-1, free tier) créé le 2026-07-02 via MCP — migrations + seed appliqués, `.env.local` écrit. Compte de William créé (`wrivard@kua.quebec`, mdp temporaire connu de lui). ⚠️ Kua-coif et kua-loop-engine ont été **pausés** pour libérer les slots free (réactivables depuis le dashboard).
-- [ ] Clé `SUPABASE_SERVICE_ROLE_KEY` (dashboard → Settings → API keys) — requise seulement pour les **crons** et le déploiement Vercel; l'app locale fonctionne sans (voir décision #15).
+- [ ] Clé `SUPABASE_SERVICE_ROLE_KEY` (dashboard → Settings → API keys) — requise seulement pour les **crons**; à ajouter via `vercel env add SUPABASE_SERVICE_ROLE_KEY production` puis redéployer. Ensuite réactiver les crons GitHub Actions : `gh variable set APP_URL --repo Wrivard/gmb --body "https://kua-locale.vercel.app"` (retirée volontairement pour éviter des runs rouges aux 15 min en attendant la clé).
+- [ ] Supabase Auth (dashboard → Authentication) : `Site URL` = `https://kua-locale.vercel.app`, ajouter `https://kua-locale.vercel.app/auth/callback` aux Redirect URLs, activer le provider **Google** (client ID/secret GCP) — le login email/mdp fonctionne déjà sans ça.
 - [ ] Checklist Google complète de `specs/00-PREREQUIS-GOOGLE.md` (projet GCP, APIs, OAuth consent, client ID, demande Basic API Access).
 - [ ] Clé `OPENAI_API_KEY` (engine réponses/posts — stub déterministe en attendant).
 - [ ] Clé `GEMINI_API_KEY` (images de posts — placeholder « image à ajouter » en attendant).
 
 ## Journal
+
+### Déploiement Vercel + smoke test (2026-07-04)
+- Décision (William) : **rester sur Supabase free tier** après deep dive des alternatives (Neon/Better Auth/Convex/etc.) — les crons GH Actions gardent le projet actif, migration non justifiée.
+- Vérifs : `tsc` vert, 36 tests verts, `next build` vert. DB déjà provisionnée (3 migrations, seed complet, bucket, compte William).
+- Compte `equipe@kua.quebec` activé (signup API + confirmation SQL; le trigger de whitelist a lié le compte). Mdp temporaire hors repo (scratchpad session) — **à changer** au premier login.
+- Smoke test HTTP (local puis prod, session cookie `@supabase/ssr` reconstruite) : redirection login, 5 pages avec données réelles (UUIDs, zéro id `demo-`), connexion Google mock OK (promotion owner temporaire), `google_connections` active, crons 401/500 (500 = service role absente, attendu).
+- Vercel : projet `kua-locale` créé + lié au repo GitHub, 9 env vars prod (mêmes `ENCRYPTION_KEY`/`CRON_SECRET` que local — même DB), déployé + aliasé https://kua-locale.vercel.app. Piège rencontré : `echo | vercel env add` sous PowerShell ajoute un `\r` (erreur « whitespace in header ») — recréées via bash `printf '%s'`.
+- GitHub Actions : secret `CRON_SECRET` posé; variable `APP_URL` volontairement absente (interrupteur d'activation une fois la service role key en place, sinon runs rouges aux 15 min).
 
 ### Phase 8 — Prod readiness (2026-07-02)
 - `vercel.json` : 3 crons (sync-reviews */30, publish-posts */15, compute-due 1x/jour à 10 h UTC). Vercel injecte `CRON_SECRET` en header automatiquement.
