@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { runDiscovery } from "@/lib/gbp/discovery";
 import { logActivity } from "@/lib/activity";
 import { torontoParts } from "@/lib/due";
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const supabase = createAdminClient();
+  const supabase = await getDb();
   const { data: board } = await supabase
     .from("client_board_state")
     .select("agency_id, unreplied_count, posts_due")

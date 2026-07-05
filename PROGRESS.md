@@ -7,7 +7,7 @@
 
 - **Déployé en production** : https://kua-locale.vercel.app (projet Vercel `kua-locale`, repo GitHub connecté — push sur `main` = déploiement auto).
 - **Smoke test §4 passé** (2026-07-04, local + prod, mode mock) : auth/whitelist, 5 pages branchées Supabase (données réelles, pas de fallback démo), connexion Google mock (`connected=1`), crons protégés (401 sans bearer).
-- Les crons ne s'exécutent pas encore : `SUPABASE_SERVICE_ROLE_KEY` manquante sur Vercel (dashboard seulement) → voir « Requis de William ».
+- **Crons actifs** : les 3 crons répondent 200 en prod et écrivent en DB via un **compte de service** (`cron@kua.quebec`) sous RLS membre — plus besoin de `SUPABASE_SERVICE_ROLE_KEY` (voir décision #16). GitHub Actions activé (variable `APP_URL` posée), run manuel vert (sync + publish success).
 - Remote GitHub : `Wrivard/gmb` (push autonome autorisé).
 
 ## Phases
@@ -46,19 +46,27 @@
 | 13 | Auto-publish des réponses ≥ 4★ fait dans le cron sync (pas un cron séparé) | Le draft vient d'être généré, le client est en main; en cas d'échec → `approved` + `publish_error`, le cron publish (phase 5) sert de filet de retry. |
 | 14 | Crons fréquents via GitHub Actions, `vercel.json` ne garde que compute-due | Le plan Vercel Hobby limite ses crons à 1x/jour (erreur au déploiement sinon). GH Actions est gratuit : workflow aux 15 min (publish-posts), sync-reviews aux 30 min via garde sur la minute. Secrets GitHub requis : `CRON_SECRET` + var `APP_URL`. |
 | 15 | `getDb()` : service role si dispo, sinon client de session (RLS) | La clé service_role n'est pas récupérable via le MCP Supabase. Les pages/actions passent par `lib/supabase/db.ts` — RLS membre couvre tout (migration 003 ajoute les policies insert manquantes : activity_log + storage). Les crons gardent `createAdminClient` (pas de session) et exigeront la clé au déploiement. Défense en profondeur en bonus. |
+| 16 | Crons via **compte de service** au lieu de la clé service_role | La clé service_role est réellement inaccessible sans le dashboard (ni CLI, ni MCP, ni SQL `jwt_secret`, ni CLI Supabase non authentifié). Solution : un compte auth `cron@kua.quebec` whitelisté owner dans `agency_members`; `getServiceClient()` (`lib/supabase/service.ts`) le signe in par mot de passe et `getDb()` s'y rabat en 3ᵉ recours (après service role, après session cookie). Les 3 crons passent de `createAdminClient()` à `getDb()`. Les writes passent la RLS membre (`_member_all` = `for all` → INSERT/UPDATE couverts). Vérifié : les crons insèrent bien dans `activity_log` en local + prod (`due_computed`, `sync_completed`). Le cas 3 de `getDb()` n'est atteignable qu'après vérif du `CRON_SECRET` → pas d'élévation anonyme. Si la clé service_role est ajoutée un jour, elle reprend la priorité automatiquement. |
 
 ## 🧍 Requis de William
 
 Tout est encodé dans **DEPLOY.md** (checklist ordonnée). En résumé :
 
 - [x] **Projet Supabase** : `kua-locale` (`czugrjtabomdngbxzhhr`, ca-central-1, free tier) créé le 2026-07-02 via MCP — migrations + seed appliqués, `.env.local` écrit. Compte de William créé (`wrivard@kua.quebec`, mdp temporaire connu de lui). ⚠️ Kua-coif et kua-loop-engine ont été **pausés** pour libérer les slots free (réactivables depuis le dashboard).
-- [ ] Clé `SUPABASE_SERVICE_ROLE_KEY` (dashboard → Settings → API keys) — requise seulement pour les **crons**; à ajouter via `vercel env add SUPABASE_SERVICE_ROLE_KEY production` puis redéployer. Ensuite réactiver les crons GitHub Actions : `gh variable set APP_URL --repo Wrivard/gmb --body "https://kua-locale.vercel.app"` (retirée volontairement pour éviter des runs rouges aux 15 min en attendant la clé).
+- [x] ~~Clé `SUPABASE_SERVICE_ROLE_KEY`~~ — **plus nécessaire** : les crons tournent via le compte de service (décision #16). La clé reste optionnelle (si ajoutée, reprend la priorité). GitHub Actions déjà actif (`APP_URL` posée).
 - [ ] Supabase Auth (dashboard → Authentication) : `Site URL` = `https://kua-locale.vercel.app`, ajouter `https://kua-locale.vercel.app/auth/callback` aux Redirect URLs, activer le provider **Google** (client ID/secret GCP) — le login email/mdp fonctionne déjà sans ça.
 - [ ] Checklist Google complète de `specs/00-PREREQUIS-GOOGLE.md` (projet GCP, APIs, OAuth consent, client ID, demande Basic API Access).
 - [ ] Clé `OPENAI_API_KEY` (engine réponses/posts — stub déterministe en attendant).
 - [ ] Clé `GEMINI_API_KEY` (images de posts — placeholder « image à ajouter » en attendant).
 
 ## Journal
+
+### Crons sans clé service_role — compte de service (2026-07-04)
+- Constat : la clé service_role est **inextricable** sans le dashboard — épuisé SQL (`jwt_secret` absent), MCP Supabase (`get_publishable_keys` = anon/publishable only), MCP Vercel (403, et aucun outil d'écriture de secret), CLI Supabase (`projects api-keys` → non authentifié), token sur disque/keyring Windows (absent).
+- Solution (décision #16) : compte de service `cron@kua.quebec` (owner dans `agency_members`, email confirmé par SQL). `lib/supabase/service.ts` : `getServiceClient()` signe in par mot de passe, cache le client jusqu'à ~2 min avant l'expiry du JWT. `getDb()` gagne un 3ᵉ recours (service role → session cookie → compte de service). Les 3 crons passent de `createAdminClient()` à `getDb()`.
+- RLS auditée avant modif : policies `_member_all` en `for all using(agency)` → INSERT/UPDATE couverts pour un membre; migration 003 couvre `activity_log` insert + storage. Tout ce que les crons écrivent (clients/reviews/review_replies/posts/activity_log) est permis à un membre.
+- Vérifs : `tsc` + 36 tests + build verts. Crons testés **en local puis en prod** → 200, et écrivent réellement (`activity_log` : `due_computed` + `sync_completed`, actor `system`). GitHub Actions activé (`APP_URL`), run manuel vert (sync-reviews + publish-posts success).
+- Env vars ajoutées (Vercel prod + `.env.local`) : `CRON_SERVICE_EMAIL`, `CRON_SERVICE_PASSWORD`. Mot de passe hors repo (scratchpad session).
 
 ### Déploiement Vercel + smoke test (2026-07-04)
 - Décision (William) : **rester sur Supabase free tier** après deep dive des alternatives (Neon/Better Auth/Convex/etc.) — les crons GH Actions gardent le projet actif, migration non justifiée.

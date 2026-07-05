@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { getGbpClient } from "@/lib/gbp/client";
 import { publishPost } from "@/lib/posts/publish";
 
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const supabase = createAdminClient();
+  const supabase = await getDb();
   const counters = { published: 0, failed: 0, repliesPublished: 0 };
 
   // --- Posts planifiés échus ---

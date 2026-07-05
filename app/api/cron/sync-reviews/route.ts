@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getDb } from "@/lib/supabase/db";
 import { getGbpClient } from "@/lib/gbp/client";
 import { mapGbpReview, decideSync } from "@/lib/gbp/mapping";
 import { GbpAccessPendingError } from "@/lib/gbp/types";
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     return unauthorized();
   }
 
-  const supabase = createAdminClient();
+  const supabase = await getDb();
   const gbp = getGbpClient();
 
   const { data: clients, error: clientsError } = await supabase
@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ ok: true, ...counters });
 }
 
-type Supabase = ReturnType<typeof createAdminClient>;
+type Supabase = Awaited<ReturnType<typeof getDb>>;
 type Gbp = ReturnType<typeof getGbpClient>;
 
 async function syncOneReview(
