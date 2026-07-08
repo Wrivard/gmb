@@ -5,11 +5,8 @@ import { getDb } from "@/lib/supabase/db";
 import { generatePostContent } from "@/lib/ai/posts";
 import { generatePostImage } from "@/lib/ai/images";
 import { logActivity } from "@/lib/activity";
-import {
-  remainingPosts,
-  suggestPostDates,
-  torontoMonthRange,
-} from "@/lib/due";
+import { suggestPostDates } from "@/lib/due";
+import { monthlyCadence } from "@/lib/posts/cadence";
 import type { Client } from "@/lib/types/database";
 
 // Pipeline de génération d'un post (specs/06 §Workflow) :
@@ -52,7 +49,6 @@ export async function generatePostForClient(
   now: Date = new Date(),
 ): Promise<GeneratedPost> {
   const supabase = await getDb();
-  const range = torontoMonthRange(now);
 
   // Contexte du mois : cadence restante + posts récents pour la rotation.
   const [{ data: monthPosts }, { data: recentPosts }] = await Promise.all([
@@ -68,30 +64,15 @@ export async function generatePostForClient(
       .limit(6),
   ]);
 
-  const inMonth = (iso: string | null) =>
-    Boolean(
-      iso && new Date(iso) >= range.start && new Date(iso) < range.end,
-    );
-  const published = (monthPosts ?? []).filter(
-    (p) => p.status === "published" && inMonth(p.published_at),
-  ).length;
-  const scheduled = (monthPosts ?? []).filter(
-    (p) =>
-      (p.status === "scheduled" || p.status === "approved") &&
-      inMonth(p.scheduled_for),
-  ).length;
-  const drafts = (monthPosts ?? []).filter(
-    (p) => p.status === "draft" && inMonth(p.scheduled_for),
-  ).length;
-
-  const remaining = remainingPosts({
-    postsPerMonth: client.posts_per_month,
-    publishedThisMonth: published,
-    scheduledThisMonth: scheduled,
-  });
-  const suggestions = suggestPostDates(now, Math.max(remaining, 1));
+  const cadence = monthlyCadence(
+    monthPosts ?? [],
+    client.posts_per_month,
+    now,
+  );
+  const suggestions = suggestPostDates(now, Math.max(cadence.remaining, 1));
   const scheduledFor =
-    suggestions[Math.min(drafts, suggestions.length - 1)] ?? suggestions[0];
+    suggestions[Math.min(cadence.drafts, suggestions.length - 1)] ??
+    suggestions[0];
 
   const content = await generatePostContent({
     client,

@@ -1,7 +1,7 @@
 import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
-import { isLate, remainingPosts, torontoMonthRange } from "@/lib/due";
+import { monthlyCadence, torontoMonthTester } from "@/lib/posts/cadence";
 import { DemoBanner } from "@/components/layout/demo-banner";
 import { RealtimeRefresh } from "@/components/dashboard/realtime-refresh";
 import { demoQueueClients, demoQueuePosts } from "@/lib/demo";
@@ -30,7 +30,6 @@ export default async function PostsPage() {
 
   const supabase = await getDb();
   const now = new Date();
-  const range = torontoMonthRange(now);
 
   const { data: clients } = await supabase
     .from("clients")
@@ -46,27 +45,16 @@ export default async function PostsPage() {
     .in("client_id", [...clientById.keys()])
     .order("scheduled_for", { ascending: true, nullsFirst: false });
 
-  const inMonth = (iso: string | null) =>
-    Boolean(iso && new Date(iso) >= range.start && new Date(iso) < range.end);
+  const inMonth = torontoMonthTester(now);
 
   const queueClients: QueueClient[] = (clients ?? []).map((client) => {
     const clientPosts = (posts ?? []).filter((p) => p.client_id === client.id);
-    const remaining = remainingPosts({
-      postsPerMonth: client.posts_per_month,
-      publishedThisMonth: clientPosts.filter(
-        (p) => p.status === "published" && inMonth(p.published_at),
-      ).length,
-      scheduledThisMonth: clientPosts.filter(
-        (p) =>
-          (p.status === "scheduled" || p.status === "approved") &&
-          inMonth(p.scheduled_for),
-      ).length,
-    });
+    const cadence = monthlyCadence(clientPosts, client.posts_per_month, now);
     return {
       id: client.id,
       name: client.name,
-      remaining,
-      late: isLate(now, remaining),
+      remaining: cadence.remaining,
+      late: cadence.late,
     };
   });
 
