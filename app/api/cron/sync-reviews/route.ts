@@ -1,15 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getDb } from "@/lib/supabase/db";
 import { getGbpClient } from "@/lib/gbp/client";
-import { mapGbpReview, decideSync } from "@/lib/gbp/mapping";
 import { GbpAccessPendingError } from "@/lib/gbp/types";
-import { generateReplyDraft } from "@/lib/ai/replies";
+import { importReview } from "@/lib/reviews/import";
 import { logActivity } from "@/lib/activity";
 import type { Client } from "@/lib/types/database";
 
 // Cron sync-reviews (specs/04) — aux 30 min via Vercel Cron.
-// batchGetReviews par compte → upsert par gbp_review_id → draft AI
-// immédiat sur les nouvelles reviews → auto-publish si configuré (≥ 4★).
+// Auth + pagination batchGetReviews par compte; l'import d'une review
+// (upsert → draft AI → auto-publish) vit dans lib/reviews/import.ts.
 
 export const maxDuration = 300;
 
@@ -77,7 +76,14 @@ export async function GET(request: NextRequest) {
 
           for (const gbpReview of bundle.reviews) {
             try {
-              await syncOneReview(supabase, gbp, client, gbpReview, counters);
+              const outcome = await importReview(client, gbpReview, {
+                supabase,
+                gbp,
+              });
+              if (outcome.imported) counters.imported++;
+              if (outcome.updated) counters.updated++;
+              if (outcome.draftCreated) counters.drafts++;
+              if (outcome.autoPublished) counters.autoPublished++;
             } catch (error) {
               counters.errors++;
               console.error(
@@ -119,143 +125,4 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json({ ok: true, ...counters });
-}
-
-type Supabase = Awaited<ReturnType<typeof getDb>>;
-type Gbp = ReturnType<typeof getGbpClient>;
-
-async function syncOneReview(
-  supabase: Supabase,
-  gbp: Gbp,
-  client: Client,
-  gbpReview: Parameters<typeof mapGbpReview>[0],
-  counters: {
-    imported: number;
-    updated: number;
-    drafts: number;
-    autoPublished: number;
-  },
-): Promise<void> {
-  const incoming = mapGbpReview(gbpReview);
-
-  const { data: existing } = await supabase
-    .from("reviews")
-    .select("id, comment, star_rating, review_updated_at, status")
-    .eq("gbp_review_id", incoming.gbp_review_id)
-    .maybeSingle();
-
-  const decision = decideSync(incoming, existing);
-  if (decision.kind === "skip") return;
-
-  let reviewId: string;
-  if (decision.kind === "insert") {
-    const { data: inserted, error } = await supabase
-      .from("reviews")
-      .insert({
-        client_id: client.id,
-        gbp_review_id: incoming.gbp_review_id,
-        gbp_review_name: incoming.gbp_review_name,
-        reviewer_name: incoming.reviewer_name,
-        reviewer_photo_url: incoming.reviewer_photo_url,
-        star_rating: incoming.star_rating,
-        comment: incoming.comment,
-        review_created_at: incoming.review_created_at,
-        review_updated_at: incoming.review_updated_at,
-        status: decision.status,
-        synced_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-    reviewId = inserted.id;
-    counters.imported++;
-  } else {
-    if (!existing) return; // impossible par construction
-    const { error } = await supabase
-      .from("reviews")
-      .update({
-        reviewer_name: incoming.reviewer_name,
-        reviewer_photo_url: incoming.reviewer_photo_url,
-        star_rating: incoming.star_rating,
-        comment: incoming.comment,
-        review_updated_at: incoming.review_updated_at,
-        status: decision.status,
-        was_updated: decision.wasUpdated || undefined,
-        synced_at: new Date().toISOString(),
-      })
-      .eq("id", existing.id);
-    if (error) throw new Error(error.message);
-    reviewId = existing.id;
-    counters.updated++;
-  }
-
-  // Draft AI immédiat pour toute review qui attend une réponse.
-  if (decision.status !== "needs_reply") return;
-
-  const review = {
-    id: reviewId,
-    reviewer_name: incoming.reviewer_name,
-    star_rating: incoming.star_rating,
-    comment: incoming.comment,
-  };
-
-  const draft = await generateReplyDraft({ client, review });
-
-  const { error: draftError } = await supabase.from("review_replies").upsert(
-    {
-      review_id: reviewId,
-      draft_text: draft.reply,
-      generated_by_ai: draft.generatedByAi,
-    },
-    { onConflict: "review_id" },
-  );
-  if (draftError) throw new Error(draftError.message);
-
-  await supabase
-    .from("reviews")
-    .update({ status: "draft_ready" })
-    .eq("id", reviewId);
-  counters.drafts++;
-
-  // Auto-publish : uniquement ≥ 4★; les négatives exigent un humain (specs/05).
-  if (client.auto_publish_replies && incoming.star_rating >= 4) {
-    try {
-      await gbp.putReviewReply(incoming.gbp_review_name, draft.reply);
-      const now = new Date().toISOString();
-      await supabase
-        .from("review_replies")
-        .update({
-          published_text: draft.reply,
-          published_at: now,
-          publish_error: null,
-        })
-        .eq("review_id", reviewId);
-      await supabase
-        .from("reviews")
-        .update({ status: "replied" })
-        .eq("id", reviewId);
-      counters.autoPublished++;
-      await logActivity({
-        agencyId: client.agency_id,
-        clientId: client.id,
-        actor: "ai",
-        action: "reply_auto_published",
-        payload: { review_id: reviewId },
-      });
-    } catch (error) {
-      // Draft prêt mais publication ratée : approved + erreur — le cron
-      // publish (phase 5) sert de filet de retry.
-      await supabase
-        .from("review_replies")
-        .update({
-          publish_error:
-            error instanceof Error ? error.message : "publication échouée",
-        })
-        .eq("review_id", reviewId);
-      await supabase
-        .from("reviews")
-        .update({ status: "approved" })
-        .eq("id", reviewId);
-    }
-  }
 }
