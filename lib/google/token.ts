@@ -4,7 +4,11 @@ import { getDb } from "@/lib/supabase/db";
 import { decrypt } from "@/lib/crypto";
 
 // Gestion du access token Google (specs/02 §B).
-// Cache mémoire jusqu'à expiry - 60 s; refresh via le refresh token chiffré.
+// La connexion est relue à chaque appel (la RLS scope la requête à
+// l'agence de l'appelant — une connexion par agence, contrainte unique);
+// seul le refresh OAuth est mis en cache, par connexion, jusqu'à
+// expiry - 60 s. Un cache global partagé servirait le token d'une
+// agence à une autre dans le même process.
 
 export class GoogleConnectionRevokedError extends Error {
   constructor() {
@@ -25,17 +29,13 @@ interface CachedToken {
   expiresAt: number;
 }
 
-let cache: CachedToken | null = null;
+const cacheByConnection = new Map<string, CachedToken>();
 
 export function clearTokenCache(): void {
-  cache = null;
+  cacheByConnection.clear();
 }
 
 export async function getAccessToken(): Promise<string> {
-  if (cache && Date.now() < cache.expiresAt - 60_000) {
-    return cache.accessToken;
-  }
-
   const supabase = await getDb();
   const { data: connection } = await supabase
     .from("google_connections")
@@ -44,6 +44,11 @@ export async function getAccessToken(): Promise<string> {
     .maybeSingle();
 
   if (!connection) throw new GoogleNotConnectedError();
+
+  const cached = cacheByConnection.get(connection.id);
+  if (cached && Date.now() < cached.expiresAt - 60_000) {
+    return cached.accessToken;
+  }
 
   const refreshToken = decrypt(connection.refresh_token_encrypted);
 
@@ -66,7 +71,7 @@ export async function getAccessToken(): Promise<string> {
         .from("google_connections")
         .update({ status: "revoked" })
         .eq("id", connection.id);
-      cache = null;
+      cacheByConnection.delete(connection.id);
       throw new GoogleConnectionRevokedError();
     }
     throw new Error(`Échec du refresh token Google (${response.status}): ${body}`);
@@ -77,10 +82,10 @@ export async function getAccessToken(): Promise<string> {
     expires_in: number;
   };
 
-  cache = {
+  cacheByConnection.set(connection.id, {
     accessToken: json.access_token,
     expiresAt: Date.now() + json.expires_in * 1000,
-  };
+  });
 
   await supabase
     .from("google_connections")
