@@ -83,7 +83,13 @@ export async function importReview(
         comment: incoming.comment,
         review_updated_at: incoming.review_updated_at,
         status: decision.status,
-        was_updated: decision.wasUpdated || undefined,
+        // Levé quand le texte change après notre réponse; nettoyé dès que
+        // la review redevient `replied` (réponse publiée ici ou directement
+        // sur Google); sinon `undefined` pour préserver un flag pas encore
+        // traité par l'équipe.
+        was_updated:
+          decision.wasUpdated ||
+          (decision.status === "replied" ? false : undefined),
         synced_at: new Date().toISOString(),
       })
       .eq("id", existing.id);
