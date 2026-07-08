@@ -3,8 +3,12 @@ import "server-only";
 // Requêteur de l'inbox reviews — possède la requête, la jointure
 // review_replies et le DTO InboxReview. Ce mapping était recopié
 // verbatim entre reviews/page.tsx et l'onglet Reviews de la fiche client.
+// Sans Supabase configuré : adapter démo (fixtures lib/demo.ts) derrière
+// la même interface — le scope ne sert alors qu'au filtre clientId.
 
 import { getDb } from "@/lib/supabase/db";
+import { supabaseConfigured } from "@/lib/env";
+import { demoInboxReviews } from "@/lib/demo";
 import type { Database, ReviewStatus } from "@/lib/types/database";
 
 export interface InboxReview {
@@ -31,6 +35,13 @@ type ReviewRow = Database["public"]["Tables"]["reviews"]["Row"];
 export async function loadInboxReviews(
   scope: InboxScope,
 ): Promise<InboxReview[]> {
+  if (!supabaseConfigured()) {
+    const all = demoInboxReviews();
+    return "clientId" in scope
+      ? all.filter((review) => review.clientId === scope.clientId)
+      : all;
+  }
+
   const supabase = await getDb();
 
   let rows: ReviewRow[];

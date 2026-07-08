@@ -3,8 +3,8 @@
 // Les dates sont relatives au moment du render pour que les badges
 // d'ancienneté (« il y a 2 jours », retard > 72 h) restent plausibles.
 import type { BoardClient } from "@/app/(app)/kanban";
-import type { InboxReview } from "@/app/(app)/reviews/reviews-inbox";
-import type { QueueClient, QueuePost } from "@/app/(app)/posts/posts-view";
+import type { InboxReview } from "@/lib/reviews/inbox";
+import type { QueueClient, QueuePost } from "@/lib/posts/queue";
 
 function hoursAgo(hours: number): string {
   return new Date(Date.now() - hours * 3600_000).toISOString();

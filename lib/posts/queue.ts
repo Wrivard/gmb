@@ -4,8 +4,12 @@ import "server-only";
 // la construction d'URL Storage et les DTO QueueClient/QueuePost.
 // Ce mapping était recopié entre posts/page.tsx et l'onglet Posts de
 // la fiche client (URL publique post-images incluse).
+// Sans Supabase configuré : adapter démo (fixtures lib/demo.ts) derrière
+// la même interface.
 
 import { getDb } from "@/lib/supabase/db";
+import { supabaseConfigured } from "@/lib/env";
+import { demoQueueClients, demoQueuePosts } from "@/lib/demo";
 import { monthlyCadence, torontoMonthTester } from "@/lib/posts/cadence";
 import type { Database, PostStatus } from "@/lib/types/database";
 
@@ -60,6 +64,10 @@ export async function loadAgencyQueue(
   agencyId: string,
   now: Date = new Date(),
 ): Promise<{ clients: QueueClient[]; posts: QueuePost[] }> {
+  if (!supabaseConfigured()) {
+    return { clients: demoQueueClients(), posts: demoQueuePosts() };
+  }
+
   const supabase = await getDb();
 
   const { data: clients } = await supabase
@@ -110,6 +118,13 @@ export async function loadClientQueue(
   client: { id: string; name: string; posts_per_month: number },
   now: Date = new Date(),
 ): Promise<{ clients: QueueClient[]; posts: QueuePost[] }> {
+  if (!supabaseConfigured()) {
+    return {
+      clients: demoQueueClients().filter((c) => c.id === client.id),
+      posts: demoQueuePosts().filter((p) => p.clientId === client.id),
+    };
+  }
+
   const supabase = await getDb();
 
   const { data: posts } = await supabase
