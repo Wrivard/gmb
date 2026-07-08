@@ -1,28 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSessionContext } from "@/lib/auth";
-import { getDb } from "@/lib/supabase/db";
+import {
+  loadClientForMember,
+  runAction,
+  type ActionResult,
+} from "@/lib/actions/member";
 import { logActivity } from "@/lib/activity";
 import type { BrandProfile } from "@/lib/types/database";
-
-type ActionResult = { ok: true } | { ok: false; error: string };
-
-async function loadClientForMember(clientId: string) {
-  const { member } = await getSessionContext();
-  if (!member) throw new Error("Non autorisé.");
-
-  const supabase = await getDb();
-  const { data: client } = await supabase
-    .from("clients")
-    .select("*")
-    .eq("id", clientId)
-    .eq("agency_id", member.agency_id)
-    .maybeSingle();
-  if (!client) throw new Error("Client introuvable.");
-
-  return { member, supabase, client };
-}
 
 export async function updateClientSettingsAction(
   clientId: string,
@@ -34,7 +19,7 @@ export async function updateClientSettingsAction(
     active: boolean;
   },
 ): Promise<ActionResult> {
-  try {
+  return runAction("La mise à jour a échoué.", async () => {
     const { member, supabase, client } = await loadClientForMember(clientId);
     if (client.status === "disconnected") {
       return { ok: false, error: "Fiche déconnectée — resynchronise d'abord." };
@@ -63,20 +48,14 @@ export async function updateClientSettingsAction(
     revalidatePath(`/clients/${clientId}`);
     revalidatePath("/");
     return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "La mise à jour a échoué.",
-    };
-  }
+  });
 }
 
 export async function updateBrandProfileAction(
   clientId: string,
   profile: BrandProfile,
 ): Promise<ActionResult> {
-  try {
+  return runAction("La mise à jour a échoué.", async () => {
     const { member, supabase } = await loadClientForMember(clientId);
 
     const { error } = await supabase
@@ -94,11 +73,5 @@ export async function updateBrandProfileAction(
 
     revalidatePath(`/clients/${clientId}`);
     return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "La mise à jour a échoué.",
-    };
-  }
+  });
 }

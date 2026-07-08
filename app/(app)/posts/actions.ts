@@ -1,8 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSessionContext } from "@/lib/auth";
-import { getDb } from "@/lib/supabase/db";
+import {
+  loadClientForMember,
+  loadPostForMember,
+  runAction,
+  type ActionResult,
+} from "@/lib/actions/member";
 import { generatePostForClient, processAndUploadImage } from "@/lib/posts/generate";
 import { publishPost } from "@/lib/posts/publish";
 import {
@@ -16,36 +20,6 @@ import type { CtaType } from "@/lib/types/database";
 
 const MAX_SUMMARY_LENGTH = 1500;
 
-type ActionResult = { ok: true } | { ok: false; error: string };
-
-async function requireMember() {
-  const { member } = await getSessionContext();
-  if (!member) throw new Error("Non autorisé.");
-  return member;
-}
-
-async function loadPostForMember(postId: string) {
-  const member = await requireMember();
-  const supabase = await getDb();
-
-  const { data: post } = await supabase
-    .from("posts")
-    .select("*")
-    .eq("id", postId)
-    .maybeSingle();
-  if (!post) throw new Error("Post introuvable.");
-
-  const { data: client } = await supabase
-    .from("clients")
-    .select("*")
-    .eq("id", post.client_id)
-    .eq("agency_id", member.agency_id)
-    .maybeSingle();
-  if (!client) throw new Error("Post introuvable.");
-
-  return { member, supabase, post, client };
-}
-
 function refresh() {
   revalidatePath("/posts");
   revalidatePath("/");
@@ -54,27 +28,12 @@ function refresh() {
 export async function generatePostAction(
   clientId: string,
 ): Promise<ActionResult & { postId?: string }> {
-  try {
-    const member = await requireMember();
-    const supabase = await getDb();
-    const { data: client } = await supabase
-      .from("clients")
-      .select("*")
-      .eq("id", clientId)
-      .eq("agency_id", member.agency_id)
-      .maybeSingle();
-    if (!client) return { ok: false, error: "Client introuvable." };
-
+  return runAction("La génération a échoué.", async () => {
+    const { member, client } = await loadClientForMember(clientId);
     const result = await generatePostForClient(client, member.email);
     refresh();
     return { ok: true, postId: result.postId };
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "La génération a échoué.",
-    };
-  }
+  });
 }
 
 export async function updatePostAction(
@@ -86,7 +45,7 @@ export async function updatePostAction(
     scheduledFor: string | null;
   },
 ): Promise<ActionResult> {
-  try {
+  return runAction("L'enregistrement a échoué.", async () => {
     const summary = input.summary.trim();
     if (!summary) return { ok: false, error: "Le texte du post est vide." };
     if (summary.length > MAX_SUMMARY_LENGTH) {
@@ -114,17 +73,11 @@ export async function updatePostAction(
 
     refresh();
     return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "L'enregistrement a échoué.",
-    };
-  }
+  });
 }
 
 export async function approvePostAction(postId: string): Promise<ActionResult> {
-  try {
+  return runAction("L'approbation a échoué.", async () => {
     const { member, supabase, post, client } = await loadPostForMember(postId);
     if (!isPostApprovable(post.status)) {
       return { ok: false, error: "Ce post n'est pas en brouillon." };
@@ -153,18 +106,13 @@ export async function approvePostAction(postId: string): Promise<ActionResult> {
 
     refresh();
     return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "L'approbation a échoué.",
-    };
-  }
+  });
 }
 
 export async function publishPostNowAction(
   postId: string,
 ): Promise<ActionResult> {
-  try {
+  return runAction("La publication a échoué.", async () => {
     const { member } = await loadPostForMember(postId);
     const result = await publishPost(
       postId,
@@ -173,20 +121,14 @@ export async function publishPostNowAction(
     );
     refresh();
     return result.ok ? { ok: true } : { ok: false, error: result.error };
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "La publication a échoué.",
-    };
-  }
+  });
 }
 
 export async function regeneratePostImageAction(
   postId: string,
   directive?: string,
 ): Promise<ActionResult> {
-  try {
+  return runAction("La régénération a échoué.", async () => {
     const { supabase, post, client } = await loadPostForMember(postId);
     if (!post.image_prompt) {
       return { ok: false, error: "Ce post n'a pas de prompt d'image." };
@@ -200,7 +142,7 @@ export async function regeneratePostImageAction(
       return {
         ok: false,
         error:
-          "Génération d'image indisponible (GEMINI_API_KEY manquante ou échec).",
+          "Génération d'image indisponible (clé OpenAI/Gemini manquante ou échec).",
       };
     }
 
@@ -215,20 +157,14 @@ export async function regeneratePostImageAction(
 
     refresh();
     return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "La régénération a échoué.",
-    };
-  }
+  });
 }
 
 export async function uploadPostImageAction(
   postId: string,
   formData: FormData,
 ): Promise<ActionResult> {
-  try {
+  return runAction("L'upload a échoué.", async () => {
     const file = formData.get("image");
     if (!(file instanceof File) || !file.size) {
       return { ok: false, error: "Aucune image fournie." };
@@ -250,10 +186,5 @@ export async function uploadPostImageAction(
 
     refresh();
     return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "L'upload a échoué.",
-    };
-  }
+  });
 }

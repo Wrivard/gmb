@@ -1,44 +1,33 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSessionContext } from "@/lib/auth";
-import { getDb } from "@/lib/supabase/db";
+import {
+  getMemberDb,
+  requireMember,
+  runAction,
+  type ActionResult,
+} from "@/lib/actions/member";
 import { runDiscovery } from "@/lib/gbp/discovery";
 import { logActivity } from "@/lib/activity";
-
-type ActionResult = { ok: true } | { ok: false; error: string };
-
-async function requireMember() {
-  const { member } = await getSessionContext();
-  if (!member) throw new Error("Non autorisé.");
-  return member;
-}
 
 export async function resyncClientsAction(): Promise<
   ActionResult & { created?: number; discovered?: number }
 > {
-  try {
+  return runAction("La resynchronisation a échoué.", async () => {
     const member = await requireMember();
     const result = await runDiscovery(member.agency_id, member.email);
     revalidatePath("/settings");
     revalidatePath("/clients");
     return { ok: true, ...result };
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "La resynchronisation a échoué.",
-    };
-  }
+  });
 }
 
 export async function toggleClientActiveAction(
   clientId: string,
   active: boolean,
 ): Promise<ActionResult> {
-  try {
-    const member = await requireMember();
-    const supabase = await getDb();
+  return runAction("Échec de la mise à jour.", async () => {
+    const { member, supabase } = await getMemberDb();
     const { error } = await supabase
       .from("clients")
       .update({ status: active ? "active" : "paused" })
@@ -49,20 +38,15 @@ export async function toggleClientActiveAction(
     revalidatePath("/settings");
     revalidatePath("/");
     return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Échec de la mise à jour.",
-    };
-  }
+  });
 }
 
 export async function addMemberAction(
   email: string,
   role: "owner" | "member",
 ): Promise<ActionResult> {
-  try {
-    const member = await requireMember();
+  return runAction("Échec de l'ajout.", async () => {
+    const { member, supabase } = await getMemberDb();
     if (member.role !== "owner") {
       return { ok: false, error: "Seul un admin peut gérer l'équipe." };
     }
@@ -70,7 +54,6 @@ export async function addMemberAction(
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmed)) {
       return { ok: false, error: "Courriel invalide." };
     }
-    const supabase = await getDb();
     const { error } = await supabase.from("agency_members").insert({
       agency_id: member.agency_id,
       email: trimmed,
@@ -90,26 +73,20 @@ export async function addMemberAction(
     });
     revalidatePath("/settings");
     return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Échec de l'ajout.",
-    };
-  }
+  });
 }
 
 export async function removeMemberAction(
   memberId: string,
 ): Promise<ActionResult> {
-  try {
-    const member = await requireMember();
+  return runAction("Échec du retrait.", async () => {
+    const { member, supabase } = await getMemberDb();
     if (member.role !== "owner") {
       return { ok: false, error: "Seul un admin peut gérer l'équipe." };
     }
     if (member.id === memberId) {
       return { ok: false, error: "Tu ne peux pas te retirer toi-même." };
     }
-    const supabase = await getDb();
     const { error } = await supabase
       .from("agency_members")
       .delete()
@@ -118,25 +95,19 @@ export async function removeMemberAction(
     if (error) throw new Error(error.message);
     revalidatePath("/settings");
     return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Échec du retrait.",
-    };
-  }
+  });
 }
 
 export async function updateAgencyDefaultsAction(input: {
   defaultPostsPerMonth: number;
   defaultLanguage: string;
 }): Promise<ActionResult> {
-  try {
-    const member = await requireMember();
+  return runAction("Échec de la mise à jour.", async () => {
+    const { member, supabase } = await getMemberDb();
     if (member.role !== "owner") {
       return { ok: false, error: "Seul un admin peut modifier les défauts." };
     }
     const posts = Math.max(0, Math.min(10, Math.round(input.defaultPostsPerMonth)));
-    const supabase = await getDb();
     const { error } = await supabase
       .from("agencies")
       .update({
@@ -147,10 +118,5 @@ export async function updateAgencyDefaultsAction(input: {
     if (error) throw new Error(error.message);
     revalidatePath("/settings");
     return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Échec de la mise à jour.",
-    };
-  }
+  });
 }

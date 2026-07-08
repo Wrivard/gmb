@@ -1,8 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSessionContext } from "@/lib/auth";
-import { getDb } from "@/lib/supabase/db";
+import {
+  loadReviewForMember,
+  runAction,
+  type ActionResult,
+} from "@/lib/actions/member";
 import { getGbpClient } from "@/lib/gbp/client";
 import { generateReplyDraft } from "@/lib/ai/replies";
 import { logActivity } from "@/lib/activity";
@@ -10,36 +13,11 @@ import { logActivity } from "@/lib/activity";
 // Google accepte ~4096 caractères pour une réponse d'avis.
 const MAX_REPLY_LENGTH = 4096;
 
-type ActionResult = { ok: true } | { ok: false; error: string };
-
-async function loadReviewForMember(reviewId: string) {
-  const { member } = await getSessionContext();
-  if (!member) throw new Error("Non autorisé.");
-
-  const supabase = await getDb();
-  const { data: review } = await supabase
-    .from("reviews")
-    .select("*")
-    .eq("id", reviewId)
-    .maybeSingle();
-  if (!review) throw new Error("Review introuvable.");
-
-  const { data: client } = await supabase
-    .from("clients")
-    .select("*")
-    .eq("id", review.client_id)
-    .eq("agency_id", member.agency_id)
-    .maybeSingle();
-  if (!client) throw new Error("Review introuvable.");
-
-  return { member, supabase, review, client };
-}
-
 export async function publishReplyAction(
   reviewId: string,
   text: string,
 ): Promise<ActionResult> {
-  try {
+  return runAction("La publication a échoué.", async () => {
     const trimmed = text.trim();
     if (!trimmed) return { ok: false, error: "La réponse est vide." };
     if (trimmed.length > MAX_REPLY_LENGTH) {
@@ -84,20 +62,14 @@ export async function publishReplyAction(
     revalidatePath("/reviews");
     revalidatePath("/");
     return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "La publication a échoué.",
-    };
-  }
+  });
 }
 
 export async function regenerateReplyAction(
   reviewId: string,
   directive?: string,
 ): Promise<ActionResult & { draft?: string }> {
-  try {
+  return runAction("La régénération a échoué.", async () => {
     const { supabase, review, client } = await loadReviewForMember(reviewId);
 
     const { data: existingReply } = await supabase
@@ -135,20 +107,14 @@ export async function regenerateReplyAction(
 
     revalidatePath("/reviews");
     return { ok: true, draft: draft.reply };
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "La régénération a échoué.",
-    };
-  }
+  });
 }
 
 /** Annule un « Ignorer » (toast undo) : redonne le statut d'attente. */
 export async function unignoreReviewAction(
   reviewId: string,
 ): Promise<ActionResult> {
-  try {
+  return runAction("L'annulation a échoué.", async () => {
     const { supabase, review } = await loadReviewForMember(reviewId);
     if (review.status !== "ignored") return { ok: true };
 
@@ -166,18 +132,13 @@ export async function unignoreReviewAction(
     revalidatePath("/reviews");
     revalidatePath("/");
     return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "L'annulation a échoué.",
-    };
-  }
+  });
 }
 
 export async function ignoreReviewAction(
   reviewId: string,
 ): Promise<ActionResult> {
-  try {
+  return runAction("L'action a échoué.", async () => {
     const { member, supabase, review, client } =
       await loadReviewForMember(reviewId);
 
@@ -197,10 +158,5 @@ export async function ignoreReviewAction(
     revalidatePath("/reviews");
     revalidatePath("/");
     return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "L'action a échoué.",
-    };
-  }
+  });
 }
