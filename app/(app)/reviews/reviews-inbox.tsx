@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { StarRating } from "@/components/reviews/star-rating";
+import { TabBar } from "@/components/ui/tab-bar";
 import { cn } from "@/lib/utils";
 import type { ReviewStatus } from "@/lib/types/database";
 import type { InboxReview } from "@/lib/reviews/inbox";
@@ -91,23 +92,40 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
     return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
   }, [reviews]);
 
-  const visible = useMemo(
-    () =>
-      merged.filter((review) => {
-        if (statusFilter === "pending" && !isPending(review.status))
-          return false;
-        if (statusFilter === "replied" && review.status !== "replied")
-          return false;
-        if (statusFilter === "ignored" && review.status !== "ignored")
-          return false;
-        if (ratingFilter === "high" && review.starRating < 4) return false;
-        if (ratingFilter === "low" && review.starRating > 3) return false;
-        if (clientFilter !== "all" && review.clientId !== clientFilter)
-          return false;
-        return true;
-      }),
-    [merged, statusFilter, ratingFilter, clientFilter],
-  );
+  const visible = useMemo(() => {
+    const filtered = merged.filter((review) => {
+      if (statusFilter === "pending" && !isPending(review.status))
+        return false;
+      if (statusFilter === "replied" && review.status !== "replied")
+        return false;
+      if (statusFilter === "ignored" && review.status !== "ignored")
+        return false;
+      if (ratingFilter === "high" && review.starRating < 4) return false;
+      if (ratingFilter === "low" && review.starRating > 3) return false;
+      if (clientFilter !== "all" && review.clientId !== clientFilter)
+        return false;
+      return true;
+    });
+    // Tri par gravité : une 1★ vieille de 3 jours passe devant dix 5★
+    // fraîches — la file présente le bon ordre d'elle-même.
+    return filtered.sort((a, b) => {
+      const gravity = (r: InboxReview) =>
+        !isPending(r.status)
+          ? 3
+          : r.starRating <= 2
+            ? 0
+            : r.starRating === 3
+              ? 1
+              : 2;
+      const ga = gravity(a);
+      const gb = gravity(b);
+      if (ga !== gb) return ga - gb;
+      const ta = new Date(a.createdAt).getTime();
+      const tb = new Date(b.createdAt).getTime();
+      // En attente : la plus vieille d'abord; traitées : la plus récente.
+      return ga < 3 ? ta - tb : tb - ta;
+    });
+  }, [merged, statusFilter, ratingFilter, clientFilter]);
 
   const applyOverride = useCallback(
     (id: string, patch: Partial<InboxReview> | null) => {
@@ -201,32 +219,20 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-elevated p-1">
-          {(
-            [
-              ["pending", `En attente (${pendingCount})`],
-              ["all", "Toutes"],
-              ["replied", "Répondues"],
-              ["ignored", "Ignorées"],
-            ] as Array<[StatusFilter, string]>
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setStatusFilter(value)}
-              className={cn(
-                "rounded-md px-2.5 py-1 text-sm transition-colors",
-                statusFilter === value
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      <div className="flex flex-wrap items-end gap-2 border-b border-border">
+        <TabBar
+          className="flex-1 border-b-0"
+          activeKey={statusFilter}
+          onSelect={(key) => setStatusFilter(key as StatusFilter)}
+          items={[
+            { key: "pending", label: "En attente", count: pendingCount },
+            { key: "all", label: "Toutes" },
+            { key: "replied", label: "Répondues" },
+            { key: "ignored", label: "Ignorées" },
+          ]}
+        />
 
+        <div className="flex items-center gap-2 pb-1.5">
         <Select
           value={clientFilter}
           onValueChange={(v) => setClientFilter(v as string)}
@@ -261,10 +267,11 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
         <button
           type="button"
           onClick={() => setShortcutsOpen(true)}
-          className="ml-auto text-xs text-muted-foreground transition-colors hover:text-foreground"
+          className="text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
           Raccourcis <kbd className="rounded border border-border px-1">?</kbd>
         </button>
+        </div>
       </div>
 
       <Dialog open={shortcutsOpen} onOpenChange={setShortcutsOpen}>

@@ -5,14 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { frCA } from "date-fns/locale";
-import {
-  ArrowRight,
-  CalendarDays,
-  CheckCircle2,
-  ImageIcon,
-  List,
-  Sparkles,
-} from "lucide-react";
+import { ArrowRight, CheckCircle2, ImageIcon, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +13,7 @@ import { cn } from "@/lib/utils";
 import type { PostStatus } from "@/lib/types/database";
 import { POST_STATUS_LABELS_FR, postGroup } from "@/lib/posts/status";
 import type { QueueClient, QueuePost } from "@/lib/posts/queue";
+import { TabBar } from "@/components/ui/tab-bar";
 import { generatePostAction } from "./actions";
 
 export type { QueueClient, QueuePost };
@@ -48,31 +42,19 @@ export function PostsView({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-elevated p-1">
-          {(
-            [
-              ["queue", "À traiter", List],
-              ["calendar", "Calendrier", CalendarDays],
-            ] as const
-          ).map(([value, label, Icon]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setView(value)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors",
-                view === value
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Icon className="size-3.5" />
-              {label}
-            </button>
-          ))}
+      <div className="flex flex-wrap items-end gap-2 border-b border-border">
+        <TabBar
+          className="flex-1 border-b-0"
+          activeKey={view}
+          onSelect={(key) => setView(key as "queue" | "calendar")}
+          items={[
+            { key: "queue", label: "À traiter" },
+            { key: "calendar", label: "Calendrier" },
+          ]}
+        />
+        <div className="pb-1.5">
+          <BatchGenerateButton clients={clients} />
         </div>
-        <BatchGenerateButton clients={clients} />
       </div>
 
       {view === "queue" ? (

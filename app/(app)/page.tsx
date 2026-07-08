@@ -4,6 +4,7 @@ import { supabaseConfigured } from "@/lib/env";
 import { torontoParts } from "@/lib/due";
 import { RealtimeRefresh } from "@/components/dashboard/realtime-refresh";
 import { DemoBanner } from "@/components/layout/demo-banner";
+import { OpsTabs } from "@/components/layout/ops-tabs";
 import { demoBoardClients } from "@/lib/demo";
 import { DashboardKanban, type BoardClient } from "./kanban";
 import { DashboardHeader } from "./dashboard-header";
@@ -14,6 +15,7 @@ export default async function DashboardPage() {
     return (
       <div className="flex flex-col gap-5">
         <DemoBanner />
+        <OpsTabs />
         <DashboardHeader
           totals={{
             unreplied: demoClients.reduce((sum, c) => sum + c.unreplied, 0),
@@ -91,6 +93,7 @@ export default async function DashboardPage() {
       unreplied: row.unreplied_count,
       worstPendingRating: row.worst_pending_rating,
       postsDue: row.posts_due,
+      postsPerMonth: row.posts_per_month,
       draftReplies: row.draft_reply_count,
       draftPosts: row.draft_post_count,
       avgRating: rating ? Math.round(rating.avg * 10) / 10 : null,
@@ -117,6 +120,7 @@ export default async function DashboardPage() {
   return (
     <div className="flex flex-col gap-5">
       <RealtimeRefresh />
+      <OpsTabs />
       <DashboardHeader
         totals={totals}
         connectionStatus={connection?.status ?? null}

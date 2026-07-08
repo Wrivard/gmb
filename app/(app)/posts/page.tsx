@@ -2,6 +2,7 @@ import { getSessionContext } from "@/lib/auth";
 import { supabaseConfigured } from "@/lib/env";
 import { loadAgencyQueue } from "@/lib/posts/queue";
 import { DemoBanner } from "@/components/layout/demo-banner";
+import { OpsTabs } from "@/components/layout/ops-tabs";
 import { RealtimeRefresh } from "@/components/dashboard/realtime-refresh";
 import { PostsView } from "./posts-view";
 
@@ -23,12 +24,10 @@ export default async function PostsPage() {
   return (
     <div className="flex flex-col gap-4">
       {demo ? <DemoBanner /> : <RealtimeRefresh />}
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Posts GBP</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Génère, révise, planifie — l&apos;app publie à la date prévue.
-        </p>
-      </div>
+      <OpsTabs />
+      <p className="text-sm text-muted-foreground">
+        Génère, révise, planifie — l&apos;app publie à la date prévue.
+      </p>
       <PostsView clients={clients} posts={posts} />
     </div>
   );

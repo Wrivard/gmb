@@ -2,14 +2,13 @@
 
 import { usePathname } from "next/navigation";
 import { Search } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 
 const titles: Record<string, string> = {
-  "/": "Dashboard",
-  "/reviews": "Reviews",
-  "/posts": "Posts",
-  "/clients": "Clients",
-  "/settings": "Réglages",
+  "/": "Aujourd'hui",
+  "/reviews": "File reviews",
+  "/posts": "File posts",
+  "/clients": "Projets",
+  "/settings": "Agence",
 };
 
 function pageTitle(pathname: string): string {
@@ -20,19 +19,10 @@ function pageTitle(pathname: string): string {
 
 export function Topbar() {
   const pathname = usePathname();
-  const isMock = process.env.NEXT_PUBLIC_GBP_MODE !== "real";
 
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-6 backdrop-blur">
       <h1 className="text-sm font-medium">{pageTitle(pathname)}</h1>
-      {isMock && (
-        <Badge
-          variant="outline"
-          className="border-warning/40 text-warning uppercase tracking-wide"
-        >
-          Mode démo
-        </Badge>
-      )}
       <div className="flex-1" />
       <button
         type="button"
