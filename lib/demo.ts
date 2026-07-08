@@ -5,6 +5,7 @@
 import type { BoardClient } from "@/app/(app)/kanban";
 import type { InboxReview } from "@/lib/reviews/inbox";
 import type { QueueClient, QueuePost } from "@/lib/posts/queue";
+import type { ClientGrowth } from "@/lib/clients/growth";
 
 function hoursAgo(hours: number): string {
   return new Date(Date.now() - hours * 3600_000).toISOString();
@@ -411,4 +412,44 @@ export function demoClientRows(): DemoClientRow[] {
     posts_per_month: index % 3 === 0 ? 2 : 1,
     status: index === 7 ? "paused" : "active",
   }));
+}
+
+const MONTH_LABELS_FR = [
+  "janv.",
+  "févr.",
+  "mars",
+  "avr.",
+  "mai",
+  "juin",
+  "juil.",
+  "août",
+  "sept.",
+  "oct.",
+  "nov.",
+  "déc.",
+];
+
+export function demoClientGrowth(): ClientGrowth {
+  const now = new Date();
+  const reviews = [7, 8, 6, 9, 11, 4];
+  const avg = [4.3, 4.4, 4.4, 4.5, 4.6, 4.6];
+  const published = [2, 2, 1, 2, 2, 1];
+  const months = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+    return {
+      key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      label: MONTH_LABELS_FR[d.getMonth()],
+      reviews: reviews[i],
+      avgCumulative: avg[i],
+      postsPublished: published[i],
+      postsTarget: 2,
+    };
+  });
+  return {
+    months,
+    avgRating: 4.6,
+    avgDelta6m: 0.3,
+    responseRate: { replied: 36, total: 39 },
+    medianResponseHours: 6,
+  };
 }

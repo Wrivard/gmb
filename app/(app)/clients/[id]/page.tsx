@@ -8,10 +8,13 @@ import { supabaseConfigured } from "@/lib/env";
 import { isLate, remainingPosts } from "@/lib/due";
 import { loadInboxReviews } from "@/lib/reviews/inbox";
 import { loadClientQueue } from "@/lib/posts/queue";
+import { loadClientGrowth } from "@/lib/clients/growth";
+import { GrowthView } from "@/components/clients/growth-view";
 import { DemoBanner } from "@/components/layout/demo-banner";
 import {
   demoActivity,
   demoBoardClients,
+  demoClientGrowth,
   demoClientRows,
   demoInboxReviews,
   demoQueuePosts,
@@ -26,7 +29,7 @@ import { ClientSettings } from "./client-settings";
 export const metadata = { title: "Fiche client" };
 
 const TABS = [
-  { key: "apercu", label: "Aperçu" },
+  { key: "croissance", label: "Croissance" },
   { key: "reviews", label: "Reviews" },
   { key: "posts", label: "Posts" },
   { key: "settings", label: "Réglages" },
@@ -45,7 +48,7 @@ export default async function ClientDetailPage({
   const { tab: rawTab } = await searchParams;
   const tab: TabKey = TABS.some((t) => t.key === rawTab)
     ? (rawTab as TabKey)
-    : "apercu";
+    : "croissance";
 
   if (!supabaseConfigured()) {
     const board = demoBoardClients().find((c) => c.id === id);
@@ -56,17 +59,8 @@ export default async function ClientDetailPage({
 
     const stats = [
       { label: "Reviews en attente", value: board.unreplied },
-      { label: "Drafts de réponses", value: board.draftReplies },
+      { label: "Drafts à approuver", value: board.draftReplies + board.draftPosts },
       { label: "Posts dus ce mois", value: board.postsDue, alert: board.late },
-      {
-        label: "Posts publiés ce mois",
-        value: posts.filter((p) => p.status === "published").length,
-      },
-      {
-        label: "Note moyenne",
-        value: board.avgRating !== null ? `${board.avgRating.toFixed(1)} ★` : "—",
-      },
-      { label: "Total d'avis", value: board.reviewCount },
     ];
 
     return (
@@ -93,9 +87,10 @@ export default async function ClientDetailPage({
           }))}
         />
 
-        {tab === "apercu" && (
+        {tab === "croissance" && (
           <div className="flex flex-col gap-6">
-            <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            <GrowthView growth={demoClientGrowth()} />
+            <div className="grid gap-2 sm:grid-cols-3">
               {stats.map((stat) => (
                 <div
                   key={stat.label}
@@ -255,7 +250,7 @@ export default async function ClientDetailPage({
         }))}
       />
 
-      {tab === "apercu" && <OverviewTab clientId={client.id} />}
+      {tab === "croissance" && <GrowthTab client={client} />}
       {tab === "reviews" && (
         <ReviewsTab clientId={client.id} clientName={client.name} />
       )}
@@ -278,32 +273,29 @@ const ACTION_LABELS: Record<string, string> = {
   brand_profile_updated: "Profil de marque modifié",
 };
 
-async function OverviewTab({ clientId }: { clientId: string }) {
+async function GrowthTab({
+  client,
+}: {
+  client: { id: string; posts_per_month: number };
+}) {
   const supabase = await getDb();
   const now = new Date();
 
-  const [{ data: board }, { data: activity }, { data: reviews }] =
-    await Promise.all([
-      supabase
-        .from("client_board_state")
-        .select("*")
-        .eq("client_id", clientId)
-        .maybeSingle(),
-      supabase
-        .from("activity_log")
-        .select("*")
-        .eq("client_id", clientId)
-        .order("created_at", { ascending: false })
-        .limit(15),
-      supabase
-        .from("reviews")
-        .select("star_rating")
-        .eq("client_id", clientId),
-    ]);
+  const [growth, { data: board }, { data: activity }] = await Promise.all([
+    loadClientGrowth(client, now),
+    supabase
+      .from("client_board_state")
+      .select("*")
+      .eq("client_id", client.id)
+      .maybeSingle(),
+    supabase
+      .from("activity_log")
+      .select("*")
+      .eq("client_id", client.id)
+      .order("created_at", { ascending: false })
+      .limit(15),
+  ]);
 
-  const avg = reviews?.length
-    ? reviews.reduce((sum, r) => sum + r.star_rating, 0) / reviews.length
-    : null;
   const remaining = board
     ? remainingPosts({
         postsPerMonth: board.posts_per_month,
@@ -312,28 +304,25 @@ async function OverviewTab({ clientId }: { clientId: string }) {
       })
     : 0;
 
+  // Le pouls du moment en 3 chiffres — le reste (note, volume, couverture)
+  // est porté par les tendances de GrowthView.
   const stats = [
     { label: "Reviews en attente", value: board?.unreplied_count ?? 0 },
-    { label: "Drafts de réponses", value: board?.draft_reply_count ?? 0 },
+    {
+      label: "Drafts à approuver",
+      value: (board?.draft_reply_count ?? 0) + (board?.draft_post_count ?? 0),
+    },
     {
       label: "Posts dus ce mois",
       value: remaining,
       alert: isLate(now, remaining),
     },
-    {
-      label: "Posts publiés ce mois",
-      value: board?.posts_published_this_month ?? 0,
-    },
-    {
-      label: "Note moyenne",
-      value: avg !== null ? `${(Math.round(avg * 10) / 10).toFixed(1)} ★` : "—",
-    },
-    { label: "Total d'avis", value: reviews?.length ?? 0 },
   ];
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      <GrowthView growth={growth} />
+      <div className="grid gap-2 sm:grid-cols-3">
         {stats.map((stat) => (
           <div
             key={stat.label}
