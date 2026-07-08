@@ -3,6 +3,7 @@ import type {
   GbpAccount,
   GbpLocation,
   GbpReview,
+  LocalPostInput,
   LocalPostState,
   ReviewsPage,
   StarRatingEnum,
@@ -101,10 +102,15 @@ export class MockGbpClient implements GbpClient {
     return { locationReviews: bundles };
   }
 
-  async putReviewReply(): Promise<void> {
+  async putReviewReply(_reviewName: string, comment: string): Promise<void> {
     // Le côté Supabase (statuts, published_text) est géré par l'appelant;
     // le mock ne simule que l'acceptation côté Google.
     await simulateNetwork();
+    // Échec déterministe scriptable : « [mock:fail] » dans la réponse
+    // exerce le repli approved du sync et le filet de retry du cron.
+    if (comment.includes("[mock:fail]")) {
+      throw new Error("Refus simulé de Google ([mock:fail] dans la réponse).");
+    }
   }
 
   async deleteReviewReply(): Promise<void> {
@@ -113,10 +119,20 @@ export class MockGbpClient implements GbpClient {
 
   async createLocalPost(
     locationName: string,
+    post: LocalPostInput,
   ): Promise<{ name: string; state: LocalPostState }> {
     await simulateNetwork();
     const id = `mock-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-    return { name: `${locationName}/localPosts/${id}`, state: "LIVE" };
+    // États scriptables : un marqueur dans le texte du post force l'état
+    // retourné, pour exercer les branches REJECTED → failed et PROCESSING
+    // sans attendre le mode réel. Sans marqueur : LIVE (comportement
+    // historique).
+    const state: LocalPostState = post.summary.includes("[mock:rejected]")
+      ? "REJECTED"
+      : post.summary.includes("[mock:processing]")
+        ? "PROCESSING"
+        : "LIVE";
+    return { name: `${locationName}/localPosts/${id}`, state };
   }
 
   async deleteLocalPost(): Promise<void> {
