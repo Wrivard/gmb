@@ -6,7 +6,8 @@ import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
 import { isLate, remainingPosts } from "@/lib/due";
-import { monthlyCadence } from "@/lib/posts/cadence";
+import { loadInboxReviews } from "@/lib/reviews/inbox";
+import { loadClientQueue } from "@/lib/posts/queue";
 import { DemoBanner } from "@/components/layout/demo-banner";
 import {
   demoActivity,
@@ -17,15 +18,8 @@ import {
 } from "@/lib/demo";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import {
-  ReviewsInbox,
-  type InboxReview,
-} from "@/app/(app)/reviews/reviews-inbox";
-import {
-  PostsView,
-  type QueueClient,
-  type QueuePost,
-} from "@/app/(app)/posts/posts-view";
+import { ReviewsInbox } from "@/app/(app)/reviews/reviews-inbox";
+import { PostsView } from "@/app/(app)/posts/posts-view";
 import { ClientSettings } from "./client-settings";
 
 export const metadata = { title: "Fiche client" };
@@ -400,42 +394,7 @@ async function ReviewsTab({
   clientId: string;
   clientName: string;
 }) {
-  const supabase = await getDb();
-  const { data: reviews } = await supabase
-    .from("reviews")
-    .select("*")
-    .eq("client_id", clientId)
-    .order("review_created_at", { ascending: false });
-
-  const reviewIds = (reviews ?? []).map((r) => r.id);
-  const { data: replies } = reviewIds.length
-    ? await supabase
-        .from("review_replies")
-        .select("review_id, draft_text, published_text, generation_count")
-        .in("review_id", reviewIds)
-    : { data: [] };
-  const replyByReview = new Map(
-    (replies ?? []).map((reply) => [reply.review_id, reply]),
-  );
-
-  const inboxReviews: InboxReview[] = (reviews ?? []).map((review) => {
-    const reply = replyByReview.get(review.id);
-    return {
-      id: review.id,
-      clientId: review.client_id,
-      clientName,
-      reviewerName: review.reviewer_name,
-      starRating: review.star_rating,
-      comment: review.comment,
-      createdAt: review.review_created_at,
-      status: review.status,
-      wasUpdated: review.was_updated,
-      draftText: reply?.draft_text ?? null,
-      publishedText: reply?.published_text ?? null,
-      generationCount: reply?.generation_count ?? 0,
-    };
-  });
-
+  const inboxReviews = await loadInboxReviews({ clientId, clientName });
   return <ReviewsInbox reviews={inboxReviews} />;
 }
 
@@ -448,40 +407,6 @@ async function PostsTab({
     posts_per_month: number;
   };
 }) {
-  const supabase = await getDb();
-  const now = new Date();
-
-  const { data: posts } = await supabase
-    .from("posts")
-    .select("*")
-    .eq("client_id", client.id)
-    .order("scheduled_for", { ascending: true, nullsFirst: false });
-
-  const cadence = monthlyCadence(posts ?? [], client.posts_per_month, now);
-
-  const queueClients: QueueClient[] = [
-    {
-      id: client.id,
-      name: client.name,
-      remaining: cadence.remaining,
-      late: cadence.late,
-    },
-  ];
-
-  const queuePosts: QueuePost[] = (posts ?? []).map((post) => ({
-    id: post.id,
-    clientId: post.client_id,
-    clientName: client.name,
-    summary: post.summary,
-    status: post.status,
-    scheduledFor: post.scheduled_for,
-    publishedAt: post.published_at,
-    publishError: post.publish_error,
-    imageUrl: post.image_path
-      ? supabase.storage.from("post-images").getPublicUrl(post.image_path)
-          .data.publicUrl
-      : null,
-  }));
-
-  return <PostsView clients={queueClients} posts={queuePosts} />;
+  const { clients, posts } = await loadClientQueue(client);
+  return <PostsView clients={clients} posts={posts} />;
 }

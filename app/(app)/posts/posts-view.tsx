@@ -19,26 +19,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { PostStatus } from "@/lib/types/database";
 import { POST_STATUS_LABELS_FR, postGroup } from "@/lib/posts/status";
+import type { QueueClient, QueuePost } from "@/lib/posts/queue";
 import { generatePostAction } from "./actions";
 
-export interface QueueClient {
-  id: string;
-  name: string;
-  remaining: number;
-  late: boolean;
-}
-
-export interface QueuePost {
-  id: string;
-  clientId: string;
-  clientName: string;
-  summary: string;
-  status: PostStatus;
-  scheduledFor: string | null;
-  publishedAt: string | null;
-  publishError: string | null;
-  imageUrl: string | null;
-}
+export type { QueueClient, QueuePost };
 
 function StatusBadge({ status }: { status: PostStatus }) {
   const group = postGroup(status);

@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { StarRating } from "@/components/reviews/star-rating";
 import { cn } from "@/lib/utils";
 import type { ReviewStatus } from "@/lib/types/database";
+import type { InboxReview } from "@/lib/reviews/inbox";
 import {
   Dialog,
   DialogContent,
@@ -39,20 +40,7 @@ import {
   unignoreReviewAction,
 } from "./actions";
 
-export interface InboxReview {
-  id: string;
-  clientId: string;
-  clientName: string;
-  reviewerName: string | null;
-  starRating: number;
-  comment: string | null;
-  createdAt: string;
-  status: ReviewStatus;
-  wasUpdated: boolean;
-  draftText: string | null;
-  publishedText: string | null;
-  generationCount: number;
-}
+export type { InboxReview };
 
 const MAX_REPLY_LENGTH = 4096;
 const PENDING_STATUSES: ReviewStatus[] = [
