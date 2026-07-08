@@ -13,8 +13,8 @@ import {
 import type { Client } from "@/lib/types/database";
 
 // Pipeline de génération d'un post (specs/06 §Workflow) :
-// contenu AI → image Gemini → sharp 1200×900 JPEG 85 → Storage →
-// ligne `posts` en draft (ou scheduled si auto_publish_posts).
+// contenu AI → image AI (OpenAI, repli Gemini) → sharp 1200×900 JPEG 85 →
+// Storage → ligne `posts` en draft (ou scheduled si auto_publish_posts).
 
 const IMAGE_BUCKET = "post-images";
 

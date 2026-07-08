@@ -45,7 +45,7 @@ restants          = max(0, posts_per_month - publiés - planifiés)
 
 ## Images AI
 
-- Génération via Gemini API (modèle image), prompt construit par Claude en même temps que le texte (champ `image_prompt` en anglais, descriptif, photographique).
+- Génération via OpenAI Images API (`gpt-image-1`), repli Gemini API si OpenAI absent ou en échec. Prompt construit en même temps que le texte (champ `image_prompt` en anglais, descriptif, photographique).
 - Style : photo réaliste liée au métier et à la saison, **sans texte incrusté** (le texte rendu par les modèles d'image est peu fiable), sans logos, sans visages en gros plan (évite l'uncanny), lumière naturelle, esthétique premium sobre.
 - Format : générer en 4:3, redimensionner/recadrer à **1200×900**, encoder JPEG qualité 85 (sharp), uploader `post-images/{client_id}/{post_id}.jpg`.
 - Fallback : si la génération d'image échoue 2 fois → le post reste `draft` avec placeholder et badge « image à ajouter » (un post peut aussi être publié sans image, mais l'objectif est toujours avec image).

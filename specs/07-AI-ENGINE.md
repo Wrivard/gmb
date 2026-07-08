@@ -3,7 +3,7 @@
 ## Modèles
 
 - **Texte** (réponses reviews, posts, prompts d'image) : Anthropic API, `claude-sonnet-4-6`, `max_tokens: 1024`, temperature 0.7 pour les posts, 0.5 pour les réponses.
-- **Images** : Gemini API, modèle de génération d'image courant (vérifier la doc au moment du build; utiliser le modèle image recommandé de la famille Gemini/Imagen). Abstraire derrière `lib/ai/images.ts` pour pouvoir changer de provider.
+- **Images** : OpenAI Images API, `gpt-image-1` (défaut, override `OPENAI_IMAGE_MODEL`/`OPENAI_IMAGE_QUALITY`), repli Gemini (`GEMINI_API_KEY`) si OpenAI absent ou en échec. Abstrait derrière `lib/ai/images.ts` pour pouvoir changer de provider.
 - Toutes les sorties texte structurées demandées en **JSON strict** (instruction « réponds uniquement avec un objet JSON valide, sans markdown ») + parsing défensif (strip des fences, try/catch, 1 retry).
 
 ## `brand_profile` (jsonb sur `clients`)
