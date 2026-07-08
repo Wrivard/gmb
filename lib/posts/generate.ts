@@ -69,7 +69,12 @@ export async function generatePostForClient(
     client.posts_per_month,
     now,
   );
-  const suggestions = suggestPostDates(now, Math.max(cadence.remaining, 1));
+  // Assez de dates pour les brouillons déjà créés + celui-ci : sans ça,
+  // générer au-delà de la cadence assignait la même date à tous les drafts.
+  const suggestions = suggestPostDates(
+    now,
+    Math.max(cadence.remaining, cadence.drafts + 1),
+  );
   const scheduledFor =
     suggestions[Math.min(cadence.drafts, suggestions.length - 1)] ??
     suggestions[0];
