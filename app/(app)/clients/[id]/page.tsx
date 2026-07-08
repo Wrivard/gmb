@@ -17,6 +17,7 @@ import {
   demoQueuePosts,
 } from "@/lib/demo";
 import { Badge } from "@/components/ui/badge";
+import { TabBar } from "@/components/ui/tab-bar";
 import { cn } from "@/lib/utils";
 import { ReviewsInbox } from "@/app/(app)/reviews/reviews-inbox";
 import { PostsView } from "@/app/(app)/posts/posts-view";
@@ -83,22 +84,14 @@ export default async function ClientDetailPage({
           </span>
         </div>
 
-        <nav className="flex gap-1 border-b border-border">
-          {TABS.map((entry) => (
-            <Link
-              key={entry.key}
-              href={`/clients/${id}?tab=${entry.key}`}
-              className={cn(
-                "-mb-px border-b-2 px-3 py-2 text-sm transition-colors",
-                tab === entry.key
-                  ? "border-primary font-medium text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {entry.label}
-            </Link>
-          ))}
-        </nav>
+        <TabBar
+          activeKey={tab}
+          items={TABS.map((entry) => ({
+            key: entry.key,
+            label: entry.label,
+            href: `/clients/${id}?tab=${entry.key}`,
+          }))}
+        />
 
         {tab === "apercu" && (
           <div className="flex flex-col gap-6">
@@ -235,24 +228,32 @@ export default async function ClientDetailPage({
             .filter(Boolean)
             .join(" · ")}
         </span>
+        {/* Résumé du mandat : la différence entre clients, lisible en 1 s. */}
+        <span className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+          <span>
+            {client.posts_per_month} post
+            {client.posts_per_month > 1 ? "s" : ""}/mois
+            {client.auto_publish_replies && " · réponses auto ≥4★"}
+            {client.auto_publish_posts && " · posts auto"} ·{" "}
+            {client.language}
+          </span>
+          <Link
+            href={`/clients/${client.id}?tab=settings`}
+            className="text-primary transition-colors hover:underline"
+          >
+            Modifier
+          </Link>
+        </span>
       </div>
 
-      <nav className="flex gap-1 border-b border-border">
-        {TABS.map((entry) => (
-          <Link
-            key={entry.key}
-            href={`/clients/${client.id}?tab=${entry.key}`}
-            className={cn(
-              "-mb-px border-b-2 px-3 py-2 text-sm transition-colors",
-              tab === entry.key
-                ? "border-primary font-medium text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {entry.label}
-          </Link>
-        ))}
-      </nav>
+      <TabBar
+        activeKey={tab}
+        items={TABS.map((entry) => ({
+          key: entry.key,
+          label: entry.label,
+          href: `/clients/${client.id}?tab=${entry.key}`,
+        }))}
+      />
 
       {tab === "apercu" && <OverviewTab clientId={client.id} />}
       {tab === "reviews" && (

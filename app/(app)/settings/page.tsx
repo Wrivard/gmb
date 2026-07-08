@@ -22,13 +22,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { DemoBanner } from "@/components/layout/demo-banner";
-import { demoClientRows } from "@/lib/demo";
 import { ResyncButton } from "./resync-button";
-import { ClientActiveToggle } from "./client-toggle";
 import { TeamSection } from "./team-section";
 import { DefaultsForm } from "./defaults-form";
 
-export const metadata = { title: "Réglages" };
+export const metadata = { title: "Agence" };
 
 const ERROR_MESSAGES: Record<string, string> = {
   oauth_state: "La vérification de sécurité OAuth a échoué — réessaie.",
@@ -50,10 +48,9 @@ export default async function SettingsPage({
       <div className="flex max-w-4xl flex-col gap-6">
         <DemoBanner />
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Réglages</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Agence</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Connexion Google de l&apos;agence, fiches clients, équipe et
-            défauts.
+            Connexion Google, équipe et défauts des nouveaux projets.
           </p>
         </div>
 
@@ -73,45 +70,6 @@ export default async function SettingsPage({
             <Button size="sm" disabled>
               Connecter Google
             </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Fiches clients</CardTitle>
-            <CardDescription>
-              Les fiches découvertes sur le compte connecté.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Catégorie</TableHead>
-                  <TableHead>Statut</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {demoClientRows().map((client) => (
-                  <TableRow key={client.id}>
-                    <TableCell className="font-medium">
-                      {client.name}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {client.primary_category ?? "—"}
-                    </TableCell>
-                    <TableCell>
-                      {client.status === "active" ? (
-                        <Badge variant="default">Actif</Badge>
-                      ) : (
-                        <Badge variant="secondary">En pause</Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
           </CardContent>
         </Card>
 
@@ -162,7 +120,6 @@ export default async function SettingsPage({
   const supabase = await getDb();
   const [
     { data: connection },
-    { data: clients },
     { data: members },
     { data: agency },
   ] = await Promise.all([
@@ -171,11 +128,6 @@ export default async function SettingsPage({
       .select("*")
       .eq("agency_id", member.agency_id)
       .maybeSingle(),
-    supabase
-      .from("clients")
-      .select("*")
-      .eq("agency_id", member.agency_id)
-      .order("name"),
     supabase
       .from("agency_members")
       .select("*")
@@ -195,9 +147,9 @@ export default async function SettingsPage({
   return (
     <div className="flex max-w-4xl flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Réglages</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Agence</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Connexion Google de l&apos;agence, fiches clients, équipe et défauts.
+          Connexion Google, équipe et défauts des nouveaux projets.
         </p>
       </div>
 
@@ -283,69 +235,6 @@ export default async function SettingsPage({
                 </p>
               )}
             </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Fiches clients */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Fiches clients</CardTitle>
-          <CardDescription>
-            Les fiches découvertes sur le compte connecté. Un client inactif
-            n&apos;apparaît pas dans le kanban et n&apos;est pas synchronisé.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {clients?.length ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fiche</TableHead>
-                  <TableHead>Catégorie</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead className="text-right">Actif</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {clients.map((client) => (
-                  <TableRow key={client.id}>
-                    <TableCell>
-                      <div className="font-medium">{client.name}</div>
-                      {client.address && (
-                        <div className="text-xs text-muted-foreground">
-                          {client.address}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {client.primary_category ?? "—"}
-                    </TableCell>
-                    <TableCell>
-                      {client.status === "disconnected" ? (
-                        <Badge variant="destructive">Déconnectée</Badge>
-                      ) : client.status === "active" ? (
-                        <Badge variant="default">Active</Badge>
-                      ) : (
-                        <Badge variant="secondary">En pause</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <ClientActiveToggle
-                        clientId={client.id}
-                        active={client.status === "active"}
-                        disabled={client.status === "disconnected"}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Aucune fiche pour l&apos;instant — connecte le compte Google puis
-              lance une resynchronisation.
-            </p>
           )}
         </CardContent>
       </Card>
