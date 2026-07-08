@@ -5,6 +5,11 @@ import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import { generatePostForClient, processAndUploadImage } from "@/lib/posts/generate";
 import { publishPost } from "@/lib/posts/publish";
+import {
+  isPostApprovable,
+  isPostEditable,
+  PUBLISHABLE_FROM,
+} from "@/lib/posts/status";
 import { generatePostImage } from "@/lib/ai/images";
 import { logActivity } from "@/lib/activity";
 import type { CtaType } from "@/lib/types/database";
@@ -92,7 +97,7 @@ export async function updatePostAction(
     }
 
     const { supabase, post } = await loadPostForMember(postId);
-    if (post.status === "published" || post.status === "publishing") {
+    if (!isPostEditable(post.status)) {
       return { ok: false, error: "Ce post est déjà publié." };
     }
 
@@ -121,7 +126,7 @@ export async function updatePostAction(
 export async function approvePostAction(postId: string): Promise<ActionResult> {
   try {
     const { member, supabase, post, client } = await loadPostForMember(postId);
-    if (post.status !== "draft" && post.status !== "failed") {
+    if (!isPostApprovable(post.status)) {
       return { ok: false, error: "Ce post n'est pas en brouillon." };
     }
     if (!post.scheduled_for) {
@@ -163,7 +168,7 @@ export async function publishPostNowAction(
     const { member } = await loadPostForMember(postId);
     const result = await publishPost(
       postId,
-      ["draft", "scheduled", "failed"],
+      PUBLISHABLE_FROM.member,
       member.email,
     );
     refresh();

@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { PostStatus } from "@/lib/types/database";
+import { POST_STATUS_LABELS_FR, postGroup } from "@/lib/posts/status";
 import { generatePostAction } from "./actions";
 
 export interface QueueClient {
@@ -39,25 +40,17 @@ export interface QueuePost {
   imageUrl: string | null;
 }
 
-const STATUS_LABELS: Record<PostStatus, string> = {
-  draft: "Brouillon",
-  approved: "Approuvé",
-  scheduled: "Planifié",
-  publishing: "Publication…",
-  published: "Publié",
-  failed: "Échec",
-};
-
 function StatusBadge({ status }: { status: PostStatus }) {
+  const group = postGroup(status);
   const variant =
-    status === "failed"
+    group === "echec"
       ? "destructive"
-      : status === "published"
+      : group === "publie"
         ? "secondary"
-        : status === "draft"
+        : group === "brouillon"
           ? "outline"
           : "default";
-  return <Badge variant={variant}>{STATUS_LABELS[status]}</Badge>;
+  return <Badge variant={variant}>{POST_STATUS_LABELS_FR[status]}</Badge>;
 }
 
 export function PostsView({
@@ -181,15 +174,10 @@ function QueueView({
   posts: QueuePost[];
 }) {
   const due = clients.filter((c) => c.remaining > 0);
-  const drafts = posts.filter((p) => p.status === "draft");
-  const failed = posts.filter((p) => p.status === "failed");
-  const scheduled = posts.filter(
-    (p) =>
-      p.status === "scheduled" ||
-      p.status === "approved" ||
-      p.status === "publishing",
-  );
-  const published = posts.filter((p) => p.status === "published");
+  const drafts = posts.filter((p) => postGroup(p.status) === "brouillon");
+  const failed = posts.filter((p) => postGroup(p.status) === "echec");
+  const scheduled = posts.filter((p) => postGroup(p.status) === "planifie");
+  const published = posts.filter((p) => postGroup(p.status) === "publie");
 
   const remainingTotal = due.reduce((sum, c) => sum + c.remaining, 0);
   const todoCount = remainingTotal + drafts.length + failed.length;
@@ -494,9 +482,9 @@ function CalendarView({ posts }: { posts: QueuePost[] }) {
                   href={`/posts/${post.id}`}
                   className={cn(
                     "truncate rounded px-1.5 py-0.5 text-[11px]",
-                    post.status === "published"
+                    postGroup(post.status) === "publie"
                       ? "bg-muted text-muted-foreground"
-                      : post.status === "failed"
+                      : postGroup(post.status) === "echec"
                         ? "bg-destructive/15 text-destructive"
                         : "bg-primary/15 text-primary",
                   )}

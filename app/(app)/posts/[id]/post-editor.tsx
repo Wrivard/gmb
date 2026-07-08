@@ -28,17 +28,14 @@ import {
   updatePostAction,
   uploadPostImageAction,
 } from "../actions";
+import {
+  isPostApprovable,
+  isPostEditable,
+  POST_STATUS_LABELS_FR,
+  postGroup,
+} from "@/lib/posts/status";
 
 const MAX_SUMMARY_LENGTH = 1500;
-
-const STATUS_LABELS: Record<PostStatus, string> = {
-  draft: "Brouillon",
-  approved: "Approuvé",
-  scheduled: "Planifié",
-  publishing: "Publication…",
-  published: "Publié",
-  failed: "Échec",
-};
 
 interface EditorPost {
   id: string;
@@ -86,7 +83,7 @@ export function PostEditor({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const busy = saving || approving || publishing || imageBusy;
-  const readOnly = post.status === "published" || post.status === "publishing";
+  const readOnly = !isPostEditable(post.status);
 
   function save(then?: () => void) {
     startSave(async () => {
@@ -175,8 +172,12 @@ export function PostEditor({
           Posts
         </Button>
         <h1 className="text-xl font-semibold tracking-tight">{clientName}</h1>
-        <Badge variant={post.status === "failed" ? "destructive" : "secondary"}>
-          {STATUS_LABELS[post.status]}
+        <Badge
+          variant={
+            postGroup(post.status) === "echec" ? "destructive" : "secondary"
+          }
+        >
+          {POST_STATUS_LABELS_FR[post.status]}
         </Badge>
       </div>
 
@@ -331,7 +332,7 @@ export function PostEditor({
           {!readOnly && (
             <div className="flex flex-col gap-1.5">
               <div className="flex flex-wrap items-center gap-2">
-                {(post.status === "draft" || post.status === "failed") && (
+                {isPostApprovable(post.status) && (
                   <Button size="sm" onClick={approve} disabled={busy}>
                     {approving ? "…" : "Approuver et planifier"}
                   </Button>
@@ -355,7 +356,7 @@ export function PostEditor({
                   {saving ? "Enregistrement…" : "Enregistrer sans approuver"}
                 </Button>
               </div>
-              {(post.status === "draft" || post.status === "failed") && (
+              {isPostApprovable(post.status) && (
                 <p className="text-xs text-muted-foreground">
                   Approuver = le post part tout seul à la date « Publication
                   prévue ». Rien d&apos;autre à faire.

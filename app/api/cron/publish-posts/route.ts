@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getDb } from "@/lib/supabase/db";
 import { getGbpClient } from "@/lib/gbp/client";
 import { publishPost } from "@/lib/posts/publish";
+import { PUBLISHABLE_FROM } from "@/lib/posts/status";
 
 // Cron publish-posts (specs/04) — aux 15 min via Vercel Cron.
 // 1. Posts `scheduled` échus → publishPost (lock optimiste inclus).
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
     .order("scheduled_for");
 
   for (const post of duePosts ?? []) {
-    const result = await publishPost(post.id, ["scheduled"], "system");
+    const result = await publishPost(post.id, PUBLISHABLE_FROM.cron, "system");
     if (result.ok) counters.published++;
     else if (!result.locked) counters.failed++;
   }
