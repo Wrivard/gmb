@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { cn } from "@/lib/utils";
 import type { PostStatus } from "@/lib/types/database";
 import { POST_STATUS_LABELS_FR, postGroup } from "@/lib/posts/status";
@@ -97,6 +98,15 @@ function BatchGenerateButton({ clients }: { clients: QueueClient[] }) {
     null,
   );
   const [pending, startTransition] = useTransition();
+  const cancelRef = useRef(false);
+
+  // Naviguer pendant le lot démonte le composant : les posts déjà créés
+  // survivent (chaque appel est persisté serveur), mais la suite du lot
+  // et le bilan seraient perdus sans prévenir.
+  useUnsavedGuard(
+    pending,
+    "Une génération en lot est en cours — quitter la page interrompt le reste du lot. Continuer ?",
+  );
 
   const jobs = useMemo(
     () =>
@@ -109,28 +119,36 @@ function BatchGenerateButton({ clients }: { clients: QueueClient[] }) {
   if (!jobs.length) return null;
 
   function run() {
+    cancelRef.current = false;
     startTransition(async () => {
       setProgress({ done: 0, total: jobs.length });
       let failures = 0;
+      let done = 0;
       // Séquentiel avec pause 500 ms entre les appels (specs/07).
       // La barre de progression suffit — on ne toaste que les échecs,
       // sinon 10 clients = un mur de toasts qui masque l'écran.
       for (let i = 0; i < jobs.length; i++) {
+        if (cancelRef.current) break;
         const result = await generatePostAction(jobs[i].id);
+        done++;
         if (!result.ok) {
           failures++;
           toast.error(`${jobs[i].name} : ${result.error}`);
         }
-        setProgress({ done: i + 1, total: jobs.length });
-        if (i < jobs.length - 1) {
+        setProgress({ done, total: jobs.length });
+        if (i < jobs.length - 1 && !cancelRef.current) {
           await new Promise((resolve) => setTimeout(resolve, 500));
         }
       }
       setProgress(null);
       router.refresh();
-      if (failures) {
+      if (cancelRef.current) {
+        toast.info(
+          `Lot arrêté après ${done}/${jobs.length} — les posts créés sont dans « À réviser ».`,
+        );
+      } else if (failures) {
         toast.warning(
-          `${jobs.length - failures}/${jobs.length} posts générés — ${failures} échec${failures > 1 ? "s" : ""}.`,
+          `${done - failures}/${jobs.length} posts générés — ${failures} échec${failures > 1 ? "s" : ""}.`,
         );
       } else {
         toast.success("Tous les posts dus sont générés.");
@@ -152,6 +170,17 @@ function BatchGenerateButton({ clients }: { clients: QueueClient[] }) {
             {progress.done}/{progress.total}
           </span>
         </div>
+      )}
+      {pending && (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            cancelRef.current = true;
+          }}
+        >
+          Arrêter
+        </Button>
       )}
       <Button size="sm" onClick={run} disabled={pending}>
         <Sparkles />

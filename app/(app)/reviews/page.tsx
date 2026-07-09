@@ -1,6 +1,6 @@
 import { getSessionContext } from "@/lib/auth";
 import { supabaseConfigured } from "@/lib/env";
-import { loadInboxReviews } from "@/lib/reviews/inbox";
+import { HISTORY_PAGE, loadInboxReviews } from "@/lib/reviews/inbox";
 import { getClientsIndex } from "@/lib/queries/agency";
 import { DemoBanner } from "@/components/layout/demo-banner";
 import { OpsTabs } from "@/components/layout/ops-tabs";
@@ -9,10 +9,20 @@ import { ReviewsInbox } from "./reviews-inbox";
 
 export const metadata = { title: "Reviews" };
 
-export default async function ReviewsPage() {
+export default async function ReviewsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ hist?: string }>;
+}) {
   // Un seul rendu : loadInboxReviews sert les fixtures démo quand
   // Supabase n'est pas configuré (adapter démo derrière la même interface).
   const demo = !supabaseConfigured();
+  const { hist } = await searchParams;
+  // « Afficher plus d'historique » recharge avec une borne élargie.
+  const historyLimit = Math.min(
+    Math.max(Number(hist) || HISTORY_PAGE, HISTORY_PAGE),
+    1500,
+  );
   let agencyId = "";
   let hasProjects = true;
   let myClientIds: string[] = [];
@@ -29,7 +39,7 @@ export default async function ReviewsPage() {
       .map((c) => c.id);
   }
 
-  const inboxReviews = await loadInboxReviews({ agencyId });
+  const inboxReviews = await loadInboxReviews({ agencyId }, { historyLimit });
 
   return (
     <div className="flex flex-col gap-5">
@@ -42,6 +52,7 @@ export default async function ReviewsPage() {
         reviews={inboxReviews}
         hasProjects={hasProjects}
         myClientIds={myClientIds}
+        historyLimit={historyLimit}
       />
     </div>
   );

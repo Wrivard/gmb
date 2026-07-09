@@ -35,6 +35,7 @@ import {
   publishPostNowAction,
   regeneratePostImageAction,
   revertPostImageAction,
+  unapprovePostAction,
   updatePostAction,
   uploadPostImageAction,
 } from "../actions";
@@ -170,7 +171,26 @@ export function PostEditor({
       startApprove(async () => {
         const result = await approvePostAction(post.id);
         if (result.ok) {
-          toast.success("Post approuvé et planifié.");
+          // Fenêtre d'annulation : tant que le cron (aux 15 min) n'a pas
+          // pris le post, l'approbation se défait en un clic.
+          toast.success("Post approuvé et planifié.", {
+            duration: 8000,
+            action: {
+              label: "Annuler",
+              onClick: () => {
+                void unapprovePostAction(post.id).then((undo) => {
+                  if (undo.ok) {
+                    toast.success(
+                      "Approbation annulée — le post est de retour en brouillon.",
+                    );
+                    router.refresh();
+                  } else {
+                    toast.error(undo.error);
+                  }
+                });
+              },
+            },
+          });
           router.push(backHref);
         } else {
           toast.error(result.error);

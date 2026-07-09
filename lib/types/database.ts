@@ -285,7 +285,15 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "reviews_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       review_replies: {
         Row: {
@@ -327,7 +335,17 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            // review_id est unique (upsert onConflict) : PostgREST embed
+            // one-to-one — vérifié en runtime (objet, pas tableau).
+            foreignKeyName: "review_replies_review_id_fkey";
+            columns: ["review_id"];
+            isOneToOne: true;
+            referencedRelation: "reviews";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       posts: {
         Row: {

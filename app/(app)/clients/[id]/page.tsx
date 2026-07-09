@@ -5,7 +5,7 @@ import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
 import { isLate, remainingPosts } from "@/lib/due";
-import { loadInboxReviews } from "@/lib/reviews/inbox";
+import { HISTORY_PAGE, loadInboxReviews } from "@/lib/reviews/inbox";
 import { loadClientQueue } from "@/lib/posts/queue";
 import { loadClientGrowth } from "@/lib/clients/growth";
 import { GrowthView } from "@/components/clients/growth-view";
@@ -64,13 +64,17 @@ export default async function ClientDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; hist?: string }>;
 }) {
   const { id } = await params;
-  const { tab: rawTab } = await searchParams;
+  const { tab: rawTab, hist } = await searchParams;
   const tab: TabKey = TABS.some((t) => t.key === rawTab)
     ? (rawTab as TabKey)
     : "croissance";
+  const historyLimit = Math.min(
+    Math.max(Number(hist) || HISTORY_PAGE, HISTORY_PAGE),
+    1500,
+  );
 
   if (!supabaseConfigured()) {
     const board = demoBoardClients().find((c) => c.id === id);
@@ -278,7 +282,11 @@ export default async function ClientDetailPage({
 
       {tab === "croissance" && <GrowthTab client={client} />}
       {tab === "reviews" && (
-        <ReviewsTab clientId={client.id} clientName={client.name} />
+        <ReviewsTab
+          clientId={client.id}
+          clientName={client.name}
+          historyLimit={historyLimit}
+        />
       )}
       {tab === "posts" && <PostsTab client={client} />}
       {tab === "settings" && (
@@ -391,12 +399,17 @@ async function GrowthTab({
 async function ReviewsTab({
   clientId,
   clientName,
+  historyLimit,
 }: {
   clientId: string;
   clientName: string;
+  historyLimit: number;
 }) {
-  const inboxReviews = await loadInboxReviews({ clientId, clientName });
-  return <ReviewsInbox reviews={inboxReviews} />;
+  const inboxReviews = await loadInboxReviews(
+    { clientId, clientName },
+    { historyLimit },
+  );
+  return <ReviewsInbox reviews={inboxReviews} historyLimit={historyLimit} />;
 }
 
 async function PostsTab({

@@ -12,6 +12,7 @@ export const ACTION_LABELS: Record<string, string> = {
   review_ignored: "Review ignorée",
   post_generated: "Post généré",
   post_approved: "Post approuvé",
+  post_unapproved: "Approbation annulée",
   post_published: "Post publié",
   generation: "Génération AI",
   sync_completed: "Sync terminé",

@@ -57,6 +57,14 @@ const PENDING_STATUSES: ReviewStatus[] = [
   "approved",
 ];
 
+// Texte de réponse en cours d'édition, par review : survit au démontage
+// du panneau (changement de sélection confirmé, refresh temps réel).
+// Nettoyé quand l'action locale aboutit ou que l'utilisateur jette.
+const draftStash = new Map<string, string>();
+// Reviews traitées PAR CE navigateur — distingue « je viens de publier »
+// (normal) de « un collègue l'a traitée sous mes pieds » (à annoncer).
+const locallyHandled = new Set<string>();
+
 type StatusFilter = "pending" | "all" | "replied" | "ignored";
 type RatingFilter = "all" | "high" | "low";
 
@@ -101,6 +109,7 @@ export function ReviewsInbox({
   reviews,
   hasProjects = true,
   myClientIds,
+  historyLimit,
 }: {
   reviews: InboxReview[];
   /** false = aucun projet connecté (first-run) : l'état vide ne doit pas
@@ -108,6 +117,8 @@ export function ReviewsInbox({
   hasProjects?: boolean;
   /** Projets assignés au membre courant — active le filtre « Mes projets ». */
   myClientIds?: string[];
+  /** Borne serveur de l'historique — affiche « charger plus » si atteinte. */
+  historyLimit?: number;
 }) {
   // Filtres initialisés depuis l'URL : la vue survit au refresh et aux
   // allers-retours (le reproche n°1 du quotidien : « mes filtres sautent »).
@@ -300,6 +311,21 @@ export function ReviewsInbox({
 
   const pendingCount = merged.filter((r) => isPending(r.status)).length;
 
+  // L'historique est borné côté serveur : quand la borne est atteinte et
+  // qu'on regarde un onglet d'historique, offrir d'élargir (recharge
+  // serveur avec ?hist= élargi, autres params préservés).
+  const historyCount = merged.filter((r) => !isPending(r.status)).length;
+  const historyTruncated =
+    historyLimit !== undefined &&
+    historyCount >= historyLimit &&
+    statusFilter !== "pending";
+  const loadMoreHref = (() => {
+    if (!historyTruncated) return null;
+    const params = new URLSearchParams(searchParams);
+    params.set("hist", String((historyLimit ?? 0) + 150));
+    return `?${params.toString()}`;
+  })();
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-2 border-b border-border">
@@ -440,6 +466,7 @@ export function ReviewsInbox({
           />
         )
       ) : (
+        <>
         <ul className="flex flex-col gap-2">
           <AnimatePresence initial={false}>
             {visible.map((review) => (
@@ -472,6 +499,19 @@ export function ReviewsInbox({
             ))}
           </AnimatePresence>
         </ul>
+        {loadMoreHref && (
+          <p className="py-2 text-center text-xs text-muted-foreground">
+            Historique limité aux {historyLimit} reviews traitées les plus
+            récentes —{" "}
+            <a
+              href={loadMoreHref}
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              afficher 150 de plus
+            </a>
+          </p>
+        )}
+        </>
       )}
     </div>
   );
@@ -494,6 +534,18 @@ function ReviewItem({
 }) {
   const pending = isPending(review.status);
   const late = pending && ageInHours(review.createdAt) > 72;
+
+  // Collision : la review a quitté « en attente » sans action locale
+  // (un collègue l'a traitée) pendant qu'une réponse était en cours ici.
+  useEffect(() => {
+    if (pending) return;
+    if (locallyHandled.has(review.id)) return;
+    if (!draftStash.has(review.id)) return;
+    draftStash.delete(review.id);
+    toast.warning(
+      `La review de ${review.reviewerName ?? "Utilisateur Google"} (${review.clientName}) vient d'être traitée par quelqu'un d'autre — ta réponse en cours n'a pas été envoyée.`,
+    );
+  }, [pending, review.id, review.reviewerName, review.clientName]);
 
   return (
     <div
@@ -613,28 +665,44 @@ function ReplyPanel({
   onDone: (id: string) => void;
   onRestore: (id: string) => void;
 }) {
-  const [text, setText] = useState(review.draftText ?? "");
+  // Seed depuis le stash : une édition interrompue (sélection changée,
+  // refresh) revient telle quelle quand le panneau rouvre.
+  const [text, setText] = useState(
+    () => draftStash.get(review.id) ?? review.draftText ?? "",
+  );
   const [directive, setDirective] = useState("");
   const [publishing, startPublish] = useTransition();
   const [regenerating, startRegenerate] = useTransition();
   const [ignoring, startIgnore] = useTransition();
 
   const busy = publishing || regenerating || ignoring;
+  const dirty = text !== (review.draftText ?? "");
+
+  // Le stash suit la frappe (dirty seulement — un texte identique au
+  // brouillon n'a pas besoin de survivre).
+  useEffect(() => {
+    if (dirty) draftStash.set(review.id, text);
+    else draftStash.delete(review.id);
+  }, [dirty, text, review.id]);
 
   // Réponse retouchée mais pas publiée : protégée contre la fermeture
   // du panneau, la navigation et la fermeture d'onglet.
-  useUnsavedGuard(text !== (review.draftText ?? "") && !busy);
+  useUnsavedGuard(dirty && !busy);
 
   function publish() {
     const snapshot = review.status;
+    // Action locale : l'effet « collision » ne doit pas se déclencher.
+    locallyHandled.add(review.id);
     // Optimistic : l'item quitte la liste « en attente » immédiatement.
     onOverride(review.id, { status: "replied", publishedText: text.trim() });
     onDone(review.id);
     startPublish(async () => {
       const result = await publishReplyAction(review.id, text);
       if (result.ok) {
+        draftStash.delete(review.id);
         toast.success("Réponse publiée.");
       } else {
+        locallyHandled.delete(review.id);
         // draftText: text — le panneau remonte avec le texte TEL QUE TAPÉ,
         // pas le brouillon d'origine (l'édition survivrait sinon pas au
         // démontage optimiste).
@@ -658,6 +726,7 @@ function ReplyPanel({
       if (result.ok && result.draft) {
         setText(result.draft);
         setDirective("");
+        draftStash.delete(review.id);
         onOverride(review.id, {
           status: "draft_ready",
           draftText: result.draft,
@@ -675,6 +744,9 @@ function ReplyPanel({
 
   function ignore() {
     const snapshot = review.status;
+    // Ignorer = jeter volontairement l'édition en cours.
+    locallyHandled.add(review.id);
+    draftStash.delete(review.id);
     onOverride(review.id, { status: "ignored" });
     onDone(review.id);
     startIgnore(async () => {
@@ -690,6 +762,7 @@ function ReplyPanel({
           },
         });
       } else {
+        locallyHandled.delete(review.id);
         onOverride(review.id, { status: snapshot, draftText: text });
         onRestore(review.id);
         toast.error(result.error);

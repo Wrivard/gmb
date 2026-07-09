@@ -119,6 +119,51 @@ export async function approvePostAction(postId: string): Promise<ActionResult> {
   });
 }
 
+/**
+ * Annule une approbation (toast undo) : scheduled → draft. Verrou
+ * optimiste sur le statut — si le cron a déjà pris le post (publishing/
+ * published), l'annulation est refusée proprement.
+ */
+export async function unapprovePostAction(
+  postId: string,
+): Promise<ActionResult> {
+  return runAction("L'annulation a échoué.", async () => {
+    const { member, supabase, post, client } = await loadPostForMember(postId);
+    if (post.status !== "scheduled") {
+      return {
+        ok: false,
+        error: "Trop tard — le post n'est plus planifié (déjà publié ?).",
+      };
+    }
+
+    const { data: reverted, error } = await supabase
+      .from("posts")
+      .update({ status: "draft", approved_by: null })
+      .eq("id", postId)
+      .eq("status", "scheduled")
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!reverted) {
+      return {
+        ok: false,
+        error: "Trop tard — le cron a déjà pris le post en charge.",
+      };
+    }
+
+    await logActivity({
+      agencyId: member.agency_id,
+      clientId: client.id,
+      actor: member.email,
+      action: "post_unapproved",
+      payload: { post_id: postId },
+    });
+
+    refresh();
+    return { ok: true };
+  });
+}
+
 export async function publishPostNowAction(
   postId: string,
 ): Promise<ActionResult> {
