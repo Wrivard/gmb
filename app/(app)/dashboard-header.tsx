@@ -18,7 +18,7 @@ export function DashboardHeader({
       <p className="text-sm text-muted-foreground">
         {totals.unreplied} review{totals.unreplied > 1 ? "s" : ""} en attente ·{" "}
         {totals.postsDue} post{totals.postsDue > 1 ? "s" : ""} dus ce mois ·{" "}
-        {totals.drafts} draft{totals.drafts > 1 ? "s" : ""} à approuver
+        {totals.drafts} brouillon{totals.drafts > 1 ? "s" : ""} à approuver
       </p>
 
       {/* Le tableau ci-dessous EST la réponse à « quoi faire » : pas de

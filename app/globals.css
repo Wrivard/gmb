@@ -63,7 +63,8 @@
 .dark {
   --bg-elevated: #111111;
   --bg-hover: #1a1a1a;
-  --gold: #3ecf8e;
+  /* Étoiles de reviews — la seule couleur « or » de l'app. */
+  --gold: #fbbf24;
 
   --background: #0a0a0a;
   --foreground: #ededed;

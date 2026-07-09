@@ -39,24 +39,32 @@ export default async function DashboardPage() {
   const supabase = await getDb();
   const now = new Date();
 
-  const [{ data: board }, { data: connection }, { data: clients }] =
-    await Promise.all([
-      supabase
-        .from("client_board_state")
-        .select("*")
-        .eq("agency_id", member.agency_id)
-        .eq("status", "active")
-        .order("name"),
-      supabase
-        .from("google_connections")
-        .select("status")
-        .eq("agency_id", member.agency_id)
-        .maybeSingle(),
-      supabase
-        .from("clients")
-        .select("id, primary_category, address, last_synced_at")
-        .eq("agency_id", member.agency_id),
-    ]);
+  const [
+    { data: board, error: boardError },
+    { data: connection },
+    { data: clients, error: clientsError },
+  ] = await Promise.all([
+    supabase
+      .from("client_board_state")
+      .select("*")
+      .eq("agency_id", member.agency_id)
+      .eq("status", "active")
+      .order("name"),
+    supabase
+      .from("google_connections")
+      .select("status")
+      .eq("agency_id", member.agency_id)
+      .maybeSingle(),
+    supabase
+      .from("clients")
+      .select("id, primary_category, address, last_synced_at")
+      .eq("agency_id", member.agency_id),
+  ]);
+  // Un échec de requête ne doit jamais se déguiser en tableau vide
+  // (« rien à faire ») : on laisse error.tsx afficher l'état d'erreur.
+  if (boardError || clientsError) {
+    throw new Error((boardError ?? clientsError)!.message);
+  }
 
   const clientMeta = new Map((clients ?? []).map((c) => [c.id, c]));
 

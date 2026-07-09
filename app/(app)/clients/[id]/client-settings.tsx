@@ -77,9 +77,16 @@ export function ClientSettings({
   const [savingProfile, startProfile] = useTransition();
 
   function saveSettings() {
+    // Champ vidé ou hors bornes : Number("") vaut 0 et couperait la
+    // cadence en silence — on bloque avant l'envoi.
+    const cadence = Number(postsPerMonth);
+    if (postsPerMonth.trim() === "" || !Number.isInteger(cadence) || cadence < 0 || cadence > 10) {
+      toast.error("Posts par mois doit être un entier entre 0 et 10.");
+      return;
+    }
     startSettings(async () => {
       const result = await updateClientSettingsAction(client.id, {
-        postsPerMonth: Number(postsPerMonth),
+        postsPerMonth: cadence,
         language,
         autoPublishReplies: autoReplies,
         autoPublishPosts: autoPosts,
@@ -120,7 +127,7 @@ export function ClientSettings({
     <div className="flex max-w-2xl flex-col gap-8">
       {/* Publication */}
       <section className="flex flex-col gap-4">
-        <h3 className="text-sm font-semibold">Publication</h3>
+        <h3 className="text-sm font-medium">Publication</h3>
         <div className="flex flex-wrap items-end gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="posts-per-month">Posts par mois</Label>
@@ -164,7 +171,7 @@ export function ClientSettings({
             <div className="text-sm">
               Auto-publier les réponses aux reviews 4–5★
               <p className="text-xs text-muted-foreground">
-                ⚠️ Les drafts partent sans validation humaine. Les reviews ≤ 3★
+                ⚠️ Les brouillons partent sans validation humaine. Les reviews ≤ 3★
                 exigent toujours une approbation.
               </p>
             </div>
@@ -216,7 +223,7 @@ export function ClientSettings({
       {/* Brand profile */}
       <section className="flex flex-col gap-4">
         <div>
-          <h3 className="text-sm font-semibold">Profil de marque</h3>
+          <h3 className="text-sm font-medium">Profil de marque</h3>
           <p className="text-xs text-muted-foreground">
             Nourrit tous les prompts AI (réponses et posts). Plus il est
             riche, meilleurs sont les drafts.

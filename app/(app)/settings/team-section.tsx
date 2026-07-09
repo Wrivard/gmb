@@ -5,6 +5,14 @@ import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -28,6 +36,17 @@ export function TeamSection({
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<MemberRole>("member");
   const [pending, startTransition] = useTransition();
+  // Retrait irréversible : on confirme avant d'appeler l'action.
+  const [toRemove, setToRemove] = useState<AgencyMember | null>(null);
+
+  function confirmRemove(member: AgencyMember) {
+    setToRemove(null);
+    startTransition(async () => {
+      const result = await removeMemberAction(member.id);
+      if (result.ok) toast.success(`${member.email} retiré.`);
+      else toast.error(result.error);
+    });
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -50,13 +69,8 @@ export function TeamSection({
                 variant="ghost"
                 size="icon-sm"
                 aria-label={`Retirer ${m.email}`}
-                onClick={() =>
-                  startTransition(async () => {
-                    const result = await removeMemberAction(m.id);
-                    if (result.ok) toast.success(`${m.email} retiré.`);
-                    else toast.error(result.error);
-                  })
-                }
+                disabled={pending}
+                onClick={() => setToRemove(m)}
               >
                 <Trash2 />
               </Button>
@@ -64,6 +78,36 @@ export function TeamSection({
           </li>
         ))}
       </ul>
+
+      <Dialog
+        open={toRemove !== null}
+        onOpenChange={(open) => !open && setToRemove(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Retirer ce membre ?</DialogTitle>
+            <DialogDescription>
+              {toRemove?.email} ne pourra plus se connecter à l&apos;app.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setToRemove(null)}
+            >
+              Annuler
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => toRemove && confirmRemove(toRemove)}
+            >
+              Retirer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {isOwner && (
         <form

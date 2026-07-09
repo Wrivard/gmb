@@ -32,9 +32,15 @@ export function DefaultsForm({
       className="flex flex-wrap items-end gap-4"
       onSubmit={(event) => {
         event.preventDefault();
+        // Number("") vaut 0 : ne pas enregistrer un champ vidé par accident.
+        const cadence = Number(posts);
+        if (posts.trim() === "" || !Number.isInteger(cadence) || cadence < 0 || cadence > 10) {
+          toast.error("Posts par mois doit être un entier entre 0 et 10.");
+          return;
+        }
         startTransition(async () => {
           const result = await updateAgencyDefaultsAction({
-            defaultPostsPerMonth: Number(posts),
+            defaultPostsPerMonth: cadence,
             defaultLanguage: language,
           });
           if (result.ok) toast.success("Défauts mis à jour.");

@@ -91,7 +91,7 @@ export default async function AppLayout({
         pendingReviews={pendingReviews}
         postsDue={postsDue}
       />
-      <div className="pl-60">
+      <div className="lg:pl-60">
         <GlobalBanners
           connectionRevoked={connectionRevoked}
           accessPending={accessPending}

@@ -9,7 +9,9 @@ import { UserMenu } from "@/components/layout/user-menu";
 // Deux volets : Opérations (quoi faire aujourd'hui) et Long terme
 // (comment va chaque projet). Les files Reviews/Posts vivent en onglets
 // d'Aujourd'hui — plus d'entrées de nav qui se recouvrent.
-const SECTIONS = [
+// Exporté pour le menu mobile (components/layout/mobile-nav.tsx) : une
+// seule source de vérité pour la nav.
+export const NAV_SECTIONS = [
   {
     label: "Opérations",
     items: [{ href: "/", label: "Aujourd'hui", icon: LayoutDashboard }],
@@ -22,6 +24,18 @@ const SECTIONS = [
     ],
   },
 ] as const;
+
+/** Actif si la route de l'item couvre le pathname (Aujourd'hui englobe les files). */
+export function isNavActive(href: string, pathname: string): boolean {
+  if (href === "/") {
+    return (
+      pathname === "/" ||
+      pathname.startsWith("/reviews") ||
+      pathname.startsWith("/posts")
+    );
+  }
+  return pathname.startsWith(href);
+}
 
 export function Sidebar({
   userEmail,
@@ -38,20 +52,8 @@ export function Sidebar({
   const isMock = process.env.NEXT_PUBLIC_GBP_MODE !== "real";
   const todo = pendingReviews + postsDue;
 
-  function isActive(href: string): boolean {
-    if (href === "/") {
-      // Aujourd'hui englobe les files.
-      return (
-        pathname === "/" ||
-        pathname.startsWith("/reviews") ||
-        pathname.startsWith("/posts")
-      );
-    }
-    return pathname.startsWith(href);
-  }
-
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-border bg-sidebar">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-sidebar lg:flex">
       <div className="flex h-14 items-center gap-2 px-5">
         <span className="flex size-7 items-center justify-center rounded-md bg-primary font-bold text-sm text-primary-foreground">
           K
@@ -60,19 +62,19 @@ export function Sidebar({
       </div>
 
       <nav className="flex flex-1 flex-col gap-4 px-3 py-3">
-        {SECTIONS.map((section) => (
+        {NAV_SECTIONS.map((section) => (
           <div key={section.label} className="flex flex-col gap-0.5">
             <p className="px-3 pb-1 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">
               {section.label}
             </p>
             {section.items.map(({ href, label, icon: Icon }) => {
-              const active = isActive(href);
+              const active = isNavActive(href, pathname);
               return (
                 <Link
                   key={href}
                   href={href}
                   className={cn(
-                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                     active
                       ? "bg-hover text-foreground"
                       : "text-muted-foreground hover:bg-hover/60 hover:text-foreground",

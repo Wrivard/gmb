@@ -27,7 +27,7 @@ export function AccessDenied({ email }: { email: string }) {
         <p className="mt-1 max-w-sm text-sm text-muted-foreground">
           Le compte <span className="text-foreground">{email}</span> n&apos;est
           pas dans la liste de l&apos;équipe Küa. Demande à un admin de
-          t&apos;ajouter dans Réglages → Équipe.
+          t&apos;ajouter dans Agence → Équipe.
         </p>
       </div>
       <Button variant="outline" onClick={signOut}>

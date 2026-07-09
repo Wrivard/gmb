@@ -34,11 +34,19 @@ function StatusBadge({ status }: { status: PostStatus }) {
 export function PostsView({
   clients,
   posts,
+  backHref,
 }: {
   clients: QueueClient[];
   posts: QueuePost[];
+  /** Contexte d'origine (ex. fiche projet) — propagé à l'éditeur pour
+      que « retour » et l'après-approbation reviennent ici. */
+  backHref?: string;
 }) {
   const [view, setView] = useState<"queue" | "calendar">("queue");
+  const postHref = (id: string) =>
+    backHref
+      ? `/posts/${id}?back=${encodeURIComponent(backHref)}`
+      : `/posts/${id}`;
 
   return (
     <div className="flex flex-col gap-4">
@@ -58,9 +66,9 @@ export function PostsView({
       </div>
 
       {view === "queue" ? (
-        <QueueView clients={clients} posts={posts} />
+        <QueueView clients={clients} posts={posts} postHref={postHref} />
       ) : (
-        <CalendarView posts={posts} />
+        <CalendarView posts={posts} postHref={postHref} />
       )}
     </div>
   );
@@ -88,11 +96,11 @@ function BatchGenerateButton({ clients }: { clients: QueueClient[] }) {
       setProgress({ done: 0, total: jobs.length });
       let failures = 0;
       // Séquentiel avec pause 500 ms entre les appels (specs/07).
+      // La barre de progression suffit — on ne toaste que les échecs,
+      // sinon 10 clients = un mur de toasts qui masque l'écran.
       for (let i = 0; i < jobs.length; i++) {
         const result = await generatePostAction(jobs[i].id);
-        if (result.ok) {
-          toast.success(`Post généré pour ${jobs[i].name}.`);
-        } else {
+        if (!result.ok) {
           failures++;
           toast.error(`${jobs[i].name} : ${result.error}`);
         }
@@ -103,7 +111,13 @@ function BatchGenerateButton({ clients }: { clients: QueueClient[] }) {
       }
       setProgress(null);
       router.refresh();
-      if (!failures) toast.success("Tous les posts dus sont générés.");
+      if (failures) {
+        toast.warning(
+          `${jobs.length - failures}/${jobs.length} posts générés — ${failures} échec${failures > 1 ? "s" : ""}.`,
+        );
+      } else {
+        toast.success("Tous les posts dus sont générés.");
+      }
     });
   }
 
@@ -135,9 +149,11 @@ function BatchGenerateButton({ clients }: { clients: QueueClient[] }) {
 function QueueView({
   clients,
   posts,
+  postHref,
 }: {
   clients: QueueClient[];
   posts: QueuePost[];
+  postHref: (id: string) => string;
 }) {
   const due = clients.filter((c) => c.remaining > 0);
   const drafts = posts.filter((p) => postGroup(p.status) === "brouillon");
@@ -174,7 +190,7 @@ function QueueView({
               count={failed.length}
               hint="La publication a échoué chez Google. Ouvre le post, ajuste, réessaie."
             >
-              <PostRows posts={failed} action="Corriger" />
+              <PostRows posts={failed} action="Corriger" postHref={postHref} />
             </Section>
           )}
 
@@ -198,7 +214,7 @@ function QueueView({
               count={drafts.length}
               hint="Vérifie le texte et l'image, puis approuve."
             >
-              <PostRows posts={drafts} action="Réviser" />
+              <PostRows posts={drafts} action="Réviser" postHref={postHref} />
             </Section>
           )}
         </>
@@ -214,13 +230,13 @@ function QueueView({
               hint="Chaque post part tout seul à la date prévue."
               quiet
             >
-              <PostRows posts={scheduled} quiet />
+              <PostRows posts={scheduled} quiet postHref={postHref} />
             </Section>
           )}
 
           {published.length > 0 && (
             <Section title="Publiés ce mois" count={published.length} quiet>
-              <PostRows posts={published} quiet />
+              <PostRows posts={published} quiet postHref={postHref} />
             </Section>
           )}
         </div>
@@ -322,10 +338,12 @@ function PostRows({
   posts,
   action,
   quiet = false,
+  postHref,
 }: {
   posts: QueuePost[];
   action?: string;
   quiet?: boolean;
+  postHref: (id: string) => string;
 }) {
   return (
     <ul
@@ -337,7 +355,7 @@ function PostRows({
       {posts.map((post) => (
         <li key={post.id}>
           <Link
-            href={`/posts/${post.id}`}
+            href={postHref(post.id)}
             className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-hover/50"
           >
             <div
@@ -392,7 +410,13 @@ function PostRows({
   );
 }
 
-function CalendarView({ posts }: { posts: QueuePost[] }) {
+function CalendarView({
+  posts,
+  postHref,
+}: {
+  posts: QueuePost[];
+  postHref: (id: string) => string;
+}) {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
@@ -414,9 +438,15 @@ function CalendarView({ posts }: { posts: QueuePost[] }) {
 
   return (
     <div>
-      <h2 className="mb-2 text-sm font-semibold capitalize text-muted-foreground">
+      <h2 className="mb-2 text-sm font-medium capitalize text-muted-foreground">
         {format(now, "MMMM yyyy", { locale: frCA })}
       </h2>
+      {byDay.size === 0 && (
+        <p className="mb-2 rounded-lg border border-dashed border-border px-4 py-3 text-center text-sm text-muted-foreground">
+          Aucun post planifié ou publié ce mois-ci — les posts approuvés
+          apparaissent ici à leur date de publication.
+        </p>
+      )}
       <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-border bg-border">
         {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((label) => (
           <div
@@ -445,13 +475,15 @@ function CalendarView({ posts }: { posts: QueuePost[] }) {
               {(byDay.get(day) ?? []).map((post) => (
                 <Link
                   key={post.id}
-                  href={`/posts/${post.id}`}
+                  href={postHref(post.id)}
                   className={cn(
-                    "truncate rounded px-1.5 py-0.5 text-[11px]",
+                    // Mêmes couleurs que StatusBadge : un statut = une
+                    // couleur, peu importe la vue.
+                    "truncate rounded px-1.5 py-0.5 text-xs",
                     postGroup(post.status) === "publie"
-                      ? "bg-muted text-muted-foreground"
+                      ? "bg-secondary text-secondary-foreground"
                       : postGroup(post.status) === "echec"
-                        ? "bg-destructive/15 text-destructive"
+                        ? "bg-destructive/10 text-destructive"
                         : "bg-primary/15 text-primary",
                   )}
                 >

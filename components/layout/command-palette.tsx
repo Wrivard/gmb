@@ -21,12 +21,39 @@ import {
 
 export const OPEN_PALETTE_EVENT = "kua:open-command-palette";
 
+// Mêmes libellés que la sidebar et les onglets — les `keywords`
+// gardent les anciens noms cherchables (dashboard, réglages…).
 const PAGES = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/reviews", label: "Reviews", icon: MessageSquare },
-  { href: "/posts", label: "Posts", icon: Megaphone },
-  { href: "/clients", label: "Clients", icon: Users },
-  { href: "/settings", label: "Réglages", icon: Settings },
+  {
+    href: "/",
+    label: "Aujourd'hui",
+    keywords: "tableau dashboard board",
+    icon: LayoutDashboard,
+  },
+  {
+    href: "/reviews",
+    label: "File reviews",
+    keywords: "avis réponses",
+    icon: MessageSquare,
+  },
+  {
+    href: "/posts",
+    label: "File posts",
+    keywords: "publications calendrier",
+    icon: Megaphone,
+  },
+  {
+    href: "/clients",
+    label: "Projets",
+    keywords: "clients entreprises fiches",
+    icon: Users,
+  },
+  {
+    href: "/settings",
+    label: "Agence",
+    keywords: "réglages settings équipe google",
+    icon: Settings,
+  },
 ];
 
 /** Recherche client + navigation, ouverte via ⌘K (specs/09). */
@@ -67,7 +94,7 @@ export function CommandPalette({
       <CommandList>
         <CommandEmpty>Aucun résultat.</CommandEmpty>
         {clients.length > 0 && (
-          <CommandGroup heading="Clients">
+          <CommandGroup heading="Projets">
             {clients.map((client) => (
               <CommandItem
                 key={client.id}
@@ -82,10 +109,10 @@ export function CommandPalette({
         )}
         <CommandSeparator />
         <CommandGroup heading="Pages">
-          {PAGES.map(({ href, label, icon: Icon }) => (
+          {PAGES.map(({ href, label, keywords, icon: Icon }) => (
             <CommandItem
               key={href}
-              value={`page ${label}`}
+              value={`page ${label} ${keywords}`}
               onSelect={() => go(href)}
             >
               <Icon />

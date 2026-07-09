@@ -15,18 +15,20 @@ export function ClientActiveToggle({
   disabled?: boolean;
 }) {
   const [checked, setChecked] = useState(active);
-  const [, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
 
   return (
     <Switch
       checked={checked}
-      disabled={disabled}
-      aria-label="Client actif"
+      disabled={disabled || pending}
+      aria-label="Projet actif"
       onCheckedChange={(next) => {
         setChecked(next);
         startTransition(async () => {
           const result = await toggleClientActiveAction(clientId, next);
-          if (!result.ok) {
+          if (result.ok) {
+            toast.success(next ? "Projet réactivé." : "Projet mis en pause.");
+          } else {
             setChecked(!next);
             toast.error(result.error);
           }

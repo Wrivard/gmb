@@ -34,12 +34,12 @@ export function CadenceSelect({
 }) {
   const router = useRouter();
   const [value, setValue] = useState(String(client.posts_per_month));
-  const [, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
 
   return (
     <Select
       value={value}
-      disabled={disabled}
+      disabled={disabled || pending}
       onValueChange={(next) => {
         if (typeof next !== "string" || next === value) return;
         const previous = value;
@@ -53,6 +53,7 @@ export function CadenceSelect({
             active: client.status === "active",
           });
           if (result.ok) {
+            toast.success("Mandat mis à jour.");
             router.refresh();
           } else {
             setValue(previous);

@@ -10,10 +10,15 @@ export const metadata = { title: "Éditeur de post" };
 
 export default async function PostEditorPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ back?: string }>;
 }) {
   const { id } = await params;
+  const { back } = await searchParams;
+  // Chemin interne seulement — jamais de redirection externe.
+  const backHref = back?.startsWith("/") ? back : undefined;
 
   if (!supabaseConfigured()) {
     const demoPost = demoQueuePosts().find((p) => p.id === id);
@@ -37,6 +42,7 @@ export default async function PostEditorPage({
           }}
           clientName={demoPost.clientName}
           clientWebsite="https://exemple.kua.quebec"
+          backHref={backHref}
         />
       </div>
     );
@@ -82,6 +88,7 @@ export default async function PostEditorPage({
       }}
       clientName={client.name}
       clientWebsite={client.website}
+      backHref={backHref}
     />
   );
 }

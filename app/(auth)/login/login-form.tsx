@@ -109,6 +109,7 @@ export function LoginForm() {
             id="email"
             type="email"
             autoComplete="email"
+            autoFocus
             placeholder="toi@kua.quebec"
             value={email}
             onChange={(e) => setEmail(e.target.value)}

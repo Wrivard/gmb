@@ -41,7 +41,7 @@ const COLUMNS: Array<{ key: Exclude<ColumnKey, "ok">; title: string; empty: stri
   {
     key: "approval",
     title: "À approuver",
-    empty: "Aucun draft en attente.",
+    empty: "Aucun brouillon en attente.",
   },
 ];
 
@@ -73,7 +73,7 @@ export function DashboardKanban({ clients }: { clients: BoardClient[] }) {
             key={column.key}
             className="flex flex-col gap-2 rounded-lg border border-border bg-card p-2"
           >
-            <h2 className="flex items-center gap-2 px-1 py-1 text-[13px] font-medium">
+            <h2 className="flex items-center gap-2 px-1 py-1 text-sm font-medium">
               {column.title}
               <span className="ml-auto font-normal text-muted-foreground tabular-nums">
                 {byColumn[column.key].length}
@@ -108,7 +108,7 @@ export function DashboardKanban({ clients }: { clients: BoardClient[] }) {
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-border bg-card px-3 py-2 text-sm">
           <CheckCircle2 className="size-4 text-success" />
           <span>
-            {byColumn.ok.length} fiche{byColumn.ok.length > 1 ? "s" : ""} à
+            {byColumn.ok.length} projet{byColumn.ok.length > 1 ? "s" : ""} à
             jour
           </span>
           <span className="text-muted-foreground">
@@ -148,7 +148,10 @@ function ClientCard({ client }: { client: BoardClient }) {
         urgent ? "border-destructive/60" : "border-border",
       )}
     >
-      <Link href={`/clients/${client.id}`} className="block">
+      <Link
+        href={`/clients/${client.id}`}
+        className="block rounded outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
         <div className="text-sm font-medium">{client.name}</div>
         <div className="text-xs text-muted-foreground">
           {[client.category, client.city].filter(Boolean).join(" · ") || "—"}
@@ -176,7 +179,7 @@ function ClientCard({ client }: { client: BoardClient }) {
         )}
         {client.draftReplies + client.draftPosts > 0 && (
           <Badge variant="outline">
-            {client.draftReplies + client.draftPosts} draft
+            {client.draftReplies + client.draftPosts} brouillon
             {client.draftReplies + client.draftPosts > 1 ? "s" : ""}
           </Badge>
         )}
@@ -186,7 +189,7 @@ function ClientCard({ client }: { client: BoardClient }) {
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
           {client.avgRating !== null && (
             <>
-              <Star className="size-3 fill-amber-400 text-amber-400" />
+              <Star className="size-3 fill-gold text-gold" />
               {client.avgRating.toFixed(1)} · {client.reviewCount} avis
             </>
           )}
@@ -196,7 +199,7 @@ function ClientCard({ client }: { client: BoardClient }) {
         <span className="flex gap-1">
           {column === "reviews" && (
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               render={<Link href={`/clients/${client.id}?tab=reviews`} />}
             >
@@ -206,7 +209,7 @@ function ClientCard({ client }: { client: BoardClient }) {
           )}
           {client.postsDue > 0 && (
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               disabled={generating}
               onClick={() =>

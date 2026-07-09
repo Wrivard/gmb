@@ -40,7 +40,7 @@ export function TabBar({
           </>
         );
         const classes = cn(
-          "-mb-px border-b-2 px-3 py-2 text-sm transition-colors",
+          "-mb-px border-b-2 px-3 py-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
           active
             ? "border-primary font-medium text-foreground"
             : "border-transparent text-muted-foreground hover:text-foreground",

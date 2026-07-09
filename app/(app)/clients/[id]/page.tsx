@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { frCA } from "date-fns/locale";
+import { ArrowLeft } from "lucide-react";
 import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
@@ -20,13 +21,14 @@ import {
   demoQueuePosts,
 } from "@/lib/demo";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { TabBar } from "@/components/ui/tab-bar";
 import { cn } from "@/lib/utils";
 import { ReviewsInbox } from "@/app/(app)/reviews/reviews-inbox";
 import { PostsView } from "@/app/(app)/posts/posts-view";
 import { ClientSettings } from "./client-settings";
 
-export const metadata = { title: "Fiche client" };
+export const metadata = { title: "Projet" };
 
 const TABS = [
   { key: "croissance", label: "Croissance" },
@@ -59,14 +61,18 @@ export default async function ClientDetailPage({
 
     const stats = [
       { label: "Reviews en attente", value: board.unreplied },
-      { label: "Drafts à approuver", value: board.draftReplies + board.draftPosts },
+      { label: "Brouillons à approuver", value: board.draftReplies + board.draftPosts },
       { label: "Posts dus ce mois", value: board.postsDue, alert: board.late },
     ];
 
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-5">
         <DemoBanner />
         <div className="flex flex-wrap items-center gap-3">
+          <Button variant="ghost" size="sm" render={<Link href="/clients" />}>
+            <ArrowLeft />
+            Projets
+          </Button>
           <h1 className="text-xl font-semibold tracking-tight">
             {board.name}
           </h1>
@@ -94,7 +100,7 @@ export default async function ClientDetailPage({
               {stats.map((stat) => (
                 <div
                   key={stat.label}
-                  className="rounded-lg border border-border bg-elevated px-3 py-2.5"
+                  className="rounded-lg border border-border bg-elevated px-4 py-3"
                 >
                   <div
                     className={cn(
@@ -111,7 +117,7 @@ export default async function ClientDetailPage({
               ))}
             </div>
             <section>
-              <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
+              <h2 className="mb-2 text-sm font-medium text-muted-foreground">
                 Activité récente
               </h2>
               <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-elevated px-4">
@@ -150,6 +156,7 @@ export default async function ClientDetailPage({
               },
             ]}
             posts={posts}
+            backHref={`/clients/${board.id}?tab=posts`}
           />
         )}
         {tab === "settings" && (
@@ -191,17 +198,23 @@ export default async function ClientDetailPage({
   if (!member) return null; // Le layout gère la whitelist.
 
   const supabase = await getDb();
-  const { data: client } = await supabase
+  const { data: client, error } = await supabase
     .from("clients")
     .select("*")
     .eq("id", id)
     .eq("agency_id", member.agency_id)
     .maybeSingle();
+  // Erreur de requête ≠ projet inexistant : ne pas rendre un faux 404.
+  if (error) throw new Error(error.message);
   if (!client) notFound();
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center gap-3">
+        <Button variant="ghost" size="sm" render={<Link href="/clients" />}>
+          <ArrowLeft />
+          Projets
+        </Button>
         <h1 className="text-xl font-semibold tracking-tight">{client.name}</h1>
         <Badge
           variant={
@@ -309,7 +322,7 @@ async function GrowthTab({
   const stats = [
     { label: "Reviews en attente", value: board?.unreplied_count ?? 0 },
     {
-      label: "Drafts à approuver",
+      label: "Brouillons à approuver",
       value: (board?.draft_reply_count ?? 0) + (board?.draft_post_count ?? 0),
     },
     {
@@ -326,7 +339,7 @@ async function GrowthTab({
         {stats.map((stat) => (
           <div
             key={stat.label}
-            className="rounded-lg border border-border bg-elevated px-3 py-2.5"
+            className="rounded-lg border border-border bg-elevated px-4 py-3"
           >
             <div
               className={cn(
@@ -342,7 +355,7 @@ async function GrowthTab({
       </div>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
+        <h2 className="mb-2 text-sm font-medium text-muted-foreground">
           Activité récente
         </h2>
         {activity?.length ? (
@@ -398,5 +411,11 @@ async function PostsTab({
   };
 }) {
   const { clients, posts } = await loadClientQueue(client);
-  return <PostsView clients={clients} posts={posts} />;
+  return (
+    <PostsView
+      clients={clients}
+      posts={posts}
+      backHref={`/clients/${client.id}?tab=posts`}
+    />
+  );
 }

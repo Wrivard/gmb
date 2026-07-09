@@ -22,7 +22,7 @@ export default async function ReviewsPage() {
   const inboxReviews = await loadInboxReviews({ agencyId });
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       {demo ? <DemoBanner /> : <RealtimeRefresh />}
       <OpsTabs />
       <p className="text-sm text-muted-foreground">

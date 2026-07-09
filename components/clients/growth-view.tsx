@@ -88,7 +88,7 @@ export function GrowthView({ growth }: { growth: ClientGrowth }) {
               <div
                 key={month.key}
                 title={`${month.label} : ${month.reviews} review${month.reviews > 1 ? "s" : ""}`}
-                className="flex-1 rounded-sm bg-[var(--chart-1)]/70"
+                className="flex-1 rounded-sm bg-chart-1/70"
                 style={{
                   height: `${Math.max((month.reviews / maxReviews) * 100, 6)}%`,
                 }}
@@ -116,7 +116,7 @@ export function GrowthView({ growth }: { growth: ClientGrowth }) {
           <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted">
             {growth.responseRate && (
               <div
-                className="h-full rounded-full bg-[var(--chart-1)]"
+                className="h-full rounded-full bg-chart-1"
                 style={{
                   width: `${(growth.responseRate.replied / growth.responseRate.total) * 100}%`,
                 }}
@@ -168,7 +168,7 @@ export function GrowthView({ growth }: { growth: ClientGrowth }) {
                       }}
                     />
                   </div>
-                  <p className="text-[11px] tabular-nums text-muted-foreground">
+                  <p className="text-xs tabular-nums text-muted-foreground">
                     {month.label} {month.postsPublished}/{month.postsTarget}
                     {isCurrent && "…"}
                   </p>

@@ -24,7 +24,7 @@ export function GlobalBanners({
         </div>
       )}
       {!connectionRevoked && accessPending && (
-        <div className="bg-blue-500/10 px-6 py-2 text-center text-sm text-blue-400">
+        <div className="bg-info/10 px-6 py-2 text-center text-sm text-info">
           Accès aux APIs Google Business Profile en attente d&apos;approbation
           (quota 0) — le sync reprendra automatiquement une fois le projet
           approuvé.

@@ -24,7 +24,7 @@ export function StarRating({
           className={cn(
             size === "sm" ? "size-3" : "size-3.5",
             i <= value
-              ? "fill-amber-400 text-amber-400"
+              ? "fill-gold text-gold"
               : "fill-muted text-muted",
           )}
         />

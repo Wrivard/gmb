@@ -169,6 +169,15 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
     [visible],
   );
 
+  // Si l'action optimiste échoue côté serveur, on ramène l'utilisateur
+  // sur la review revenue dans la liste — sinon elle « saute » hors vue.
+  const restoreSelection = useCallback((id: string) => {
+    setSelectedId(id);
+    document
+      .getElementById(`review-${id}`)
+      ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, []);
+
   // Raccourcis clavier : j/k naviguer, e éditer, Escape fermer (specs/05).
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -179,8 +188,13 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
         target.isContentEditable;
 
       if (event.key === "Escape") {
+        // En cours de frappe, Échap sort seulement du champ — fermer le
+        // panneau détruirait la réponse en cours d'édition.
+        if (typing) {
+          (target as HTMLElement).blur?.();
+          return;
+        }
         setSelectedId(null);
-        (target as HTMLElement).blur?.();
         return;
       }
       if (typing) return;
@@ -241,7 +255,7 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tous les clients</SelectItem>
+            <SelectItem value="all">Tous les projets</SelectItem>
             {clients.map(([id, name]) => (
               <SelectItem key={id} value={id}>
                 {name}
@@ -267,7 +281,7 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
         <button
           type="button"
           onClick={() => setShortcutsOpen(true)}
-          className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+          className="rounded text-xs text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           Raccourcis <kbd className="rounded border border-border px-1">?</kbd>
         </button>
@@ -283,7 +297,7 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
             {(
               [
                 ["j / k", "Naviguer entre les reviews"],
-                ["e", "Éditer le draft sélectionné"],
+                ["e", "Éditer le brouillon sélectionné"],
                 ["⌘↵ / Ctrl↵", "Publier la réponse"],
                 ["Échap", "Fermer le panneau"],
                 ["⌘K / CtrlK", "Rechercher un client"],
@@ -304,7 +318,7 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
       </Dialog>
 
       {visible.length === 0 ? (
-        <div className="rounded-lg border border-border bg-elevated px-6 py-16 text-center">
+        <div className="rounded-lg border border-border bg-elevated px-6 py-14 text-center">
           <p className="text-lg">
             {statusFilter === "pending"
               ? "Aucune review en attente 🎉"
@@ -338,6 +352,7 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
                   }
                   onOverride={applyOverride}
                   onDone={advanceFrom}
+                  onRestore={restoreSelection}
                 />
               </motion.li>
             ))}
@@ -354,12 +369,14 @@ function ReviewItem({
   onSelect,
   onOverride,
   onDone,
+  onRestore,
 }: {
   review: InboxReview;
   selected: boolean;
   onSelect: () => void;
   onOverride: (id: string, patch: Partial<InboxReview> | null) => void;
   onDone: (id: string) => void;
+  onRestore: (id: string) => void;
 }) {
   const pending = isPending(review.status);
   const late = pending && ageInHours(review.createdAt) > 72;
@@ -375,7 +392,7 @@ function ReviewItem({
       <button
         type="button"
         onClick={onSelect}
-        className="flex w-full items-start gap-3 px-4 py-3 text-left"
+        className="flex w-full items-start gap-3 rounded-lg px-4 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
       >
         <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
           {initials(review.reviewerName)}
@@ -410,7 +427,7 @@ function ReviewItem({
           )}
           {!selected && pending && review.draftText && (
             <span className="mt-1 line-clamp-1 block text-xs text-muted-foreground">
-              <span className="text-success">Draft :</span> «{" "}
+              <span className="text-success">Brouillon :</span> «{" "}
               {review.draftText} »
             </span>
           )}
@@ -432,7 +449,12 @@ function ReviewItem({
       </button>
 
       {selected && pending && (
-        <ReplyPanel review={review} onOverride={onOverride} onDone={onDone} />
+        <ReplyPanel
+          review={review}
+          onOverride={onOverride}
+          onDone={onDone}
+          onRestore={onRestore}
+        />
       )}
       {selected && review.status === "replied" && review.publishedText && (
         <div className="border-t border-border px-4 py-3">
@@ -451,9 +473,9 @@ function ReviewItem({
 function StatusBadge({ status }: { status: ReviewStatus }) {
   switch (status) {
     case "needs_reply":
-      return <Badge variant="destructive">Sans draft</Badge>;
+      return <Badge variant="destructive">Sans brouillon</Badge>;
     case "draft_ready":
-      return <Badge variant="default">Draft prêt</Badge>;
+      return <Badge variant="default">Brouillon prêt</Badge>;
     case "approved":
       return <Badge variant="secondary">À publier</Badge>;
     case "replied":
@@ -467,10 +489,12 @@ function ReplyPanel({
   review,
   onOverride,
   onDone,
+  onRestore,
 }: {
   review: InboxReview;
   onOverride: (id: string, patch: Partial<InboxReview> | null) => void;
   onDone: (id: string) => void;
+  onRestore: (id: string) => void;
 }) {
   const [text, setText] = useState(review.draftText ?? "");
   const [directive, setDirective] = useState("");
@@ -491,6 +515,7 @@ function ReplyPanel({
         toast.success("Réponse publiée.");
       } else {
         onOverride(review.id, { status: snapshot, publishedText: null });
+        onRestore(review.id);
         toast.error(result.error);
       }
     });
@@ -509,8 +534,13 @@ function ReplyPanel({
           status: "draft_ready",
           draftText: result.draft,
         });
+        toast.success("Nouveau brouillon généré.");
       } else if (!result.ok) {
         toast.error(result.error);
+      } else {
+        // ok mais brouillon vide : ne pas laisser le bouton retomber en
+        // silence — l'utilisateur doit savoir que rien n'a changé.
+        toast.error("Aucun brouillon généré — réessaie.");
       }
     });
   }
@@ -533,6 +563,7 @@ function ReplyPanel({
         });
       } else {
         onOverride(review.id, { status: snapshot });
+        onRestore(review.id);
         toast.error(result.error);
       }
     });
@@ -541,10 +572,15 @@ function ReplyPanel({
   return (
     <div className="flex flex-col gap-3 border-t border-border px-4 py-3">
       {review.generationCount >= 3 && (
-        <p className="text-xs text-amber-500">
-          Ce draft a été régénéré {review.generationCount} fois — le profil de
-          marque du client mérite probablement d&apos;être enrichi (fiche
-          client → Réglages).
+        <p className="text-xs text-warning">
+          Ce brouillon a été régénéré {review.generationCount} fois — le{" "}
+          <a
+            href={`/clients/${review.clientId}?tab=settings`}
+            className="font-medium underline underline-offset-2 hover:text-foreground"
+          >
+            profil de marque du projet
+          </a>{" "}
+          mérite probablement d&apos;être enrichi.
         </p>
       )}
       <Textarea
@@ -561,7 +597,7 @@ function ReplyPanel({
         maxLength={MAX_REPLY_LENGTH}
         placeholder={
           review.status === "needs_reply"
-            ? "Pas encore de draft — régénère ou écris la réponse."
+            ? "Pas encore de brouillon — régénère ou écris la réponse."
             : undefined
         }
         className="text-sm"
@@ -592,6 +628,7 @@ function ReplyPanel({
               regenerate();
             }
           }}
+          aria-label="Directive pour la régénération du brouillon"
           placeholder="Directive (optionnel) : « plus court », « mentionne la garantie »…"
           className="h-7 w-80 text-xs"
         />

@@ -88,7 +88,7 @@ export default async function ClientsPage() {
     if (!member) return null; // Le layout gère la whitelist.
 
     const supabase = await getDb();
-    const [{ data: clients }, { data: board }, { data: reviews }] =
+    const [{ data: clients, error: clientsError }, { data: board }, { data: reviews }] =
       await Promise.all([
         supabase
           .from("clients")
@@ -103,6 +103,8 @@ export default async function ClientsPage() {
           .from("reviews")
           .select("client_id, star_rating"),
       ]);
+    // Ne pas confondre « échec de chargement » et « aucun projet ».
+    if (clientsError) throw new Error(clientsError.message);
 
     const boardById = new Map((board ?? []).map((b) => [b.client_id, b]));
     const ratingByClient = new Map<string, { sum: number; count: number }>();
@@ -153,12 +155,12 @@ export default async function ClientsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       {demo && <DemoBanner />}
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Projets</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Une ligne par entreprise : sa note, son mandat, ce qui l&apos;attend.
+          Une ligne par projet : sa note, son mandat, ce qui l&apos;attend.
         </p>
       </div>
 
@@ -195,7 +197,7 @@ export default async function ClientsPage() {
                 <TableCell>
                   {row.avgRating !== null ? (
                     <span className="flex items-center gap-1 text-sm">
-                      <Star className="size-3 fill-amber-400 text-amber-400" />
+                      <Star className="size-3 fill-gold text-gold" />
                       {row.avgRating.toFixed(1)}
                       <span className="text-xs text-muted-foreground">
                         ({row.reviewCount})
@@ -223,7 +225,7 @@ export default async function ClientsPage() {
                         `${row.unreplied} review${row.unreplied > 1 ? "s" : ""}`}
                       {row.unreplied > 0 && row.drafts > 0 && " · "}
                       {row.drafts > 0 &&
-                        `${row.drafts} draft${row.drafts > 1 ? "s" : ""}`}
+                        `${row.drafts} brouillon${row.drafts > 1 ? "s" : ""}`}
                     </span>
                   ) : (
                     <span className="text-muted-foreground">—</span>
@@ -250,7 +252,7 @@ export default async function ClientsPage() {
           <Link href="/settings" className="underline">
             Agence
           </Link>
-          , les fiches seront découvertes automatiquement.
+          , les fiches Google seront découvertes automatiquement.
         </p>
       )}
     </div>

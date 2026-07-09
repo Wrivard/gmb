@@ -8,6 +8,14 @@ import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -61,10 +69,13 @@ export function PostEditor({
   post,
   clientName,
   clientWebsite,
+  backHref = "/posts",
 }: {
   post: EditorPost;
   clientName: string;
   clientWebsite: string | null;
+  /** Où revenir après approbation/publication — la file d'origine. */
+  backHref?: string;
 }) {
   const router = useRouter();
   const [summary, setSummary] = useState(post.summary);
@@ -76,6 +87,7 @@ export function PostEditor({
     toDatetimeLocal(post.scheduledFor),
   );
   const [imageDirective, setImageDirective] = useState("");
+  const [confirmPublish, setConfirmPublish] = useState(false);
   const [saving, startSave] = useTransition();
   const [approving, startApprove] = useTransition();
   const [publishing, startPublish] = useTransition();
@@ -85,7 +97,26 @@ export function PostEditor({
   const busy = saving || approving || publishing || imageBusy;
   const readOnly = !isPostEditable(post.status);
 
+  /** Erreur bloquante avant tout envoi vers Google, sinon null. */
+  function validate(): string | null {
+    if (!summary.trim()) return "Le texte du post est vide.";
+    if (ctaType === "LEARN_MORE") {
+      try {
+        const url = new URL(ctaUrl);
+        if (!["http:", "https:"].includes(url.protocol)) throw new Error();
+      } catch {
+        return "L'URL du bouton est invalide — elle doit commencer par https://.";
+      }
+    }
+    return null;
+  }
+
   function save(then?: () => void) {
+    const problem = validate();
+    if (problem) {
+      toast.error(problem);
+      return;
+    }
     startSave(async () => {
       const result = await updatePostAction(post.id, {
         summary,
@@ -106,12 +137,20 @@ export function PostEditor({
   }
 
   function approve() {
+    // Approuver = publication automatique à la date prévue : la date ne
+    // doit pas déjà être passée.
+    if (scheduledFor && new Date(scheduledFor).getTime() < Date.now()) {
+      toast.error(
+        "La date de publication est déjà passée — choisis une date future ou « Publier maintenant ».",
+      );
+      return;
+    }
     save(() =>
       startApprove(async () => {
         const result = await approvePostAction(post.id);
         if (result.ok) {
           toast.success("Post approuvé et planifié.");
-          router.push("/posts");
+          router.push(backHref);
         } else {
           toast.error(result.error);
         }
@@ -120,12 +159,13 @@ export function PostEditor({
   }
 
   function publishNow() {
+    setConfirmPublish(false);
     save(() =>
       startPublish(async () => {
         const result = await publishPostNowAction(post.id);
         if (result.ok) {
           toast.success("Post publié.");
-          router.push("/posts");
+          router.push(backHref);
         } else {
           toast.error(result.error);
           router.refresh();
@@ -167,9 +207,9 @@ export function PostEditor({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" render={<Link href="/posts" />}>
+        <Button variant="ghost" size="sm" render={<Link href={backHref} />}>
           <ArrowLeft />
-          Posts
+          {backHref.startsWith("/clients/") ? "Projet" : "File posts"}
         </Button>
         <h1 className="text-xl font-semibold tracking-tight">{clientName}</h1>
         <Badge
@@ -198,6 +238,16 @@ export function PostEditor({
               id="summary"
               value={summary}
               onChange={(event) => setSummary(event.target.value)}
+              onKeyDown={(event) => {
+                // Même geste que la file reviews : ⌘↵ envoie l'action
+                // principale (approuver si possible, sinon enregistrer).
+                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                  event.preventDefault();
+                  if (busy || readOnly) return;
+                  if (isPostApprovable(post.status)) approve();
+                  else save();
+                }
+              }}
               rows={10}
               maxLength={MAX_SUMMARY_LENGTH}
               disabled={readOnly}
@@ -288,6 +338,7 @@ export function PostEditor({
                       regenerateImage();
                     }
                   }}
+                  aria-label="Directive pour la génération d'image"
                   placeholder="Directive : « plus lumineux », « en hiver »…"
                   className="h-7 text-xs"
                   disabled={readOnly}
@@ -342,7 +393,11 @@ export function PostEditor({
                   variant={
                     post.status === "scheduled" ? "default" : "secondary"
                   }
-                  onClick={publishNow}
+                  onClick={() => {
+                    const problem = validate();
+                    if (problem) toast.error(problem);
+                    else setConfirmPublish(true);
+                  }}
                   disabled={busy}
                 >
                   {publishing ? "Publication…" : "Publier maintenant"}
@@ -379,6 +434,31 @@ export function PostEditor({
           />
         </div>
       </div>
+
+      {/* La publication immédiate est irréversible et publique : confirm. */}
+      <Dialog open={confirmPublish} onOpenChange={setConfirmPublish}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Publier immédiatement ?</DialogTitle>
+            <DialogDescription>
+              Le post part tout de suite sur la fiche Google de {clientName},
+              sans attendre la date prévue.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setConfirmPublish(false)}
+            >
+              Annuler
+            </Button>
+            <Button size="sm" onClick={publishNow}>
+              Publier sur Google
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

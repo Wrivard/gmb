@@ -45,7 +45,7 @@ export default async function SettingsPage({
 
   if (!supabaseConfigured()) {
     return (
-      <div className="flex max-w-4xl flex-col gap-6">
+      <div className="flex max-w-4xl flex-col gap-5">
         <DemoBanner />
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Agence</h1>
@@ -64,7 +64,7 @@ export default async function SettingsPage({
           </CardHeader>
           <CardContent className="flex flex-wrap items-center gap-4">
             <p className="flex-1 text-sm text-muted-foreground">
-              Aucun compte Google connecté. Les fiches clients apparaîtront
+              Aucun compte Google connecté. Les projets apparaîtront
               automatiquement après la connexion.
             </p>
             <Button size="sm" disabled>
@@ -145,7 +145,7 @@ export default async function SettingsPage({
     : null;
 
   return (
-    <div className="flex max-w-4xl flex-col gap-6">
+    <div className="flex max-w-4xl flex-col gap-5">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Agence</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -261,8 +261,8 @@ export default async function SettingsPage({
         <CardHeader>
           <CardTitle>Défauts de l&apos;agence</CardTitle>
           <CardDescription>
-            Appliqués aux nouvelles fiches découvertes (modifiables ensuite
-            client par client).
+            Appliqués aux nouveaux projets découverts (modifiables ensuite
+            projet par projet).
           </CardDescription>
         </CardHeader>
         <CardContent>
