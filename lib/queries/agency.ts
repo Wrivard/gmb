@@ -33,7 +33,9 @@ export const getClientsIndex = cache(async (agencyId: string) => {
   const supabase = await getDb();
   return supabase
     .from("clients")
-    .select("id, name, primary_category, address, last_synced_at, status")
+    .select(
+      "id, name, primary_category, address, last_synced_at, status, assignee_member_id, brand_profile",
+    )
     .eq("agency_id", agencyId)
     .order("name");
 });

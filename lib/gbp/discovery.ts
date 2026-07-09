@@ -72,6 +72,8 @@ export async function runDiscovery(
 
       if (existing) {
         // Snapshot de fiche rafraîchi; on ne touche pas aux réglages.
+        // Un projet archivé (offboardé) reste archivé même si la fiche
+        // est toujours accessible côté Google.
         await supabase
           .from("clients")
           .update({
@@ -86,6 +88,9 @@ export async function runDiscovery(
           })
           .eq("id", existing.id);
       } else {
+        // Opt-in (specs/02 §C.4) : une fiche découverte n'est pas
+        // forcément un mandat payant. Elle arrive en pause — l'équipe
+        // active celles sous mandat depuis Projets.
         await supabase.from("clients").insert({
           agency_id: agencyId,
           gbp_account_id: account.name,
@@ -99,6 +104,7 @@ export async function runDiscovery(
           posts_per_month: agency?.default_posts_per_month ?? 2,
           language: agency?.default_language ?? "fr-CA",
           brand_profile: defaultBrandProfile(location),
+          status: "paused",
         });
         created++;
       }
@@ -106,11 +112,12 @@ export async function runDiscovery(
   }
 
   // Locations disparues (accès retiré) → disconnected, jamais supprimées.
+  // Les archivés sont hors jeu : ne pas les basculer disconnected.
   const { data: allClients } = await supabase
     .from("clients")
     .select("id, gbp_location_id, status")
     .eq("agency_id", agencyId)
-    .neq("status", "disconnected");
+    .not("status", "in", "(disconnected,archived)");
 
   let disconnected = 0;
   for (const client of allClients ?? []) {

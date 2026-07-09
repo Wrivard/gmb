@@ -72,6 +72,16 @@ export async function getAccessToken(): Promise<string> {
         .update({ status: "revoked" })
         .eq("id", connection.id);
       cacheByConnection.delete(connection.id);
+      // Alerte hors app à la BASCULE seulement (l'update ci-dessus ne
+      // matche que si le statut n'était pas déjà revoked au chargement) :
+      // sans ça, une révocation un vendredi soir stalle tout le week-end.
+      if (connection.status === "active") {
+        const { appLink, sendNotification } = await import("@/lib/notify");
+        await sendNotification({
+          subject: "🔴 Connexion Google révoquée — action requise",
+          text: `Le refresh token Google a été révoqué : syncs et publications sont suspendus jusqu'à la reconnexion.\n\nReconnecter : ${appLink("/settings")}`,
+        });
+      }
       throw new GoogleConnectionRevokedError();
     }
     throw new Error(`Échec du refresh token Google (${response.status}): ${body}`);

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import {
@@ -7,6 +8,7 @@ import {
 } from "@/lib/queries/agency";
 import { supabaseConfigured } from "@/lib/env";
 import { torontoParts } from "@/lib/due";
+import { isBrandProfileIncomplete } from "@/lib/clients/brand-profile";
 import { RealtimeRefresh } from "@/components/dashboard/realtime-refresh";
 import { DemoBanner } from "@/components/layout/demo-banner";
 import { OpsTabs } from "@/components/layout/ops-tabs";
@@ -16,6 +18,7 @@ import {
   AGENCY_FEED_ACTIONS,
   type ActivityEntry,
 } from "@/components/activity/activity-feed";
+import { ActivityFeedFiltered } from "@/components/activity/activity-feed-filtered";
 import { demoActivity, demoBoardClients } from "@/lib/demo";
 import { DashboardKanban, type BoardClient } from "./kanban";
 import { DashboardHeader } from "./dashboard-header";
@@ -35,6 +38,7 @@ export default async function DashboardPage() {
               (sum, c) => sum + c.draftReplies + c.draftPosts,
               0,
             ),
+            failed: demoClients.reduce((sum, c) => sum + c.failedPosts, 0),
           }}
           connectionStatus={null}
           lastSyncedAt={null}
@@ -73,7 +77,7 @@ export default async function DashboardPage() {
       .eq("agency_id", member.agency_id)
       .in("action", AGENCY_FEED_ACTIONS)
       .order("created_at", { ascending: false })
-      .limit(12),
+      .limit(25),
   ]);
   // Un échec de requête ne doit jamais se déguiser en tableau vide
   // (« rien à faire ») : on laisse error.tsx afficher l'état d'erreur.
@@ -99,7 +103,30 @@ export default async function DashboardPage() {
     entry.avg = entry.avg / entry.count;
   }
 
-  const pastDay20 = torontoParts(now).day > 20;
+  const { year, month, day } = torontoParts(now);
+  const pastDay20 = day > 20;
+
+  // Début de mois : rappeler les déficits du mois PASSÉ avant qu'ils ne
+  // s'oublient (le rollover les effaçait complètement avant R3-5).
+  let lastMonthMisses: Array<{ id: string; name: string; published: number; target: number }> = [];
+  if (day <= 7) {
+    const prevYear = month === 1 ? year - 1 : year;
+    const prevMonth = month === 1 ? 12 : month - 1;
+    const prevKey = `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`;
+    const { data: coverage } = await supabase
+      .from("client_month_coverage")
+      .select("client_id, posts_target, posts_published")
+      .eq("month", prevKey)
+      .in("client_id", [...clientMeta.keys()]);
+    lastMonthMisses = (coverage ?? [])
+      .filter((row) => row.posts_published < row.posts_target)
+      .map((row) => ({
+        id: row.client_id,
+        name: clientMeta.get(row.client_id)?.name ?? "(projet inconnu)",
+        published: row.posts_published,
+        target: row.posts_target,
+      }));
+  }
   const boardClients: BoardClient[] = (board ?? []).map((row) => {
     const meta = clientMeta.get(row.client_id);
     const rating = ratingByClient.get(row.client_id);
@@ -119,9 +146,12 @@ export default async function DashboardPage() {
       postsPerMonth: row.posts_per_month,
       draftReplies: row.draft_reply_count,
       draftPosts: row.draft_post_count,
+      failedPosts: row.failed_post_count,
       avgRating: rating ? Math.round(rating.avg * 10) / 10 : null,
       reviewCount: rating?.count ?? 0,
       late: reviewLate || (row.posts_due > 0 && pastDay20),
+      assigneeMemberId: row.assignee_member_id,
+      profileIncomplete: isBrandProfileIncomplete(meta?.brand_profile),
     };
   });
 
@@ -138,6 +168,7 @@ export default async function DashboardPage() {
       (sum, c) => sum + c.draftReplies + c.draftPosts,
       0,
     ),
+    failed: boardClients.reduce((sum, c) => sum + c.failedPosts, 0),
   };
 
   // Qui a fait quoi, tous projets confondus — le coup d'œil gestionnaire
@@ -164,13 +195,29 @@ export default async function DashboardPage() {
         connectionStatus={connection?.status ?? null}
         lastSyncedAt={lastSync ?? null}
       />
-      <DashboardKanban clients={boardClients} />
+      {lastMonthMisses.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+          <span className="font-medium">Sous cadence le mois dernier :</span>
+          {lastMonthMisses.map((miss, index) => (
+            <span key={miss.id}>
+              {index > 0 && " · "}
+              <Link
+                href={`/clients/${miss.id}/rapport`}
+                className="underline-offset-2 hover:underline"
+              >
+                {miss.name} ({miss.published}/{miss.target})
+              </Link>
+            </span>
+          ))}
+        </div>
+      )}
+      <DashboardKanban clients={boardClients} currentMemberId={member.id} />
       {feedEntries.length > 0 && (
         <section>
           <h2 className="mb-2 text-sm font-medium text-muted-foreground">
             Activité récente
           </h2>
-          <ActivityFeed entries={feedEntries} />
+          <ActivityFeedFiltered entries={feedEntries} />
         </section>
       )}
     </div>

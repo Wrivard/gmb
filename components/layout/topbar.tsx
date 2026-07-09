@@ -22,7 +22,7 @@ export function Topbar() {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-6 backdrop-blur">
+    <header className="sticky top-0 z-20 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-6 backdrop-blur print:hidden">
       <MobileNav />
       <h1 className="text-sm font-medium">{pageTitle(pathname)}</h1>
       <div className="flex-1" />

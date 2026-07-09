@@ -24,9 +24,12 @@ export interface ImportOutcome {
   updated: boolean;
   draftCreated: boolean;
   autoPublished: boolean;
+  /** Note de la review — permet au cron d'alerter sur les ≤ 2★ neuves. */
+  starRating: number;
+  reviewerName: string | null;
 }
 
-const NOTHING: ImportOutcome = {
+const NOTHING: Omit<ImportOutcome, "starRating" | "reviewerName"> = {
   imported: false,
   updated: false,
   draftCreated: false,
@@ -39,7 +42,11 @@ export async function importReview(
   { supabase, gbp }: ImportDeps,
 ): Promise<ImportOutcome> {
   const incoming = mapGbpReview(gbpReview);
-  const outcome: ImportOutcome = { ...NOTHING };
+  const outcome: ImportOutcome = {
+    ...NOTHING,
+    starRating: incoming.star_rating,
+    reviewerName: incoming.reviewer_name,
+  };
 
   const { data: existing } = await supabase
     .from("reviews")

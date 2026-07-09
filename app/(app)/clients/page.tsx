@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/table";
 import { ClientActiveToggle } from "@/app/(app)/settings/client-toggle";
 import { GoldStar } from "@/components/reviews/star-rating";
+import { isBrandProfileIncomplete } from "@/lib/clients/brand-profile";
+import { AssigneeSelect } from "./assignee-select";
 import { CadenceSelect } from "./cadence-select";
 
 export const metadata = { title: "Projets" };
@@ -35,6 +37,8 @@ interface ProjectRow {
   unreplied: number;
   drafts: number;
   coverage: { done: number; target: number } | null;
+  assigneeMemberId: string | null;
+  profileIncomplete: boolean;
   status: "active" | "paused" | "disconnected";
   cadence: {
     id: string;
@@ -49,6 +53,7 @@ interface ProjectRow {
 export default async function ClientsPage() {
   const demo = !supabaseConfigured();
   let rows: ProjectRow[] = [];
+  let members: Array<{ id: string; email: string }> = [];
 
   if (demo) {
     const boardById = new Map(demoBoardClients().map((c) => [c.id, c]));
@@ -73,6 +78,8 @@ export default async function ClientsPage() {
                 target: client.posts_per_month,
               }
             : null,
+        assigneeMemberId: null,
+        profileIncomplete: false,
         status: client.status,
         cadence: {
           id: client.id,
@@ -100,18 +107,27 @@ export default async function ClientsPage() {
     // reviews n'a pas d'agency_id : on scope par client_id, sinon la
     // requête balaie la table entière (toutes agences confondues).
     const clientIds = (clients ?? []).map((c) => c.id);
-    const [{ data: board }, { data: reviews }] = await Promise.all([
-      supabase
-        .from("client_board_state")
-        .select("*")
-        .eq("agency_id", member.agency_id),
-      clientIds.length
-        ? supabase
-            .from("reviews")
-            .select("client_id, star_rating")
-            .in("client_id", clientIds)
-        : Promise.resolve({ data: [] as { client_id: string; star_rating: number }[] }),
-    ]);
+    const [{ data: board }, { data: reviews }, { data: agencyMembers }] =
+      await Promise.all([
+        supabase
+          .from("client_board_state")
+          .select("*")
+          .eq("agency_id", member.agency_id),
+        clientIds.length
+          ? supabase
+              .from("reviews")
+              .select("client_id, star_rating")
+              .in("client_id", clientIds)
+          : Promise.resolve({
+              data: [] as { client_id: string; star_rating: number }[],
+            }),
+        supabase
+          .from("agency_members")
+          .select("id, email")
+          .eq("agency_id", member.agency_id)
+          .order("email"),
+      ]);
+    members = agencyMembers ?? [];
 
     const boardById = new Map((board ?? []).map((b) => [b.client_id, b]));
     const ratingByClient = new Map<string, { sum: number; count: number }>();
@@ -125,7 +141,11 @@ export default async function ClientsPage() {
       ratingByClient.set(review.client_id, entry);
     }
 
-    rows = (clients ?? []).map((client) => {
+    // Les archivés (offboardés) sortent de la liste de travail.
+    const activeClients = (clients ?? []).filter(
+      (c) => c.status !== "archived",
+    );
+    rows = activeClients.map((client) => {
       const b = boardById.get(client.id);
       const rating = ratingByClient.get(client.id);
       return {
@@ -148,7 +168,9 @@ export default async function ClientsPage() {
                 target: client.posts_per_month,
               }
             : null,
-        status: client.status,
+        assigneeMemberId: client.assignee_member_id,
+        profileIncomplete: isBrandProfileIncomplete(client.brand_profile),
+        status: client.status as ProjectRow["status"],
         cadence: {
           id: client.id,
           posts_per_month: client.posts_per_month,
@@ -181,6 +203,7 @@ export default async function ClientsPage() {
               <TableHead>Projet</TableHead>
               <TableHead>Note</TableHead>
               <TableHead>Mandat</TableHead>
+              <TableHead>Responsable</TableHead>
               <TableHead>Couverture du mois</TableHead>
               <TableHead>En attente</TableHead>
               <TableHead className="text-right">Actif</TableHead>
@@ -203,6 +226,14 @@ export default async function ClientsPage() {
                     {[row.category, row.address].filter(Boolean).join(" · ") ||
                       "—"}
                   </div>
+                  {row.profileIncomplete && (
+                    <Link
+                      href={`/clients/${row.id}?tab=settings`}
+                      className="text-xs text-warning underline-offset-2 hover:underline"
+                    >
+                      Profil incomplet — les drafts AI seront génériques
+                    </Link>
+                  )}
                 </TableCell>
                 <TableCell>
                   {row.avgRating !== null ? (
@@ -220,6 +251,14 @@ export default async function ClientsPage() {
                 <TableCell>
                   <CadenceSelect
                     client={row.cadence}
+                    disabled={demo || row.status === "disconnected"}
+                  />
+                </TableCell>
+                <TableCell>
+                  <AssigneeSelect
+                    clientId={row.id}
+                    assigneeMemberId={row.assigneeMemberId}
+                    members={members}
                     disabled={demo || row.status === "disconnected"}
                   />
                 </TableCell>

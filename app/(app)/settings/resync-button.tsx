@@ -18,8 +18,11 @@ export function ResyncButton() {
         startTransition(async () => {
           const result = await resyncClientsAction();
           if (result.ok) {
+            const created = result.created ?? 0;
             toast.success(
-              `Fiches resynchronisées — ${result.discovered ?? 0} découvertes, ${result.created ?? 0} nouvelles.`,
+              created > 0
+                ? `${result.discovered ?? 0} fiches trouvées — ${created} nouvelle${created > 1 ? "s" : ""} en pause : active celles sous mandat dans Projets.`
+                : `Fiches resynchronisées — ${result.discovered ?? 0} trouvées, aucune nouvelle.`,
             );
           } else {
             toast.error(result.error);

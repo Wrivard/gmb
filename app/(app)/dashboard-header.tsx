@@ -4,12 +4,22 @@ import { frCA } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
 /** Header contextuel du dashboard (specs/08). */
+// Au-delà de ~3 runs manqués du sync (aux 30 min), on présume
+// l'automatisation arrêtée — mieux vaut un faux positif qu'un board
+// calme qui cache un cron mort.
+const STALE_SYNC_MS = 90 * 60_000;
+
 export function DashboardHeader({
   totals,
   connectionStatus,
   lastSyncedAt,
 }: {
-  totals: { unreplied: number; postsDue: number; drafts: number };
+  totals: {
+    unreplied: number;
+    postsDue: number;
+    drafts: number;
+    failed: number;
+  };
   connectionStatus: "active" | "revoked" | null;
   lastSyncedAt: string | null;
 }) {
@@ -27,6 +37,11 @@ export function DashboardHeader({
       label: `brouillon${totals.drafts > 1 ? "s" : ""} à approuver`,
     },
   ];
+
+  const syncStale =
+    connectionStatus === "active" &&
+    lastSyncedAt !== null &&
+    Date.now() - new Date(lastSyncedAt).getTime() > STALE_SYNC_MS;
 
   return (
     <div className="flex flex-wrap items-center gap-4">
@@ -46,6 +61,16 @@ export function DashboardHeader({
             <span className="text-xs text-muted-foreground">{stat.label}</span>
           </span>
         ))}
+        {totals.failed > 0 && (
+          <span className="flex items-baseline gap-1.5">
+            <span className="text-base font-semibold tabular-nums text-destructive">
+              {totals.failed}
+            </span>
+            <span className="text-xs text-destructive">
+              échec{totals.failed > 1 ? "s" : ""} de publication
+            </span>
+          </span>
+        )}
       </div>
 
       {/* Le tableau ci-dessous EST la réponse à « quoi faire » : pas de
@@ -65,6 +90,15 @@ export function DashboardHeader({
           <Link href="/settings" className="text-destructive underline">
             Reconnexion requise
           </Link>
+        ) : syncStale ? (
+          <span className="font-medium text-warning">
+            Dernier sync{" "}
+            {formatDistanceToNow(new Date(lastSyncedAt!), {
+              addSuffix: true,
+              locale: frCA,
+            })}{" "}
+            — l&apos;automatisation semble arrêtée
+          </span>
         ) : lastSyncedAt ? (
           `Synchronisé ${formatDistanceToNow(new Date(lastSyncedAt), { addSuffix: true, locale: frCA })}`
         ) : connectionStatus === "active" ? (

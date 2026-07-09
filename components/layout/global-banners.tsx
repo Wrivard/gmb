@@ -16,7 +16,7 @@ export function GlobalBanners({
   if (!connectionRevoked && !accessPending && !dataUnavailable) return null;
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col print:hidden">
       {dataUnavailable && (
         <div className="bg-warning/10 px-6 py-2 text-center text-sm text-warning">
           Impossible de charger certains compteurs — les badges peuvent être

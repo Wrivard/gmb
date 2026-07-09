@@ -12,7 +12,7 @@ export type Json =
 
 export type MemberRole = "owner" | "member";
 export type ConnectionStatus = "active" | "revoked";
-export type ClientStatus = "active" | "paused" | "disconnected";
+export type ClientStatus = "active" | "paused" | "disconnected" | "archived";
 export type ReviewStatus =
   | "needs_reply"
   | "draft_ready"
@@ -154,6 +154,8 @@ export interface Database {
           auto_publish_posts: boolean;
           language: string;
           brand_profile: BrandProfile;
+          assignee_member_id: string | null;
+          internal_notes: string | null;
           last_synced_at: string | null;
           created_at: string;
           updated_at: string;
@@ -174,6 +176,8 @@ export interface Database {
           auto_publish_posts?: boolean;
           language?: string;
           brand_profile?: BrandProfile;
+          assignee_member_id?: string | null;
+          internal_notes?: string | null;
           last_synced_at?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -194,7 +198,36 @@ export interface Database {
           auto_publish_posts?: boolean;
           language?: string;
           brand_profile?: BrandProfile;
+          assignee_member_id?: string | null;
+          internal_notes?: string | null;
           last_synced_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      client_month_coverage: {
+        Row: {
+          client_id: string;
+          month: string;
+          posts_target: number;
+          posts_published: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          client_id: string;
+          month: string;
+          posts_target: number;
+          posts_published?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          client_id?: string;
+          month?: string;
+          posts_target?: number;
+          posts_published?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -407,6 +440,8 @@ export interface Database {
           draft_post_count: number;
           posts_due: number;
           next_scheduled_post: string | null;
+          failed_post_count: number;
+          assignee_member_id: string | null;
         };
         Relationships: [];
       };

@@ -15,6 +15,7 @@ export default async function ReviewsPage() {
   const demo = !supabaseConfigured();
   let agencyId = "";
   let hasProjects = true;
+  let myClientIds: string[] = [];
   if (!demo) {
     const { member } = await getSessionContext();
     if (!member) return null; // Le layout gère la whitelist.
@@ -23,6 +24,9 @@ export default async function ReviewsPage() {
     // connecté » pour ne pas fêter un vide qui est en fait un first-run.
     const { data: clients } = await getClientsIndex(agencyId);
     hasProjects = Boolean(clients?.length);
+    myClientIds = (clients ?? [])
+      .filter((c) => c.assignee_member_id === member.id)
+      .map((c) => c.id);
   }
 
   const inboxReviews = await loadInboxReviews({ agencyId });
@@ -34,7 +38,11 @@ export default async function ReviewsPage() {
       <p className="text-sm text-muted-foreground">
         Lis le brouillon, ajuste au besoin, publie. 10 secondes par review.
       </p>
-      <ReviewsInbox reviews={inboxReviews} hasProjects={hasProjects} />
+      <ReviewsInbox
+        reviews={inboxReviews}
+        hasProjects={hasProjects}
+        myClientIds={myClientIds}
+      />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { getGbpClient } from "@/lib/gbp/client";
 import { GbpAccessPendingError } from "@/lib/gbp/types";
 import { importReview } from "@/lib/reviews/import";
 import { logActivity } from "@/lib/activity";
+import { appLink, sendNotification } from "@/lib/notify";
 import type { Client } from "@/lib/types/database";
 
 // Cron sync-reviews (specs/04) — aux 30 min via Vercel Cron.
@@ -54,6 +55,9 @@ export async function GET(request: NextRequest) {
     autoPublished: 0,
     errors: 0,
   };
+  // Reviews ≤ 2★ fraîchement importées : alerte immédiate à la fin du
+  // run — c'est le cas où attendre le digest du matin coûte cher.
+  const lowRatingAlerts: string[] = [];
 
   for (const [accountId, accountClients] of byAccount) {
     const clientByLocation = new Map<string, Client>(
@@ -84,6 +88,11 @@ export async function GET(request: NextRequest) {
               if (outcome.updated) counters.updated++;
               if (outcome.draftCreated) counters.drafts++;
               if (outcome.autoPublished) counters.autoPublished++;
+              if (outcome.imported && outcome.starRating <= 2) {
+                lowRatingAlerts.push(
+                  `${outcome.starRating}★ chez ${client.name}${outcome.reviewerName ? ` (${outcome.reviewerName})` : ""}`,
+                );
+              }
             } catch (error) {
               counters.errors++;
               console.error(
@@ -123,6 +132,13 @@ export async function GET(request: NextRequest) {
     action: "sync_completed",
     payload: counters,
   });
+
+  if (lowRatingAlerts.length) {
+    await sendNotification({
+      subject: `⚠️ ${lowRatingAlerts.length} review${lowRatingAlerts.length > 1 ? "s" : ""} négative${lowRatingAlerts.length > 1 ? "s" : ""} à traiter`,
+      text: `${lowRatingAlerts.join("\n")}\n\nRépondre : ${appLink("/reviews")}`,
+    });
+  }
 
   return NextResponse.json({ ok: true, ...counters });
 }

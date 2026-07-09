@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -8,6 +8,7 @@ import { CheckCircle2, MessageSquare, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { GoldStar } from "@/components/reviews/star-rating";
 import { cn } from "@/lib/utils";
 import { generatePostAction } from "./posts/actions";
@@ -23,9 +24,12 @@ export interface BoardClient {
   postsPerMonth: number;
   draftReplies: number;
   draftPosts: number;
+  failedPosts: number;
   avgRating: number | null;
   reviewCount: number;
   late: boolean;
+  assigneeMemberId: string | null;
+  profileIncomplete: boolean;
 }
 
 type ColumnKey = "reviews" | "posts" | "approval" | "ok";
@@ -49,12 +53,37 @@ const COLUMNS: Array<{ key: Exclude<ColumnKey, "ok">; title: string; empty: stri
 /** Un client = UNE colonne, la plus urgente (specs/08). */
 function columnOf(client: BoardClient): ColumnKey {
   if (client.unreplied > 0) return "reviews";
-  if (client.postsDue > 0) return "posts";
+  // Un échec de publication est du travail posts prioritaire : sans ça,
+  // l'échec du cron overnight n'apparaissait nulle part sur le tableau.
+  if (client.failedPosts > 0 || client.postsDue > 0) return "posts";
   if (client.draftPosts > 0 || client.draftReplies > 0) return "approval";
   return "ok";
 }
 
-export function DashboardKanban({ clients }: { clients: BoardClient[] }) {
+const MINE_ONLY_KEY = "kua:mes-projets";
+
+export function DashboardKanban({
+  clients,
+  currentMemberId = null,
+}: {
+  clients: BoardClient[];
+  currentMemberId?: string | null;
+}) {
+  const [mineOnly, setMineOnly] = useState(false);
+  useEffect(() => {
+    setMineOnly(localStorage.getItem(MINE_ONLY_KEY) === "1");
+  }, []);
+
+  // Le toggle n'a de sens que si l'assignation est utilisée.
+  const assignmentInUse =
+    currentMemberId !== null &&
+    clients.some((client) => client.assigneeMemberId !== null);
+
+  const visibleClients =
+    mineOnly && assignmentInUse
+      ? clients.filter((client) => client.assigneeMemberId === currentMemberId)
+      : clients;
+
   const byColumn = useMemo(() => {
     const map: Record<ColumnKey, BoardClient[]> = {
       reviews: [],
@@ -62,12 +91,25 @@ export function DashboardKanban({ clients }: { clients: BoardClient[] }) {
       approval: [],
       ok: [],
     };
-    for (const client of clients) map[columnOf(client)].push(client);
+    for (const client of visibleClients) map[columnOf(client)].push(client);
     return map;
-  }, [clients]);
+  }, [visibleClients]);
 
   return (
     <div className="flex flex-col gap-3">
+      {assignmentInUse && (
+        <label className="flex cursor-pointer items-center gap-2 self-end text-xs text-muted-foreground">
+          <Switch
+            checked={mineOnly}
+            onCheckedChange={(checked) => {
+              setMineOnly(Boolean(checked));
+              localStorage.setItem(MINE_ONLY_KEY, checked ? "1" : "0");
+            }}
+            aria-label="N'afficher que mes projets"
+          />
+          Mes projets
+        </label>
+      )}
       <div className="grid gap-3 md:grid-cols-3">
         {COLUMNS.map((column) => (
           <section
@@ -135,9 +177,11 @@ function ClientCard({ client }: { client: BoardClient }) {
   const router = useRouter();
   const [generating, startGenerate] = useTransition();
   const column = columnOf(client);
-  // Urgence réelle : review ≤2★ en attente, ou retard (>72 h / après le 20).
+  // Urgence réelle : review ≤2★ en attente, retard (>72 h / après le 20),
+  // ou publication en échec chez Google.
   const urgent =
     client.late ||
+    client.failedPosts > 0 ||
     (client.unreplied > 0 &&
       client.worstPendingRating !== null &&
       client.worstPendingRating <= 2);
@@ -160,6 +204,14 @@ function ClientCard({ client }: { client: BoardClient }) {
       </Link>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {client.failedPosts > 0 && (
+          <Link href={`/clients/${client.id}?tab=posts`}>
+            <Badge variant="destructive">
+              {client.failedPosts} échec{client.failedPosts > 1 ? "s" : ""} de
+              publication
+            </Badge>
+          </Link>
+        )}
         {client.unreplied > 0 && (
           <Link href={`/clients/${client.id}?tab=reviews`}>
             <Badge variant={urgent ? "destructive" : "secondary"}>
@@ -183,6 +235,16 @@ function ClientCard({ client }: { client: BoardClient }) {
             {client.draftReplies + client.draftPosts} brouillon
             {client.draftReplies + client.draftPosts > 1 ? "s" : ""}
           </Badge>
+        )}
+        {client.profileIncomplete && (
+          <Link href={`/clients/${client.id}?tab=settings`}>
+            <Badge
+              variant="outline"
+              className="border-warning/40 text-warning"
+            >
+              Profil incomplet
+            </Badge>
+          </Link>
         )}
       </div>
 

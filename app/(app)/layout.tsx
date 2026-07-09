@@ -65,7 +65,7 @@ export default async function AppLayout({
       connectionRevoked = connection?.status === "revoked";
       accessPending = Boolean(pendingLog?.length);
       paletteClients = (clients ?? [])
-        .filter((c) => c.status !== "disconnected")
+        .filter((c) => c.status !== "disconnected" && c.status !== "archived")
         .map(({ id, name }) => ({ id, name }));
       // Une requête échouée ne doit pas se déguiser en « 0 en attente » :
       // on l'affiche comme un état dégradé, pas comme un succès.
@@ -89,7 +89,7 @@ export default async function AppLayout({
         pendingReviews={pendingReviews}
         postsDue={postsDue}
       />
-      <div className="lg:pl-60">
+      <div className="lg:pl-60 print:pl-0">
         <GlobalBanners
           connectionRevoked={connectionRevoked}
           accessPending={accessPending}

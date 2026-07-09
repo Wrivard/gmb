@@ -53,7 +53,7 @@ export function Sidebar({
   const todo = pendingReviews + postsDue;
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-sidebar lg:flex">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-sidebar lg:flex print:hidden">
       <div className="flex h-14 items-center gap-2 px-5">
         <span className="flex size-7 items-center justify-center rounded-md bg-primary font-bold text-sm text-primary-foreground">
           K

@@ -3,8 +3,24 @@ import "server-only";
 import { getDb } from "@/lib/supabase/db";
 import { getGbpClient } from "@/lib/gbp/client";
 import { logActivity } from "@/lib/activity";
+import { appLink, sendNotification } from "@/lib/notify";
 import type { LocalPostInput } from "@/lib/gbp/types";
 import type { PostStatus } from "@/lib/types/database";
+
+// Un échec pendant le cron (personne devant l'écran) part en alerte —
+// quand un humain publie, son toast suffit.
+async function notifyCronFailure(
+  actor: string,
+  clientName: string,
+  postId: string,
+  error: string,
+) {
+  if (actor !== "system") return;
+  await sendNotification({
+    subject: `🔴 Publication échouée — ${clientName}`,
+    text: `${error}\n\nCorriger : ${appLink(`/posts/${postId}`)}`,
+  });
+}
 
 // Publication d'un post vers Google (partagé cron publish-posts +
 // action « Publier maintenant »). Lock optimiste via le statut.
@@ -79,6 +95,7 @@ export async function publishPost(
         .from("posts")
         .update({ status: "failed", publish_error: error })
         .eq("id", post.id);
+      await notifyCronFailure(actor, client.name, post.id, error);
       return { ok: false, error };
     }
 
@@ -107,6 +124,7 @@ export async function publishPost(
       .from("posts")
       .update({ status: "failed", publish_error: message })
       .eq("id", post.id);
+    await notifyCronFailure(actor, client.name, post.id, message);
     return { ok: false, error: message };
   }
 }

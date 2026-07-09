@@ -4,6 +4,14 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -18,8 +26,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import type { BrandProfile, Client } from "@/lib/types/database";
 import {
+  archiveClientAction,
   updateBrandProfileAction,
   updateClientSettingsAction,
+  updateInternalNotesAction,
 } from "./actions";
 
 function listToText(items: string[] | undefined): string {
@@ -43,14 +53,17 @@ type ClientSettingsClient = Pick<
   | "auto_publish_posts"
   | "status"
   | "brand_profile"
+  | "internal_notes"
 >;
 
 export function ClientSettings({
   client,
   readOnly = false,
+  isOwner = false,
 }: {
   client: ClientSettingsClient;
   readOnly?: boolean;
+  isOwner?: boolean;
 }) {
   const router = useRouter();
   const profile: BrandProfile = client.brand_profile ?? {};
@@ -77,6 +90,41 @@ export function ClientSettings({
   const [notes, setNotes] = useState(profile.notes ?? "");
   const [savingProfile, startProfile] = useTransition();
 
+  // Notes internes — équipe seulement, jamais dans les prompts AI.
+  const [internalNotes, setInternalNotes] = useState(
+    client.internal_notes ?? "",
+  );
+  const [savingNotes, startNotes] = useTransition();
+
+  function saveNotes() {
+    startNotes(async () => {
+      const result = await updateInternalNotesAction(client.id, internalNotes);
+      if (result.ok) {
+        toast.success("Notes internes enregistrées.");
+        router.refresh();
+      } else {
+        toast.error(result.error);
+      }
+    });
+  }
+
+  // Fin de mandat (owner) : archivage avec confirmation.
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [archiving, startArchive] = useTransition();
+
+  function archive() {
+    setConfirmArchive(false);
+    startArchive(async () => {
+      const result = await archiveClientAction(client.id);
+      if (result.ok) {
+        toast.success("Projet archivé — l'historique est conservé.");
+        router.push("/clients");
+      } else {
+        toast.error(result.error);
+      }
+    });
+  }
+
   // Les onglets de la fiche sont des <Link> : changer d'onglet démonte
   // ce composant et perdrait la saisie. Le garde compare l'état local
   // aux props — après un save, router.refresh() le remet à zéro.
@@ -86,6 +134,7 @@ export function ClientSettings({
     autoReplies !== client.auto_publish_replies ||
     autoPosts !== client.auto_publish_posts ||
     active !== (client.status === "active");
+  const notesDirty = internalNotes !== (client.internal_notes ?? "");
   const profileDirty =
     tone !== (profile.tone ?? "") ||
     vertical !== (profile.vertical ?? "") ||
@@ -97,7 +146,11 @@ export function ClientSettings({
     phone !== (profile.phone ?? "") ||
     notes !== (profile.notes ?? "");
   useUnsavedGuard(
-    !readOnly && (settingsDirty || profileDirty) && !savingSettings && !savingProfile,
+    !readOnly &&
+      (settingsDirty || profileDirty || notesDirty) &&
+      !savingSettings &&
+      !savingProfile &&
+      !savingNotes,
   );
 
   function saveSettings() {
@@ -190,13 +243,14 @@ export function ClientSettings({
               checked={autoReplies}
               onCheckedChange={(checked) => setAutoReplies(Boolean(checked))}
               aria-label="Auto-publication des réponses"
-              disabled={readOnly}
+              disabled={readOnly || !isOwner}
             />
             <div className="text-sm">
               Auto-publier les réponses aux reviews 4–5★
               <p className="text-xs text-muted-foreground">
                 ⚠️ Les brouillons partent sans validation humaine. Les reviews ≤ 3★
                 exigent toujours une approbation.
+                {!isOwner && " Réservé aux admins."}
               </p>
             </div>
           </div>
@@ -205,13 +259,14 @@ export function ClientSettings({
               checked={autoPosts}
               onCheckedChange={(checked) => setAutoPosts(Boolean(checked))}
               aria-label="Auto-publication des posts"
-              disabled={readOnly}
+              disabled={readOnly || !isOwner}
             />
             <div className="text-sm">
               Auto-planifier les posts générés
               <p className="text-xs text-muted-foreground">
                 ⚠️ Les posts générés passent directement en « planifié » sans
                 approbation.
+                {!isOwner && " Réservé aux admins."}
               </p>
             </div>
           </div>
@@ -357,6 +412,83 @@ export function ClientSettings({
           </Button>
         )}
       </section>
+
+      {/* Notes internes — le seul endroit humain : brand_profile.notes
+          part dans les prompts, celles-ci jamais. */}
+      <section className="flex flex-col gap-3">
+        <div>
+          <h3 className="text-sm font-medium">Notes internes</h3>
+          <p className="text-xs text-muted-foreground">
+            Visibles par l&apos;équipe seulement — jamais envoyées à
+            l&apos;AI. Consignes opérationnelles : « appeler le client avant
+            de répondre aux reviews négatives », etc.
+          </p>
+        </div>
+        <Textarea
+          value={internalNotes}
+          onChange={(e) => setInternalNotes(e.target.value)}
+          rows={3}
+          disabled={readOnly}
+          placeholder="Consignes internes sur ce mandat…"
+        />
+        {!readOnly && (
+          <Button
+            size="sm"
+            className="self-start"
+            onClick={saveNotes}
+            disabled={savingNotes}
+          >
+            {savingNotes ? "Enregistrement…" : "Enregistrer les notes"}
+          </Button>
+        )}
+      </section>
+
+      {/* Fin de mandat — owner seulement, projet non actif seulement. */}
+      {!readOnly && isOwner && (
+        <section className="flex flex-col gap-2 border-t border-border pt-6">
+          <h3 className="text-sm font-medium">Fin de mandat</h3>
+          <p className="text-xs text-muted-foreground">
+            Archiver sort le projet des listes, du tableau et des syncs.
+            L&apos;historique (reviews, posts, activité) est conservé.
+            {client.status === "active" &&
+              " Mets d'abord le projet en pause."}
+          </p>
+          <Button
+            size="sm"
+            variant="destructive"
+            className="self-start"
+            disabled={archiving || client.status === "active"}
+            onClick={() => setConfirmArchive(true)}
+          >
+            {archiving ? "Archivage…" : "Archiver ce projet"}
+          </Button>
+        </section>
+      )}
+
+      <Dialog open={confirmArchive} onOpenChange={setConfirmArchive}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Archiver ce projet ?</DialogTitle>
+            <DialogDescription>
+              Il disparaîtra des listes et ne sera plus synchronisé. Rien
+              n&apos;est supprimé — un admin pourra le restaurer en base au
+              besoin.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setConfirmArchive(false)}
+            >
+              Annuler
+            </Button>
+            <Button size="sm" variant="destructive" onClick={archive}>
+              Archiver
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

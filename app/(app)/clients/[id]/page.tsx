@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
 import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
@@ -174,6 +174,7 @@ export default async function ClientDetailPage({
                 auto_publish_replies: true,
                 auto_publish_posts: false,
                 status: row?.status ?? "active",
+                internal_notes: null,
                 brand_profile: {
                   tone: "chaleureux et professionnel",
                   vertical: board.category ?? "",
@@ -222,14 +223,18 @@ export default async function ClientDetailPage({
               ? "default"
               : client.status === "paused"
                 ? "secondary"
-                : "destructive"
+                : client.status === "archived"
+                  ? "ghost"
+                  : "destructive"
           }
         >
           {client.status === "active"
             ? "Actif"
             : client.status === "paused"
               ? "En pause"
-              : "Déconnecté"}
+              : client.status === "archived"
+                ? "Archivé"
+                : "Déconnecté"}
         </Badge>
         <span className="text-sm text-muted-foreground">
           {[client.primary_category, client.address]
@@ -254,6 +259,14 @@ export default async function ClientDetailPage({
         </span>
       </div>
 
+      {/* Consigne d'équipe : toujours sous les yeux, peu importe l'onglet. */}
+      {client.internal_notes && (
+        <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+          <span className="font-medium">Note interne :</span>{" "}
+          {client.internal_notes}
+        </p>
+      )}
+
       <TabBar
         activeKey={tab}
         items={TABS.map((entry) => ({
@@ -268,7 +281,9 @@ export default async function ClientDetailPage({
         <ReviewsTab clientId={client.id} clientName={client.name} />
       )}
       {tab === "posts" && <PostsTab client={client} />}
-      {tab === "settings" && <ClientSettings client={client} />}
+      {tab === "settings" && (
+        <ClientSettings client={client} isOwner={member.role === "owner"} />
+      )}
     </div>
   );
 }
@@ -278,6 +293,7 @@ async function GrowthTab({
 }: {
   client: { id: string; posts_per_month: number };
 }) {
+  const reportHref = `/clients/${client.id}/rapport`;
   const supabase = await getDb();
   const now = new Date();
 
@@ -321,6 +337,16 @@ async function GrowthTab({
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Tendances des 6 derniers mois.
+        </p>
+        {/* Le livrable du meeting client : le mois précédent, imprimable. */}
+        <Button size="sm" variant="outline" render={<Link href={reportHref} />}>
+          <FileText />
+          Rapport mensuel
+        </Button>
+      </div>
       <GrowthView growth={growth} />
       <div className="grid gap-2 sm:grid-cols-3">
         {stats.map((stat) => (

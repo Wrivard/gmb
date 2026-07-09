@@ -17,6 +17,7 @@ export const ACTION_LABELS: Record<string, string> = {
   sync_completed: "Sync terminé",
   client_settings_updated: "Réglages modifiés",
   brand_profile_updated: "Profil de marque modifié",
+  client_archived: "Projet archivé",
 };
 
 // Le feed agence ne montre que les événements qui racontent le travail

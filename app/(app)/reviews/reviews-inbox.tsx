@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { StarRating } from "@/components/reviews/star-rating";
+import { Switch } from "@/components/ui/switch";
 import { TabBar } from "@/components/ui/tab-bar";
 import {
   confirmIfUnsaved,
@@ -99,11 +100,14 @@ function initials(name: string | null): string {
 export function ReviewsInbox({
   reviews,
   hasProjects = true,
+  myClientIds,
 }: {
   reviews: InboxReview[];
   /** false = aucun projet connecté (first-run) : l'état vide ne doit pas
       fêter un « tout est répondu » qui est en fait un « rien n'a syncé ». */
   hasProjects?: boolean;
+  /** Projets assignés au membre courant — active le filtre « Mes projets ». */
+  myClientIds?: string[];
 }) {
   // Filtres initialisés depuis l'URL : la vue survit au refresh et aux
   // allers-retours (le reproche n°1 du quotidien : « mes filtres sautent »).
@@ -122,8 +126,13 @@ export function ReviewsInbox({
   const [clientFilter, setClientFilter] = useState<string>(
     () => searchParams.get("projet") ?? "all",
   );
+  const [mineOnly, setMineOnly] = useState(
+    () => searchParams.get("mes") === "1",
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+  const mySet = useMemo(() => new Set(myClientIds ?? []), [myClientIds]);
 
   const merged = useMemo(
     () => reviews.map((r) => ({ ...r, ...overrides[r.id] })),
@@ -160,6 +169,8 @@ export function ReviewsInbox({
       if (ratingFilter === "low" && review.starRating > 3) return false;
       if (clientFilter !== "all" && review.clientId !== clientFilter)
         return false;
+      if (mineOnly && mySet.size > 0 && !mySet.has(review.clientId))
+        return false;
       return true;
     });
     // Tri par gravité : une 1★ vieille de 3 jours passe devant dix 5★
@@ -181,7 +192,7 @@ export function ReviewsInbox({
       // En attente : la plus vieille d'abord; traitées : la plus récente.
       return ga < 3 ? ta - tb : tb - ta;
     });
-  }, [merged, statusFilter, ratingFilter, clientFilter]);
+  }, [merged, statusFilter, ratingFilter, clientFilter, mineOnly, mySet]);
 
   const applyOverride = useCallback(
     (id: string, patch: Partial<InboxReview> | null) => {
@@ -308,6 +319,19 @@ export function ReviewsInbox({
         />
 
         <div className="flex items-center gap-2 pb-1.5">
+        {mySet.size > 0 && (
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+            <Switch
+              checked={mineOnly}
+              onCheckedChange={(checked) => {
+                setMineOnly(Boolean(checked));
+                persistFilter("mes", checked ? "1" : "0", "0");
+              }}
+              aria-label="N'afficher que mes projets"
+            />
+            Mes projets
+          </label>
+        )}
         <Select
           value={clientFilter}
           onValueChange={(v) => {

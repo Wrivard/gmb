@@ -92,16 +92,27 @@ export async function loadClientGrowth(
   }
 
   const supabase = await getDb();
-  const [{ data: reviews }, { data: posts }] = await Promise.all([
-    supabase
-      .from("reviews")
-      .select("id, star_rating, review_created_at, status")
-      .eq("client_id", client.id),
-    supabase
-      .from("posts")
-      .select("status, published_at")
-      .eq("client_id", client.id),
-  ]);
+  const [{ data: reviews }, { data: posts }, { data: coverage }] =
+    await Promise.all([
+      supabase
+        .from("reviews")
+        .select("id, star_rating, review_created_at, status")
+        .eq("client_id", client.id),
+      supabase
+        .from("posts")
+        .select("status, published_at")
+        .eq("client_id", client.id),
+      supabase
+        .from("client_month_coverage")
+        .select("month, posts_target")
+        .eq("client_id", client.id),
+    ]);
+
+  // Cible du mois telle qu'elle était À CE MOMENT-LÀ (snapshot du cron).
+  // Fallback : cadence actuelle pour les mois antérieurs au snapshotting.
+  const targetByMonth = new Map(
+    (coverage ?? []).map((row) => [row.month.slice(0, 7), row.posts_target]),
+  );
 
   const reviewIds = (reviews ?? []).map((r) => r.id);
   const { data: replies } = reviewIds.length
@@ -117,8 +128,6 @@ export async function loadClientGrowth(
   );
 
   const windows = monthWindows(now);
-  // NB : posts_per_month est la cadence ACTUELLE — approximation honnête
-  // pour les mois passés (l'historique de cadence n'est pas versionné).
   const months: GrowthMonth[] = windows.map((window) => {
     const inWindow = (iso: string | null) =>
       Boolean(
@@ -141,7 +150,7 @@ export async function loadClientGrowth(
       postsPublished: (posts ?? []).filter(
         (p) => p.status === "published" && inWindow(p.published_at),
       ).length,
-      postsTarget: client.posts_per_month,
+      postsTarget: targetByMonth.get(window.key) ?? client.posts_per_month,
     };
   });
 

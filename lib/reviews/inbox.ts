@@ -57,7 +57,8 @@ export async function loadInboxReviews(
     const { data: clients } = await supabase
       .from("clients")
       .select("id, name")
-      .eq("agency_id", scope.agencyId);
+      .eq("agency_id", scope.agencyId)
+      .neq("status", "archived");
     clientNameById = new Map((clients ?? []).map((c) => [c.id, c.name]));
     const clientIds = [...clientNameById.keys()];
 
