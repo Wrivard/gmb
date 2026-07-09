@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { PostPreview } from "@/components/posts/post-preview";
+import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { cn } from "@/lib/utils";
 import type { CtaType, PostStatus } from "@/lib/types/database";
 import {
@@ -96,6 +97,17 @@ export function PostEditor({
 
   const busy = saving || approving || publishing || imageBusy;
   const readOnly = !isPostEditable(post.status);
+
+  // Après un save réussi, router.refresh() remet les props post.* au
+  // niveau de l'état local → dirty retombe à false tout seul.
+  const dirty =
+    !readOnly &&
+    (summary !== post.summary ||
+      ctaType !== (post.ctaType ?? "none") ||
+      ctaUrl !== (post.ctaUrl ?? clientWebsite ?? "") ||
+      scheduledFor !== toDatetimeLocal(post.scheduledFor));
+  // busy = un save/approve/publish est déjà en route vers la sortie.
+  useUnsavedGuard(dirty && !busy);
 
   /** Erreur bloquante avant tout envoi vers Google, sinon null. */
   function validate(): string | null {

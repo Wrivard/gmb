@@ -18,6 +18,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
+import { confirmIfUnsaved } from "@/lib/hooks/use-unsaved-guard";
 
 export const OPEN_PALETTE_EVENT = "kua:open-command-palette";
 
@@ -84,6 +85,9 @@ export function CommandPalette({
   }, []);
 
   function go(href: string) {
+    // router.push ne passe pas par les ancres : appliquer le garde
+    // « modifications non enregistrées » ici aussi.
+    if (!confirmIfUnsaved()) return;
     setOpen(false);
     router.push(href);
   }

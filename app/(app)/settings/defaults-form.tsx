@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { updateAgencyDefaultsAction } from "./actions";
 
 export function DefaultsForm({
@@ -23,9 +25,16 @@ export function DefaultsForm({
   defaultLanguage: string;
   isOwner: boolean;
 }) {
+  const router = useRouter();
   const [posts, setPosts] = useState(String(defaultPostsPerMonth));
   const [language, setLanguage] = useState(defaultLanguage);
   const [pending, startTransition] = useTransition();
+
+  useUnsavedGuard(
+    isOwner &&
+      !pending &&
+      (posts !== String(defaultPostsPerMonth) || language !== defaultLanguage),
+  );
 
   return (
     <form
@@ -43,8 +52,14 @@ export function DefaultsForm({
             defaultPostsPerMonth: cadence,
             defaultLanguage: language,
           });
-          if (result.ok) toast.success("Défauts mis à jour.");
-          else toast.error(result.error);
+          if (result.ok) {
+            toast.success("Défauts mis à jour.");
+            // Realigne les props sur les valeurs sauvegardées, sinon le
+            // garde « non enregistré » resterait armé après le save.
+            router.refresh();
+          } else {
+            toast.error(result.error);
+          }
         });
       }}
     >

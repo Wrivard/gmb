@@ -25,6 +25,10 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { StarRating } from "@/components/reviews/star-rating";
 import { TabBar } from "@/components/ui/tab-bar";
+import {
+  confirmIfUnsaved,
+  useUnsavedGuard,
+} from "@/lib/hooks/use-unsaved-guard";
 import { cn } from "@/lib/utils";
 import type { ReviewStatus } from "@/lib/types/database";
 import type { InboxReview } from "@/lib/reviews/inbox";
@@ -194,6 +198,7 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
           (target as HTMLElement).blur?.();
           return;
         }
+        if (!confirmIfUnsaved()) return;
         setSelectedId(null);
         return;
       }
@@ -213,6 +218,7 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
           event.key === "j"
             ? ids[Math.min(index + 1, ids.length - 1)]
             : ids[Math.max(index - 1, 0)];
+        if (next !== selectedId && !confirmIfUnsaved()) return;
         setSelectedId(next);
         document
           .getElementById(`review-${next}`)
@@ -345,11 +351,14 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
                 <ReviewItem
                   review={review}
                   selected={selectedId === review.id}
-                  onSelect={() =>
+                  onSelect={() => {
+                    // Ouvrir/fermer démonte le panneau courant : ne pas
+                    // jeter un brouillon édité sans prévenir.
+                    if (!confirmIfUnsaved()) return;
                     setSelectedId((current) =>
                       current === review.id ? null : review.id,
-                    )
-                  }
+                    );
+                  }}
                   onOverride={applyOverride}
                   onDone={advanceFrom}
                   onRestore={restoreSelection}
@@ -503,6 +512,10 @@ function ReplyPanel({
   const [ignoring, startIgnore] = useTransition();
 
   const busy = publishing || regenerating || ignoring;
+
+  // Réponse retouchée mais pas publiée : protégée contre la fermeture
+  // du panneau, la navigation et la fermeture d'onglet.
+  useUnsavedGuard(text !== (review.draftText ?? "") && !busy);
 
   function publish() {
     const snapshot = review.status;

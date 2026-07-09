@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import type { BrandProfile, Client } from "@/lib/types/database";
 import {
   updateBrandProfileAction,
@@ -75,6 +76,29 @@ export function ClientSettings({
   const [phone, setPhone] = useState(profile.phone ?? "");
   const [notes, setNotes] = useState(profile.notes ?? "");
   const [savingProfile, startProfile] = useTransition();
+
+  // Les onglets de la fiche sont des <Link> : changer d'onglet démonte
+  // ce composant et perdrait la saisie. Le garde compare l'état local
+  // aux props — après un save, router.refresh() le remet à zéro.
+  const settingsDirty =
+    postsPerMonth !== String(client.posts_per_month) ||
+    language !== client.language ||
+    autoReplies !== client.auto_publish_replies ||
+    autoPosts !== client.auto_publish_posts ||
+    active !== (client.status === "active");
+  const profileDirty =
+    tone !== (profile.tone ?? "") ||
+    vertical !== (profile.vertical ?? "") ||
+    city !== (profile.city ?? "") ||
+    services !== listToText(profile.services_cles) ||
+    args !== listToText(profile.arguments) ||
+    signature !== (profile.signature ?? "") ||
+    avoid !== listToText(profile.a_eviter) ||
+    phone !== (profile.phone ?? "") ||
+    notes !== (profile.notes ?? "");
+  useUnsavedGuard(
+    !readOnly && (settingsDirty || profileDirty) && !savingSettings && !savingProfile,
+  );
 
   function saveSettings() {
     // Champ vidé ou hors bornes : Number("") vaut 0 et couperait la
