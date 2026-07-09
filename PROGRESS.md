@@ -58,6 +58,8 @@ Tout est encodé dans **DEPLOY.md** (checklist ordonnée). En résumé :
 - [ ] Checklist Google complète de `specs/00-PREREQUIS-GOOGLE.md` (projet GCP, APIs, OAuth consent, client ID, demande Basic API Access).
 - [ ] Clé `OPENAI_API_KEY` (engine réponses/posts — stub déterministe en attendant).
 - [ ] Clé `GEMINI_API_KEY` (images de posts — placeholder « image à ajouter » en attendant).
+- [ ] **Protection mots de passe compromis** (advisor sécurité, 2026-07-09) : Dashboard → Authentication → Passwords → activer « Leaked password protection » (HaveIBeenPwned). Non exposable via MCP/SQL — 30 secondes dans le dashboard.
+- [ ] Canal de notifications (ronde 3) : poser `NOTIFY_WEBHOOK_URL` (webhook Slack) et/ou `RESEND_API_KEY` + `NOTIFY_EMAIL_TO` dans les env Vercel — les alertes/digest sont en no-op tant qu'absent (voir `.env.example`).
 
 ## Journal
 
