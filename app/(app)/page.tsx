@@ -10,7 +10,13 @@ import { torontoParts } from "@/lib/due";
 import { RealtimeRefresh } from "@/components/dashboard/realtime-refresh";
 import { DemoBanner } from "@/components/layout/demo-banner";
 import { OpsTabs } from "@/components/layout/ops-tabs";
-import { demoBoardClients } from "@/lib/demo";
+import {
+  ACTION_LABELS,
+  ActivityFeed,
+  AGENCY_FEED_ACTIONS,
+  type ActivityEntry,
+} from "@/components/activity/activity-feed";
+import { demoActivity, demoBoardClients } from "@/lib/demo";
 import { DashboardKanban, type BoardClient } from "./kanban";
 import { DashboardHeader } from "./dashboard-header";
 
@@ -34,6 +40,12 @@ export default async function DashboardPage() {
           lastSyncedAt={null}
         />
         <DashboardKanban clients={demoClients} />
+        <section>
+          <h2 className="mb-2 text-sm font-medium text-muted-foreground">
+            Activité récente
+          </h2>
+          <ActivityFeed entries={demoActivity()} />
+        </section>
       </div>
     );
   }
@@ -50,10 +62,18 @@ export default async function DashboardPage() {
     { data: board, error: boardError },
     { data: connection },
     { data: clients, error: clientsError },
+    { data: activity },
   ] = await Promise.all([
     getBoardState(member.agency_id),
     getGoogleConnectionStatus(member.agency_id),
     getClientsIndex(member.agency_id),
+    supabase
+      .from("activity_log")
+      .select("id, action, actor, client_id, created_at")
+      .eq("agency_id", member.agency_id)
+      .in("action", AGENCY_FEED_ACTIONS)
+      .order("created_at", { ascending: false })
+      .limit(12),
   ]);
   // Un échec de requête ne doit jamais se déguiser en tableau vide
   // (« rien à faire ») : on laisse error.tsx afficher l'état d'erreur.
@@ -120,6 +140,21 @@ export default async function DashboardPage() {
     ),
   };
 
+  // Qui a fait quoi, tous projets confondus — le coup d'œil gestionnaire
+  // et la trace d'audit légère, sans ouvrir chaque fiche.
+  const feedEntries: ActivityEntry[] = (activity ?? []).map((entry) => {
+    const client = entry.client_id
+      ? clientMeta.get(entry.client_id)
+      : undefined;
+    return {
+      id: entry.id,
+      label: ACTION_LABELS[entry.action] ?? entry.action,
+      actor: entry.actor,
+      at: entry.created_at,
+      client: client ? { id: client.id, name: client.name } : null,
+    };
+  });
+
   return (
     <div className="flex flex-col gap-5">
       <RealtimeRefresh />
@@ -130,6 +165,14 @@ export default async function DashboardPage() {
         lastSyncedAt={lastSync ?? null}
       />
       <DashboardKanban clients={boardClients} />
+      {feedEntries.length > 0 && (
+        <section>
+          <h2 className="mb-2 text-sm font-medium text-muted-foreground">
+            Activité récente
+          </h2>
+          <ActivityFeed entries={feedEntries} />
+        </section>
+      )}
     </div>
   );
 }

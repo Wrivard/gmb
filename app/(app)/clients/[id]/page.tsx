@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { formatDistanceToNow } from "date-fns";
-import { frCA } from "date-fns/locale";
 import { ArrowLeft } from "lucide-react";
 import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
@@ -11,6 +9,10 @@ import { loadInboxReviews } from "@/lib/reviews/inbox";
 import { loadClientQueue } from "@/lib/posts/queue";
 import { loadClientGrowth } from "@/lib/clients/growth";
 import { GrowthView } from "@/components/clients/growth-view";
+import {
+  ACTION_LABELS,
+  ActivityFeed,
+} from "@/components/activity/activity-feed";
 import { DemoBanner } from "@/components/layout/demo-banner";
 import {
   demoActivity,
@@ -138,27 +140,7 @@ export default async function ClientDetailPage({
               <h2 className="mb-2 text-sm font-medium text-muted-foreground">
                 Activité récente
               </h2>
-              <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-elevated px-4">
-                {demoActivity().map((entry) => (
-                  <li
-                    key={entry.id}
-                    className="flex items-center gap-3 py-2 text-sm"
-                  >
-                    <span className="flex-1">
-                      {entry.label}
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        par {entry.actor}
-                      </span>
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(entry.at), {
-                        addSuffix: true,
-                        locale: frCA,
-                      })}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <ActivityFeed entries={demoActivity()} />
             </section>
           </div>
         )}
@@ -291,19 +273,6 @@ export default async function ClientDetailPage({
   );
 }
 
-const ACTION_LABELS: Record<string, string> = {
-  reply_published: "Réponse publiée",
-  reply_auto_published: "Réponse auto-publiée",
-  review_ignored: "Review ignorée",
-  post_generated: "Post généré",
-  post_approved: "Post approuvé",
-  post_published: "Post publié",
-  generation: "Génération AI",
-  sync_completed: "Sync terminé",
-  client_settings_updated: "Réglages modifiés",
-  brand_profile_updated: "Profil de marque modifié",
-};
-
 async function GrowthTab({
   client,
 }: {
@@ -377,27 +346,14 @@ async function GrowthTab({
           Activité récente
         </h2>
         {activity?.length ? (
-          <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-elevated px-4">
-            {activity.map((entry) => (
-              <li
-                key={entry.id}
-                className="flex items-center gap-3 py-2 text-sm"
-              >
-                <span className="flex-1">
-                  {ACTION_LABELS[entry.action] ?? entry.action}
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    par {entry.actor}
-                  </span>
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {formatDistanceToNow(new Date(entry.created_at), {
-                    addSuffix: true,
-                    locale: frCA,
-                  })}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <ActivityFeed
+            entries={activity.map((entry) => ({
+              id: entry.id,
+              label: ACTION_LABELS[entry.action] ?? entry.action,
+              actor: entry.actor,
+              at: entry.created_at,
+            }))}
+          />
         ) : (
           <EmptyState size="sm" title="Aucune activité pour l'instant." />
         )}
