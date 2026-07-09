@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { safeInternalPath } from "@/lib/safe-path";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,7 +38,7 @@ export function LoginForm() {
   const [pending, startTransition] = useTransition();
   const [googlePending, setGooglePending] = useState(false);
 
-  const next = searchParams.get("next") ?? "/";
+  const next = safeInternalPath(searchParams.get("next"));
 
   async function signInWithGoogle() {
     setError(null);

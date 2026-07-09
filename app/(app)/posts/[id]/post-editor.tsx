@@ -34,6 +34,7 @@ import {
   approvePostAction,
   publishPostNowAction,
   regeneratePostImageAction,
+  revertPostImageAction,
   updatePostAction,
   uploadPostImageAction,
 } from "../actions";
@@ -104,7 +105,10 @@ export function PostEditor({
     !readOnly &&
     (summary !== post.summary ||
       ctaType !== (post.ctaType ?? "none") ||
-      ctaUrl !== (post.ctaUrl ?? clientWebsite ?? "") ||
+      // L'URL n'est persistée que pour LEARN_MORE : un changement d'URL
+      // avec CTA « Aucun » ne se sauvegarde pas, donc ne rend pas dirty.
+      (ctaType === "LEARN_MORE" &&
+        ctaUrl !== (post.ctaUrl ?? clientWebsite ?? "")) ||
       scheduledFor !== toDatetimeLocal(post.scheduledFor));
   // busy = un save/approve/publish est déjà en route vers la sortie.
   useUnsavedGuard(dirty && !busy);
@@ -149,9 +153,14 @@ export function PostEditor({
   }
 
   function approve() {
-    // Approuver = publication automatique à la date prévue : la date ne
-    // doit pas déjà être passée.
-    if (scheduledFor && new Date(scheduledFor).getTime() < Date.now()) {
+    // Approuver = publication automatique à la date prévue : il faut une
+    // date, et pas une date déjà passée. (Le serveur revérifie la
+    // présence — approvePostAction — mais on évite un save inutile.)
+    if (!scheduledFor) {
+      toast.error("Choisis d'abord une date de publication.");
+      return;
+    }
+    if (new Date(scheduledFor).getTime() < Date.now()) {
       toast.error(
         "La date de publication est déjà passée — choisis une date future ou « Publier maintenant ».",
       );
@@ -209,6 +218,18 @@ export function PostEditor({
       const result = await uploadPostImageAction(post.id, formData);
       if (result.ok) {
         toast.success("Image remplacée.");
+        router.refresh();
+      } else {
+        toast.error(result.error);
+      }
+    });
+  }
+
+  function revertImage() {
+    startImage(async () => {
+      const result = await revertPostImageAction(post.id);
+      if (result.ok) {
+        toast.success("Image précédente restaurée.");
         router.refresh();
       } else {
         toast.error(result.error);
@@ -383,7 +404,18 @@ export function PostEditor({
                 }}
               />
             </div>
-            {!post.imageUrl && (
+            {post.imageUrl ? (
+              !readOnly && (
+                <button
+                  type="button"
+                  onClick={revertImage}
+                  disabled={busy}
+                  className="self-start rounded text-xs text-muted-foreground underline-offset-2 outline-none transition-colors hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+                >
+                  Revenir à l&apos;image précédente
+                </button>
+              )
+            ) : (
               <p className="text-xs text-muted-foreground">
                 Le post peut partir sans image, mais un post avec image
                 performe nettement mieux sur Google.

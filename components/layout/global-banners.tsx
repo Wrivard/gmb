@@ -7,14 +7,22 @@ import Link from "next/link";
 export function GlobalBanners({
   connectionRevoked,
   accessPending,
+  dataUnavailable = false,
 }: {
   connectionRevoked: boolean;
   accessPending: boolean;
+  dataUnavailable?: boolean;
 }) {
-  if (!connectionRevoked && !accessPending) return null;
+  if (!connectionRevoked && !accessPending && !dataUnavailable) return null;
 
   return (
     <div className="flex flex-col">
+      {dataUnavailable && (
+        <div className="bg-warning/10 px-6 py-2 text-center text-sm text-warning">
+          Impossible de charger certains compteurs — les badges peuvent être
+          incomplets. Recharge la page.
+        </div>
+      )}
       {connectionRevoked && (
         <div className="bg-destructive/15 px-6 py-2 text-center text-sm text-destructive">
           Connexion Google expirée — les publications sont suspendues.{" "}

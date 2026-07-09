@@ -7,7 +7,11 @@ import {
   runAction,
   type ActionResult,
 } from "@/lib/actions/member";
-import { generatePostForClient, processAndUploadImage } from "@/lib/posts/generate";
+import {
+  generatePostForClient,
+  listImageVersions,
+  processAndUploadImage,
+} from "@/lib/posts/generate";
 import { publishPost } from "@/lib/posts/publish";
 import {
   isPostApprovable,
@@ -27,10 +31,16 @@ function refresh() {
 
 export async function generatePostAction(
   clientId: string,
+  directive?: string,
 ): Promise<ActionResult & { postId?: string }> {
   return runAction("La génération a échoué.", async () => {
     const { member, client } = await loadClientForMember(clientId);
-    const result = await generatePostForClient(client, member.email);
+    const result = await generatePostForClient(
+      client,
+      member.email,
+      new Date(),
+      directive?.trim() || undefined,
+    );
     refresh();
     return { ok: true, postId: result.postId };
   });
@@ -152,6 +162,38 @@ export async function regeneratePostImageAction(
     const { error } = await supabase
       .from("posts")
       .update({ image_path: path })
+      .eq("id", postId);
+    if (error) throw new Error(error.message);
+
+    refresh();
+    return { ok: true };
+  });
+}
+
+/** Restaure la version précédente de l'image (les clés sont versionnées). */
+export async function revertPostImageAction(
+  postId: string,
+): Promise<ActionResult> {
+  return runAction("Le retour à l'image précédente a échoué.", async () => {
+    const { supabase, post, client } = await loadPostForMember(postId);
+    if (!isPostEditable(post.status)) {
+      return { ok: false, error: "Ce post est déjà publié." };
+    }
+    if (!post.image_path) {
+      return { ok: false, error: "Ce post n'a pas d'image." };
+    }
+
+    const current = post.image_path.split("/").pop();
+    const previous = (
+      await listImageVersions(supabase, client.id, post.id)
+    ).find((name) => name !== current);
+    if (!previous) {
+      return { ok: false, error: "Aucune image précédente à restaurer." };
+    }
+
+    const { error } = await supabase
+      .from("posts")
+      .update({ image_path: `${client.id}/${previous}` })
       .eq("id", postId);
     if (error) throw new Error(error.message);
 

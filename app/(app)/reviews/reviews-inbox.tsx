@@ -7,13 +7,15 @@ import {
   useState,
   useTransition,
 } from "react";
+import { useSearchParams } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { frCA } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles } from "lucide-react";
+import { CheckCircle2, SearchX, Sparkles, Unplug } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -57,6 +59,25 @@ const PENDING_STATUSES: ReviewStatus[] = [
 type StatusFilter = "pending" | "all" | "replied" | "ignored";
 type RatingFilter = "all" | "high" | "low";
 
+const STATUS_FILTERS: StatusFilter[] = ["pending", "all", "replied", "ignored"];
+const RATING_FILTERS: RatingFilter[] = ["all", "high", "low"];
+
+/**
+ * Persiste un filtre dans l'URL sans round-trip serveur (replaceState
+ * shallow) : la vue survit au refresh/realtime et se partage en lien.
+ */
+function persistFilter(key: string, value: string, defaultValue: string) {
+  const params = new URLSearchParams(window.location.search);
+  if (value === defaultValue) params.delete(key);
+  else params.set(key, value);
+  const query = params.toString();
+  window.history.replaceState(
+    null,
+    "",
+    query ? `?${query}` : window.location.pathname,
+  );
+}
+
 function isPending(status: ReviewStatus): boolean {
   return PENDING_STATUSES.includes(status);
 }
@@ -75,13 +96,32 @@ function initials(name: string | null): string {
     .toUpperCase();
 }
 
-export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
+export function ReviewsInbox({
+  reviews,
+  hasProjects = true,
+}: {
+  reviews: InboxReview[];
+  /** false = aucun projet connecté (first-run) : l'état vide ne doit pas
+      fêter un « tout est répondu » qui est en fait un « rien n'a syncé ». */
+  hasProjects?: boolean;
+}) {
+  // Filtres initialisés depuis l'URL : la vue survit au refresh et aux
+  // allers-retours (le reproche n°1 du quotidien : « mes filtres sautent »).
+  const searchParams = useSearchParams();
   const [overrides, setOverrides] = useState<
     Record<string, Partial<InboxReview>>
   >({});
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
-  const [ratingFilter, setRatingFilter] = useState<RatingFilter>("all");
-  const [clientFilter, setClientFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
+    const raw = searchParams.get("statut") as StatusFilter | null;
+    return raw && STATUS_FILTERS.includes(raw) ? raw : "pending";
+  });
+  const [ratingFilter, setRatingFilter] = useState<RatingFilter>(() => {
+    const raw = searchParams.get("note") as RatingFilter | null;
+    return raw && RATING_FILTERS.includes(raw) ? raw : "all";
+  });
+  const [clientFilter, setClientFilter] = useState<string>(
+    () => searchParams.get("projet") ?? "all",
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
@@ -95,6 +135,18 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
     for (const review of reviews) map.set(review.clientId, review.clientName);
     return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
   }, [reviews]);
+
+  // Compteur d'attente par projet — visible dans le filtre, pour trier
+  // « quel client je débloque en premier » sans cycler la liste.
+  const pendingByClient = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const review of merged) {
+      if (isPending(review.status)) {
+        counts.set(review.clientId, (counts.get(review.clientId) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [merged]);
 
   const visible = useMemo(() => {
     const filtered = merged.filter((review) => {
@@ -243,7 +295,10 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
         <TabBar
           className="flex-1 border-b-0"
           activeKey={statusFilter}
-          onSelect={(key) => setStatusFilter(key as StatusFilter)}
+          onSelect={(key) => {
+            setStatusFilter(key as StatusFilter);
+            persistFilter("statut", key, "pending");
+          }}
           items={[
             { key: "pending", label: "En attente", count: pendingCount },
             { key: "all", label: "Toutes" },
@@ -255,24 +310,33 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
         <div className="flex items-center gap-2 pb-1.5">
         <Select
           value={clientFilter}
-          onValueChange={(v) => setClientFilter(v as string)}
+          onValueChange={(v) => {
+            setClientFilter(v as string);
+            persistFilter("projet", v as string, "all");
+          }}
         >
           <SelectTrigger size="sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tous les projets</SelectItem>
-            {clients.map(([id, name]) => (
-              <SelectItem key={id} value={id}>
-                {name}
-              </SelectItem>
-            ))}
+            {clients.map(([id, name]) => {
+              const pending = pendingByClient.get(id) ?? 0;
+              return (
+                <SelectItem key={id} value={id}>
+                  {pending > 0 ? `${name} · ${pending}` : name}
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
 
         <Select
           value={ratingFilter}
-          onValueChange={(v) => setRatingFilter(v as RatingFilter)}
+          onValueChange={(v) => {
+            setRatingFilter(v as RatingFilter);
+            persistFilter("note", v as string, "all");
+          }}
         >
           <SelectTrigger size="sm">
             <SelectValue />
@@ -324,25 +388,42 @@ export function ReviewsInbox({ reviews }: { reviews: InboxReview[] }) {
       </Dialog>
 
       {visible.length === 0 ? (
-        <div className="rounded-lg border border-border bg-elevated px-6 py-14 text-center">
-          <p className="text-lg">
-            {statusFilter === "pending"
-              ? "Aucune review en attente 🎉"
-              : "Aucune review ne correspond aux filtres."}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {statusFilter === "pending"
-              ? "Tout est répondu. Le sync tourne aux 30 minutes."
-              : "Ajuste les filtres pour voir plus de reviews."}
-          </p>
-        </div>
+        !hasProjects ? (
+          <EmptyState
+            icon={Unplug}
+            title="Aucun projet connecté"
+            hint={
+              <>
+                Connecte le compte Google dans{" "}
+                <a href="/settings" className="underline">
+                  Agence
+                </a>{" "}
+                — les reviews arriveront au premier sync.
+              </>
+            }
+          />
+        ) : statusFilter === "pending" ? (
+          <EmptyState
+            icon={CheckCircle2}
+            title="Aucune review en attente"
+            hint="Tout est répondu. Le sync tourne aux 30 minutes."
+          />
+        ) : (
+          <EmptyState
+            icon={SearchX}
+            title="Aucune review ne correspond aux filtres"
+            hint="Ajuste les filtres pour voir plus de reviews."
+          />
+        )
       ) : (
         <ul className="flex flex-col gap-2">
           <AnimatePresence initial={false}>
             {visible.map((review) => (
               <motion.li
                 key={review.id}
-                layout
+                // FLIP mesure chaque ligne à chaque changement de liste :
+                // au-delà de ~60 items le coût dépasse le bénéfice visuel.
+                layout={visible.length <= 60}
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
@@ -479,18 +560,21 @@ function ReviewItem({
   );
 }
 
+// Même langage de couleurs que les posts : destructive = bloqué/urgent,
+// outline = brouillon (attend un humain), default = planifié/auto,
+// secondary = terminé, ghost = écarté.
 function StatusBadge({ status }: { status: ReviewStatus }) {
   switch (status) {
     case "needs_reply":
       return <Badge variant="destructive">Sans brouillon</Badge>;
     case "draft_ready":
-      return <Badge variant="default">Brouillon prêt</Badge>;
+      return <Badge variant="outline">Brouillon prêt</Badge>;
     case "approved":
-      return <Badge variant="secondary">À publier</Badge>;
+      return <Badge variant="default">À publier</Badge>;
     case "replied":
       return <Badge variant="secondary">Répondue</Badge>;
     case "ignored":
-      return <Badge variant="outline">Ignorée</Badge>;
+      return <Badge variant="ghost">Ignorée</Badge>;
   }
 }
 
@@ -527,7 +611,14 @@ function ReplyPanel({
       if (result.ok) {
         toast.success("Réponse publiée.");
       } else {
-        onOverride(review.id, { status: snapshot, publishedText: null });
+        // draftText: text — le panneau remonte avec le texte TEL QUE TAPÉ,
+        // pas le brouillon d'origine (l'édition survivrait sinon pas au
+        // démontage optimiste).
+        onOverride(review.id, {
+          status: snapshot,
+          publishedText: null,
+          draftText: text,
+        });
         onRestore(review.id);
         toast.error(result.error);
       }
@@ -575,7 +666,7 @@ function ReplyPanel({
           },
         });
       } else {
-        onOverride(review.id, { status: snapshot });
+        onOverride(review.id, { status: snapshot, draftText: text });
         onRestore(review.id);
         toast.error(result.error);
       }

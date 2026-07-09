@@ -1,6 +1,13 @@
 import { Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/** Étoile unique dorée — pour accompagner une note moyenne (kanban, liste). */
+export function GoldStar({ className }: { className?: string }) {
+  return (
+    <Star aria-hidden className={cn("size-3 fill-gold text-gold", className)} />
+  );
+}
+
 /** Étoiles dorées 1–5 (specs/09 §Composants clés). */
 export function StarRating({
   value,

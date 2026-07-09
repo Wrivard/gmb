@@ -32,6 +32,12 @@ export type InboxScope =
 
 type ReviewRow = Database["public"]["Tables"]["reviews"]["Row"];
 
+// La file « en attente » est le travail : jamais tronquée. L'historique
+// (répondues/ignorées) est borné aux plus récentes — sans ça la requête
+// et le DOM grossissent sans limite avec l'âge de l'agence.
+const PENDING_STATUSES = ["needs_reply", "draft_ready", "approved"] as const;
+const HISTORY_LIMIT = 150;
+
 export async function loadInboxReviews(
   scope: InboxScope,
 ): Promise<InboxReview[]> {
@@ -53,21 +59,43 @@ export async function loadInboxReviews(
       .select("id, name")
       .eq("agency_id", scope.agencyId);
     clientNameById = new Map((clients ?? []).map((c) => [c.id, c.name]));
+    const clientIds = [...clientNameById.keys()];
 
-    const { data: reviews } = await supabase
-      .from("reviews")
-      .select("*")
-      .in("client_id", [...clientNameById.keys()])
-      .order("review_created_at", { ascending: false });
-    rows = reviews ?? [];
+    // Pending (non borné) et historique (borné) en parallèle.
+    const [{ data: pending }, { data: history }] = await Promise.all([
+      supabase
+        .from("reviews")
+        .select("*")
+        .in("client_id", clientIds)
+        .in("status", [...PENDING_STATUSES])
+        .order("review_created_at", { ascending: false }),
+      supabase
+        .from("reviews")
+        .select("*")
+        .in("client_id", clientIds)
+        .in("status", ["replied", "ignored"])
+        .order("review_created_at", { ascending: false })
+        .limit(HISTORY_LIMIT),
+    ]);
+    rows = [...(pending ?? []), ...(history ?? [])];
   } else {
     clientNameById = new Map([[scope.clientId, scope.clientName]]);
-    const { data: reviews } = await supabase
-      .from("reviews")
-      .select("*")
-      .eq("client_id", scope.clientId)
-      .order("review_created_at", { ascending: false });
-    rows = reviews ?? [];
+    const [{ data: pending }, { data: history }] = await Promise.all([
+      supabase
+        .from("reviews")
+        .select("*")
+        .eq("client_id", scope.clientId)
+        .in("status", [...PENDING_STATUSES])
+        .order("review_created_at", { ascending: false }),
+      supabase
+        .from("reviews")
+        .select("*")
+        .eq("client_id", scope.clientId)
+        .in("status", ["replied", "ignored"])
+        .order("review_created_at", { ascending: false })
+        .limit(HISTORY_LIMIT),
+    ]);
+    rows = [...(pending ?? []), ...(history ?? [])];
   }
 
   const reviewIds = rows.map((r) => r.id);

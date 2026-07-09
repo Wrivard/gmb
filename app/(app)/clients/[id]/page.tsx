@@ -20,13 +20,31 @@ import {
   demoInboxReviews,
   demoQueuePosts,
 } from "@/lib/demo";
+import dynamic from "next/dynamic";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { TabBar } from "@/components/ui/tab-bar";
 import { cn } from "@/lib/utils";
-import { ReviewsInbox } from "@/app/(app)/reviews/reviews-inbox";
-import { PostsView } from "@/app/(app)/posts/posts-view";
-import { ClientSettings } from "./client-settings";
+
+// Chaque onglet ne charge que son propre JS : import statique = les
+// trois gros composants client (dont framer-motion) dans le bundle de
+// la route, même pour lire Croissance.
+const tabFallback = <Skeleton className="h-64 w-full rounded-lg" />;
+const ReviewsInbox = dynamic(
+  () =>
+    import("@/app/(app)/reviews/reviews-inbox").then((m) => m.ReviewsInbox),
+  { loading: () => tabFallback },
+);
+const PostsView = dynamic(
+  () => import("@/app/(app)/posts/posts-view").then((m) => m.PostsView),
+  { loading: () => tabFallback },
+);
+const ClientSettings = dynamic(
+  () => import("./client-settings").then((m) => m.ClientSettings),
+  { loading: () => tabFallback },
+);
 
 export const metadata = { title: "Projet" };
 
@@ -104,7 +122,7 @@ export default async function ClientDetailPage({
                 >
                   <div
                     className={cn(
-                      "text-lg font-semibold tabular-nums",
+                      "text-2xl font-semibold tabular-nums",
                       stat.alert && "text-destructive",
                     )}
                   >
@@ -381,9 +399,7 @@ async function GrowthTab({
             ))}
           </ul>
         ) : (
-          <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-            Aucune activité pour l&apos;instant.
-          </p>
+          <EmptyState size="sm" title="Aucune activité pour l'instant." />
         )}
       </section>
     </div>

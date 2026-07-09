@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { safeInternalPath } from "@/lib/safe-path";
 import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
@@ -18,7 +19,7 @@ export default async function PostEditorPage({
   const { id } = await params;
   const { back } = await searchParams;
   // Chemin interne seulement — jamais de redirection externe.
-  const backHref = back?.startsWith("/") ? back : undefined;
+  const backHref = safeInternalPath(back, "/posts");
 
   if (!supabaseConfigured()) {
     const demoPost = demoQueuePosts().find((p) => p.id === id);

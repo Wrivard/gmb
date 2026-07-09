@@ -13,13 +13,40 @@ export function DashboardHeader({
   connectionStatus: "active" | "revoked" | null;
   lastSyncedAt: string | null;
 }) {
+  const stats = [
+    {
+      value: totals.unreplied,
+      label: `review${totals.unreplied > 1 ? "s" : ""} en attente`,
+    },
+    {
+      value: totals.postsDue,
+      label: `post${totals.postsDue > 1 ? "s" : ""} dus ce mois`,
+    },
+    {
+      value: totals.drafts,
+      label: `brouillon${totals.drafts > 1 ? "s" : ""} à approuver`,
+    },
+  ];
+
   return (
     <div className="flex flex-wrap items-center gap-4">
-      <p className="text-sm text-muted-foreground">
-        {totals.unreplied} review{totals.unreplied > 1 ? "s" : ""} en attente ·{" "}
-        {totals.postsDue} post{totals.postsDue > 1 ? "s" : ""} dus ce mois ·{" "}
-        {totals.drafts} brouillon{totals.drafts > 1 ? "s" : ""} à approuver
-      </p>
+      {/* Les 3 chiffres de la journée : les nombres portent le poids
+          visuel, pas la phrase — c'est l'ancre du tableau. */}
+      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+        {stats.map((stat) => (
+          <span key={stat.label} className="flex items-baseline gap-1.5">
+            <span
+              className={cn(
+                "text-base font-semibold tabular-nums",
+                stat.value === 0 && "text-muted-foreground",
+              )}
+            >
+              {stat.value}
+            </span>
+            <span className="text-xs text-muted-foreground">{stat.label}</span>
+          </span>
+        ))}
+      </div>
 
       {/* Le tableau ci-dessous EST la réponse à « quoi faire » : pas de
           CTA changeant ici — seulement l'état de la connexion. */}

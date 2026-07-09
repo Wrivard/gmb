@@ -96,7 +96,7 @@ export function Sidebar({
 
       <div className="flex flex-col gap-2 border-t border-border px-3 py-3">
         {isMock && (
-          <p className="flex items-center gap-1.5 px-3 text-[11px] text-muted-foreground">
+          <p className="flex items-center gap-1.5 px-3 text-xs text-muted-foreground">
             <span className="size-1.5 rounded-full bg-warning" />
             mode démo — données simulées
           </p>

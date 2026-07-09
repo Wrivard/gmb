@@ -1,6 +1,7 @@
 import { getSessionContext } from "@/lib/auth";
 import { supabaseConfigured } from "@/lib/env";
 import { loadInboxReviews } from "@/lib/reviews/inbox";
+import { getClientsIndex } from "@/lib/queries/agency";
 import { DemoBanner } from "@/components/layout/demo-banner";
 import { OpsTabs } from "@/components/layout/ops-tabs";
 import { RealtimeRefresh } from "@/components/dashboard/realtime-refresh";
@@ -13,10 +14,15 @@ export default async function ReviewsPage() {
   // Supabase n'est pas configuré (adapter démo derrière la même interface).
   const demo = !supabaseConfigured();
   let agencyId = "";
+  let hasProjects = true;
   if (!demo) {
     const { member } = await getSessionContext();
     if (!member) return null; // Le layout gère la whitelist.
     agencyId = member.agency_id;
+    // Déjà en cache (layout) : distingue « rien à faire » de « rien de
+    // connecté » pour ne pas fêter un vide qui est en fait un first-run.
+    const { data: clients } = await getClientsIndex(agencyId);
+    hasProjects = Boolean(clients?.length);
   }
 
   const inboxReviews = await loadInboxReviews({ agencyId });
@@ -26,9 +32,9 @@ export default async function ReviewsPage() {
       {demo ? <DemoBanner /> : <RealtimeRefresh />}
       <OpsTabs />
       <p className="text-sm text-muted-foreground">
-        Lis le draft, ajuste au besoin, publie. 10 secondes par review.
+        Lis le brouillon, ajuste au besoin, publie. 10 secondes par review.
       </p>
-      <ReviewsInbox reviews={inboxReviews} />
+      <ReviewsInbox reviews={inboxReviews} hasProjects={hasProjects} />
     </div>
   );
 }

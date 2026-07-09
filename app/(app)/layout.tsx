@@ -5,6 +5,11 @@ import { CommandPalette } from "@/components/layout/command-palette";
 import { GlobalBanners } from "@/components/layout/global-banners";
 import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
+import {
+  getBoardState,
+  getClientsIndex,
+  getGoogleConnectionStatus,
+} from "@/lib/queries/agency";
 import { supabaseConfigured } from "@/lib/env";
 import { demoBoardClients } from "@/lib/demo";
 
@@ -18,6 +23,7 @@ export default async function AppLayout({
   let paletteClients: Array<{ id: string; name: string }> = [];
   let connectionRevoked = false;
   let accessPending = false;
+  let dataUnavailable = false;
 
   if (supabaseConfigured()) {
     const { user, member } = await getSessionContext();
@@ -31,21 +37,13 @@ export default async function AppLayout({
     if (member) {
       const supabase = await getDb();
       const [
-        { data: board },
+        { data: board, error: boardError },
         { data: connection },
         { data: pendingLog },
-        { data: clients },
+        { data: clients, error: clientsError },
       ] = await Promise.all([
-        supabase
-          .from("client_board_state")
-          .select("unreplied_count, posts_due")
-          .eq("agency_id", member.agency_id)
-          .eq("status", "active"),
-        supabase
-          .from("google_connections")
-          .select("status")
-          .eq("agency_id", member.agency_id)
-          .maybeSingle(),
+        getBoardState(member.agency_id),
+        getGoogleConnectionStatus(member.agency_id),
         supabase
           .from("activity_log")
           .select("id")
@@ -56,12 +54,7 @@ export default async function AppLayout({
             new Date(Date.now() - 24 * 3600_000).toISOString(),
           )
           .limit(1),
-        supabase
-          .from("clients")
-          .select("id, name")
-          .eq("agency_id", member.agency_id)
-          .neq("status", "disconnected")
-          .order("name"),
+        getClientsIndex(member.agency_id),
       ]);
 
       pendingReviews = (board ?? []).reduce(
@@ -71,7 +64,12 @@ export default async function AppLayout({
       postsDue = (board ?? []).reduce((sum, row) => sum + row.posts_due, 0);
       connectionRevoked = connection?.status === "revoked";
       accessPending = Boolean(pendingLog?.length);
-      paletteClients = clients ?? [];
+      paletteClients = (clients ?? [])
+        .filter((c) => c.status !== "disconnected")
+        .map(({ id, name }) => ({ id, name }));
+      // Une requête échouée ne doit pas se déguiser en « 0 en attente » :
+      // on l'affiche comme un état dégradé, pas comme un succès.
+      dataUnavailable = Boolean(boardError || clientsError);
     }
   } else {
     // Mode exemple (lib/demo.ts) : shell rempli sans backend.
@@ -95,6 +93,7 @@ export default async function AppLayout({
         <GlobalBanners
           connectionRevoked={connectionRevoked}
           accessPending={accessPending}
+          dataUnavailable={dataUnavailable}
         />
         <Topbar />
         <main className="mx-auto max-w-[1400px] px-6 py-6">{children}</main>

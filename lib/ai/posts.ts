@@ -119,6 +119,8 @@ export async function generatePostContent(options: {
   >;
   recentSummaries: string[];
   now?: Date;
+  /** Angle demandé par l'employé au moment de générer (« promo de juin »…). */
+  directive?: string;
 }): Promise<PostContent> {
   const { client } = options;
   const now = options.now ?? new Date();
@@ -128,7 +130,9 @@ export async function generatePostContent(options: {
   }
 
   const system = buildPostSystemPrompt(client, options.recentSummaries, now);
-  const user = "Rédige la publication du mois.";
+  const user = options.directive?.trim()
+    ? `Rédige la publication du mois. Directive de l'équipe : ${options.directive.trim()}`
+    : "Rédige la publication du mois.";
 
   // 1 retry si la sortie n'est pas le JSON attendu (specs/07).
   let result = await chatText({ system, user, temperature: 0.7 });

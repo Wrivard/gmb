@@ -4,10 +4,11 @@ import { useMemo, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, MessageSquare, Sparkles, Star } from "lucide-react";
+import { CheckCircle2, MessageSquare, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { GoldStar } from "@/components/reviews/star-rating";
 import { cn } from "@/lib/utils";
 import { generatePostAction } from "./posts/actions";
 
@@ -94,9 +95,9 @@ export function DashboardKanban({ clients }: { clients: BoardClient[] }) {
               ))}
             </AnimatePresence>
             {!byColumn[column.key].length && (
-              <p className="px-1 py-4 text-center text-xs text-muted-foreground">
+              <div className="rounded-md border border-dashed border-border px-2 py-4 text-center text-xs text-muted-foreground">
                 {column.empty}
-              </p>
+              </div>
             )}
           </section>
         ))}
@@ -189,7 +190,7 @@ function ClientCard({ client }: { client: BoardClient }) {
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
           {client.avgRating !== null && (
             <>
-              <Star className="size-3 fill-gold text-gold" />
+              <GoldStar />
               {client.avgRating.toFixed(1)} · {client.reviewCount} avis
             </>
           )}

@@ -30,6 +30,22 @@ export async function publishReplyAction(
     const { member, supabase, review, client } =
       await loadReviewForMember(reviewId);
 
+    // Verrou anti-collision : si un collègue a déjà traité la review
+    // pendant qu'on éditait, ne pas écraser sa réponse chez Google.
+    if (review.status === "replied") {
+      return {
+        ok: false,
+        error:
+          "Cette review vient d'être répondue par quelqu'un d'autre — rafraîchis pour voir la réponse.",
+      };
+    }
+    if (review.status === "ignored") {
+      return {
+        ok: false,
+        error: "Cette review vient d'être ignorée par quelqu'un d'autre.",
+      };
+    }
+
     await getGbpClient().putReviewReply(review.gbp_review_name, trimmed);
 
     const now = new Date().toISOString();
@@ -142,10 +158,20 @@ export async function ignoreReviewAction(
     const { member, supabase, review, client } =
       await loadReviewForMember(reviewId);
 
+    // Ne pas « ignorer » une review qu'un collègue vient de répondre.
+    if (review.status === "replied") {
+      return {
+        ok: false,
+        error:
+          "Cette review vient d'être répondue par quelqu'un d'autre — rien à ignorer.",
+      };
+    }
+
     await supabase
       .from("reviews")
       .update({ status: "ignored" })
-      .eq("id", review.id);
+      .eq("id", review.id)
+      .neq("status", "replied");
 
     await logActivity({
       agencyId: member.agency_id,

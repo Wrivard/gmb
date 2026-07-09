@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { Star } from "lucide-react";
 import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
 import { DemoBanner } from "@/components/layout/demo-banner";
 import { demoBoardClients, demoClientRows } from "@/lib/demo";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ClientActiveToggle } from "@/app/(app)/settings/client-toggle";
+import { GoldStar } from "@/components/reviews/star-rating";
 import { CadenceSelect } from "./cadence-select";
 
 export const metadata = { title: "Projets" };
@@ -88,23 +89,29 @@ export default async function ClientsPage() {
     if (!member) return null; // Le layout gère la whitelist.
 
     const supabase = await getDb();
-    const [{ data: clients, error: clientsError }, { data: board }, { data: reviews }] =
-      await Promise.all([
-        supabase
-          .from("clients")
-          .select("*")
-          .eq("agency_id", member.agency_id)
-          .order("name"),
-        supabase
-          .from("client_board_state")
-          .select("*")
-          .eq("agency_id", member.agency_id),
-        supabase
-          .from("reviews")
-          .select("client_id, star_rating"),
-      ]);
+    const { data: clients, error: clientsError } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("agency_id", member.agency_id)
+      .order("name");
     // Ne pas confondre « échec de chargement » et « aucun projet ».
     if (clientsError) throw new Error(clientsError.message);
+
+    // reviews n'a pas d'agency_id : on scope par client_id, sinon la
+    // requête balaie la table entière (toutes agences confondues).
+    const clientIds = (clients ?? []).map((c) => c.id);
+    const [{ data: board }, { data: reviews }] = await Promise.all([
+      supabase
+        .from("client_board_state")
+        .select("*")
+        .eq("agency_id", member.agency_id),
+      clientIds.length
+        ? supabase
+            .from("reviews")
+            .select("client_id, star_rating")
+            .in("client_id", clientIds)
+        : Promise.resolve({ data: [] as { client_id: string; star_rating: number }[] }),
+    ]);
 
     const boardById = new Map((board ?? []).map((b) => [b.client_id, b]));
     const ratingByClient = new Map<string, { sum: number; count: number }>();
@@ -165,8 +172,11 @@ export default async function ClientsPage() {
       </div>
 
       {rows.length ? (
+        // Même langage que les autres surfaces : la liste maîtresse de
+        // l'app ne flotte pas nue sur le fond de page.
+        <div className="overflow-hidden rounded-lg border border-border bg-elevated">
         <Table>
-          <TableHeader>
+          <TableHeader className="bg-muted/40">
             <TableRow>
               <TableHead>Projet</TableHead>
               <TableHead>Note</TableHead>
@@ -196,8 +206,8 @@ export default async function ClientsPage() {
                 </TableCell>
                 <TableCell>
                   {row.avgRating !== null ? (
-                    <span className="flex items-center gap-1 text-sm">
-                      <Star className="size-3 fill-gold text-gold" />
+                    <span className="flex items-center gap-1 text-sm tabular-nums">
+                      <GoldStar />
                       {row.avgRating.toFixed(1)}
                       <span className="text-xs text-muted-foreground">
                         ({row.reviewCount})
@@ -218,7 +228,7 @@ export default async function ClientsPage() {
                     ? `${Math.min(row.coverage.done, row.coverage.target)}/${row.coverage.target} posts`
                     : "n/a"}
                 </TableCell>
-                <TableCell className="text-sm">
+                <TableCell className="text-sm tabular-nums">
                   {row.unreplied > 0 || row.drafts > 0 ? (
                     <span className="text-muted-foreground">
                       {row.unreplied > 0 &&
@@ -246,14 +256,20 @@ export default async function ClientsPage() {
             ))}
           </TableBody>
         </Table>
+        </div>
       ) : (
-        <p className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-          Aucun projet — connecte le compte Google dans{" "}
-          <Link href="/settings" className="underline">
-            Agence
-          </Link>
-          , les fiches Google seront découvertes automatiquement.
-        </p>
+        <EmptyState
+          title="Aucun projet"
+          hint={
+            <>
+              Connecte le compte Google dans{" "}
+              <Link href="/settings" className="underline">
+                Agence
+              </Link>
+              , les fiches Google seront découvertes automatiquement.
+            </>
+          }
+        />
       )}
     </div>
   );

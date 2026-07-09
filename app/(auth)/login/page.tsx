@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { supabaseConfigured } from "@/lib/env";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { LoginForm } from "./login-form";
 
 export const metadata = { title: "Connexion" };
@@ -37,12 +38,9 @@ export default function LoginPage() {
                 dans `.env.local` (voir PROGRESS.md).
               </AlertDescription>
             </Alert>
-            <Link
-              href="/"
-              className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-            >
+            <Button className="w-full" render={<Link href="/" />}>
               Explorer l&apos;app avec des données d&apos;exemple
-            </Link>
+            </Button>
           </div>
         )}
       </div>

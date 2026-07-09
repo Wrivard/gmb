@@ -1,5 +1,10 @@
 import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
+import {
+  getBoardState,
+  getClientsIndex,
+  getGoogleConnectionStatus,
+} from "@/lib/queries/agency";
 import { supabaseConfigured } from "@/lib/env";
 import { torontoParts } from "@/lib/due";
 import { RealtimeRefresh } from "@/components/dashboard/realtime-refresh";
@@ -39,26 +44,16 @@ export default async function DashboardPage() {
   const supabase = await getDb();
   const now = new Date();
 
+  // Loaders partagés avec le layout (React cache) : ces trois requêtes
+  // ne partent qu'une fois par navigation, pas deux.
   const [
     { data: board, error: boardError },
     { data: connection },
     { data: clients, error: clientsError },
   ] = await Promise.all([
-    supabase
-      .from("client_board_state")
-      .select("*")
-      .eq("agency_id", member.agency_id)
-      .eq("status", "active")
-      .order("name"),
-    supabase
-      .from("google_connections")
-      .select("status")
-      .eq("agency_id", member.agency_id)
-      .maybeSingle(),
-    supabase
-      .from("clients")
-      .select("id, primary_category, address, last_synced_at")
-      .eq("agency_id", member.agency_id),
+    getBoardState(member.agency_id),
+    getGoogleConnectionStatus(member.agency_id),
+    getClientsIndex(member.agency_id),
   ]);
   // Un échec de requête ne doit jamais se déguiser en tableau vide
   // (« rien à faire ») : on laisse error.tsx afficher l'état d'erreur.

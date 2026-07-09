@@ -1,14 +1,23 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { frCA } from "date-fns/locale";
-import { ArrowRight, CheckCircle2, ImageIcon, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  ImageIcon,
+  Sparkles,
+  Unplug,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { PostStatus } from "@/lib/types/database";
 import { POST_STATUS_LABELS_FR, postGroup } from "@/lib/posts/status";
@@ -35,12 +44,15 @@ export function PostsView({
   clients,
   posts,
   backHref,
+  hasProjects = true,
 }: {
   clients: QueueClient[];
   posts: QueuePost[];
   /** Contexte d'origine (ex. fiche projet) — propagé à l'éditeur pour
       que « retour » et l'après-approbation reviennent ici. */
   backHref?: string;
+  /** false = aucun projet connecté : l'état vide oriente vers Agence. */
+  hasProjects?: boolean;
 }) {
   const [view, setView] = useState<"queue" | "calendar">("queue");
   const postHref = (id: string) =>
@@ -66,7 +78,12 @@ export function PostsView({
       </div>
 
       {view === "queue" ? (
-        <QueueView clients={clients} posts={posts} postHref={postHref} />
+        <QueueView
+          clients={clients}
+          posts={posts}
+          postHref={postHref}
+          hasProjects={hasProjects}
+        />
       ) : (
         <CalendarView posts={posts} postHref={postHref} />
       )}
@@ -150,10 +167,12 @@ function QueueView({
   clients,
   posts,
   postHref,
+  hasProjects = true,
 }: {
   clients: QueueClient[];
   posts: QueuePost[];
   postHref: (id: string) => string;
+  hasProjects?: boolean;
 }) {
   const due = clients.filter((c) => c.remaining > 0);
   const drafts = posts.filter((p) => postGroup(p.status) === "brouillon");
@@ -169,19 +188,35 @@ function QueueView({
     <div className="flex max-w-3xl flex-col gap-8">
       {/* Zone action : ce qui attend une décision humaine. */}
       {todoCount === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-lg border border-border bg-elevated px-6 py-14 text-center">
-          <CheckCircle2 className="size-7 text-success" />
-          <p className="text-base font-medium">Rien à traiter.</p>
-          <p className="text-sm text-muted-foreground">
-            {nextScheduled?.scheduledFor
-              ? `Prochain post : ${nextScheduled.clientName}, le ${format(
-                  new Date(nextScheduled.scheduledFor),
-                  "d MMMM à HH:mm",
-                  { locale: frCA },
-                )} (publication automatique).`
-              : "La cadence du mois est couverte pour tous les clients."}
-          </p>
-        </div>
+        !hasProjects ? (
+          <EmptyState
+            icon={Unplug}
+            title="Aucun projet connecté"
+            hint={
+              <>
+                Connecte le compte Google dans{" "}
+                <a href="/settings" className="underline">
+                  Agence
+                </a>{" "}
+                — les posts se génèrent selon la cadence de chaque projet.
+              </>
+            }
+          />
+        ) : (
+          <EmptyState
+            icon={CheckCircle2}
+            title="Rien à traiter"
+            hint={
+              nextScheduled?.scheduledFor
+                ? `Prochain post : ${nextScheduled.clientName}, le ${format(
+                    new Date(nextScheduled.scheduledFor),
+                    "d MMMM à HH:mm",
+                    { locale: frCA },
+                  )} (publication automatique).`
+                : "La cadence du mois est couverte pour tous les clients."
+            }
+          />
+        )
       ) : (
         <>
           {failed.length > 0 && (
@@ -285,7 +320,21 @@ function Section({
 
 function DueClientRow({ client }: { client: QueueClient }) {
   const router = useRouter();
+  const [directive, setDirective] = useState("");
   const [pending, startTransition] = useTransition();
+
+  function generate() {
+    startTransition(async () => {
+      const result = await generatePostAction(client.id, directive);
+      if (result.ok) {
+        toast.success(`Post généré pour ${client.name}.`);
+        setDirective("");
+        router.refresh();
+      } else {
+        toast.error(result.error);
+      }
+    });
+  }
 
   return (
     <li className="flex items-center gap-3 px-4 py-2.5">
@@ -301,22 +350,23 @@ function DueClientRow({ client }: { client: QueueClient }) {
           </span>
         )}
       </div>
-      <Button
-        size="sm"
-        variant="outline"
+      {/* L'angle se donne AVANT la génération — sinon on brûle toujours
+          une génération à l'aveugle puis on régénère avec directive. */}
+      <Input
+        value={directive}
+        onChange={(event) => setDirective(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !pending) {
+            event.preventDefault();
+            generate();
+          }
+        }}
+        aria-label={`Angle du post pour ${client.name}`}
+        placeholder="Angle (optionnel) : « promo de juin »…"
+        className="h-7 w-56 text-xs"
         disabled={pending}
-        onClick={() =>
-          startTransition(async () => {
-            const result = await generatePostAction(client.id);
-            if (result.ok) {
-              toast.success(`Post généré pour ${client.name}.`);
-              router.refresh();
-            } else {
-              toast.error(result.error);
-            }
-          })
-        }
-      >
+      />
+      <Button size="sm" variant="outline" disabled={pending} onClick={generate}>
         <Sparkles />
         {pending ? "Rédaction…" : "Générer"}
       </Button>
@@ -365,10 +415,11 @@ function PostRows({
               )}
             >
               {post.imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element -- miniature Storage
-                <img
+                <Image
                   src={post.imageUrl}
                   alt=""
+                  width={80}
+                  height={80}
                   className="size-full object-cover"
                 />
               ) : (
@@ -442,10 +493,12 @@ function CalendarView({
         {format(now, "MMMM yyyy", { locale: frCA })}
       </h2>
       {byDay.size === 0 && (
-        <p className="mb-2 rounded-lg border border-dashed border-border px-4 py-3 text-center text-sm text-muted-foreground">
-          Aucun post planifié ou publié ce mois-ci — les posts approuvés
-          apparaissent ici à leur date de publication.
-        </p>
+        <EmptyState
+          size="sm"
+          className="mb-2"
+          title="Aucun post planifié ou publié ce mois-ci"
+          hint="Les posts approuvés apparaissent ici à leur date de publication."
+        />
       )}
       <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-border bg-border">
         {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((label) => (

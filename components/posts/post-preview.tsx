@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CtaType } from "@/lib/types/database";
@@ -36,17 +37,21 @@ export function PostPreview({
   return (
     <div
       className={cn(
-        "w-full max-w-sm overflow-hidden rounded-xl border border-border bg-white text-neutral-900 shadow-sm",
+        // Carte volontairement claire (réplique Google) : sur fond noir,
+        // border-border (#262626) et shadow-sm sont invisibles — le ring
+        // clair dessine la découpe.
+        "w-full max-w-sm overflow-hidden rounded-xl bg-white text-neutral-900 ring-1 ring-white/15",
         className,
       )}
     >
-      <div className="aspect-[4/3] w-full bg-neutral-100">
+      <div className="relative aspect-[4/3] w-full bg-neutral-100">
         {imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- URL Storage externe, préviz simple
-          <img
+          <Image
             src={imageUrl}
             alt=""
-            className="size-full object-cover"
+            fill
+            sizes="(max-width: 640px) 100vw, 384px"
+            className="object-cover"
           />
         ) : (
           <div className="flex size-full flex-col items-center justify-center gap-1 text-neutral-400">

@@ -13,7 +13,30 @@ import type { Client } from "@/lib/types/database";
 // contenu AI → image AI (OpenAI, repli Gemini) → sharp 1200×900 JPEG 85 →
 // Storage → ligne `posts` en draft (ou scheduled si auto_publish_posts).
 
-const IMAGE_BUCKET = "post-images";
+export const IMAGE_BUCKET = "post-images";
+
+/** Horodatage extrait d'un nom versionné `<postId>-<ts>.jpg` (0 = legacy). */
+export function imageVersionTime(name: string): number {
+  const match = name.match(/-(\d+)\.jpg$/);
+  return match ? Number(match[1]) : 0;
+}
+
+/** Toutes les versions d'image d'un post, la plus récente d'abord. */
+export async function listImageVersions(
+  supabase: Awaited<ReturnType<typeof getDb>>,
+  clientId: string,
+  postId: string,
+): Promise<string[]> {
+  const { data: files } = await supabase.storage
+    .from(IMAGE_BUCKET)
+    .list(clientId, { search: postId });
+  return (files ?? [])
+    .filter(
+      (f) => f.name === `${postId}.jpg` || f.name.startsWith(`${postId}-`),
+    )
+    .sort((a, b) => imageVersionTime(b.name) - imageVersionTime(a.name))
+    .map((f) => f.name);
+}
 
 export async function processAndUploadImage(
   raw: Buffer,
@@ -26,14 +49,25 @@ export async function processAndUploadImage(
     .jpeg({ quality: 85 })
     .toBuffer();
 
-  const path = `${clientId}/${postId}.jpg`;
+  // Clé versionnée : « générer une autre image » n'écrase plus la
+  // précédente (revert possible), et l'URL change à chaque version —
+  // fini le cache CDN qui sert l'ancienne image.
+  const path = `${clientId}/${postId}-${Date.now()}.jpg`;
   const { error } = await supabase.storage
     .from(IMAGE_BUCKET)
-    .upload(path, jpeg, { contentType: "image/jpeg", upsert: true });
+    .upload(path, jpeg, { contentType: "image/jpeg" });
   if (error) {
     console.error("Upload image post:", error.message);
     return null;
   }
+
+  // Ménage : la version courante + une précédente suffisent.
+  const versions = await listImageVersions(supabase, clientId, postId);
+  const extra = versions.slice(2).map((name) => `${clientId}/${name}`);
+  if (extra.length) {
+    await supabase.storage.from(IMAGE_BUCKET).remove(extra);
+  }
+
   return path;
 }
 
@@ -47,6 +81,7 @@ export async function generatePostForClient(
   client: Client,
   actor: string,
   now: Date = new Date(),
+  directive?: string,
 ): Promise<GeneratedPost> {
   const supabase = await getDb();
 
@@ -85,6 +120,7 @@ export async function generatePostForClient(
       p.angle ? `[angle : ${p.angle}] ${p.summary}` : p.summary,
     ),
     now,
+    directive,
   });
 
   const { data: inserted, error: insertError } = await supabase
