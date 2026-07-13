@@ -8,12 +8,6 @@ const supabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
   : null;
 
 const nextConfig: NextConfig = {
-  // Le tracing de Vercel perd les binaires natifs de sharp (layout pnpm
-  // + deux versions de sharp : la nôtre 0.35 et celle de next 0.34) —
-  // sans eux, generatePostForClient explose au resize d'image en prod.
-  outputFileTracingIncludes: {
-    "/**/*": ["./node_modules/.pnpm/@img+*/**/*"],
-  },
   images: {
     remotePatterns: [
       ...(supabaseHost
