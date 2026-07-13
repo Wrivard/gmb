@@ -90,8 +90,34 @@ export function PostsView({
     );
   }
 
-  const drafts = posts.filter((p) => postGroup(p.status) === "brouillon");
-  const failed = posts.filter((p) => postGroup(p.status) === "echec");
+  return (
+    <FilteredPipeline clients={clients} posts={posts} postHref={postHref} />
+  );
+}
+
+function FilteredPipeline({
+  clients,
+  posts,
+  postHref,
+}: {
+  clients: QueueClient[];
+  posts: QueuePost[];
+  postHref: (id: string) => string;
+}) {
+  const single = clients.length === 1;
+  // Le projet choisi dans ① filtre TOUTE la page : projet A coché →
+  // seulement les posts de A dans « À réviser » et le calendrier.
+  const [filterId, setFilterId] = useState<string>(
+    single ? clients[0].id : "all",
+  );
+  const filtered =
+    filterId === "all" ? posts : posts.filter((p) => p.clientId === filterId);
+  const filteredClients =
+    filterId === "all" ? clients : clients.filter((c) => c.id === filterId);
+  const filterName = clients.find((c) => c.id === filterId)?.name;
+
+  const drafts = filtered.filter((p) => postGroup(p.status) === "brouillon");
+  const failed = filtered.filter((p) => postGroup(p.status) === "echec");
 
   return (
     <div className="flex max-w-4xl flex-col gap-8">
@@ -101,7 +127,13 @@ export function PostsView({
           title="Nouvelle idée"
           hint="L'angle et la date se donnent AVANT la génération — le texte et l'image arrivent prêts à réviser."
         />
-        <IdeaComposer clients={clients} />
+        <IdeaComposer
+          clients={clients}
+          batchClients={filteredClients}
+          filterId={filterId}
+          onFilterChange={setFilterId}
+          single={single}
+        />
       </motion.div>
 
       <motion.div {...sectionMotion(1)}>
@@ -114,7 +146,9 @@ export function PostsView({
         {failed.length + drafts.length === 0 ? (
           <EmptyState
             size="sm"
-            title="Rien à réviser"
+            title={
+              filterName ? `Rien à réviser pour ${filterName}` : "Rien à réviser"
+            }
             hint="Les brouillons générés apparaissent ici, avec leur date suggérée."
           />
         ) : (
@@ -138,9 +172,13 @@ export function PostsView({
         <StepHeader
           step={3}
           title="Calendrier"
-          hint="Brouillons à leur date suggérée, posts planifiés (publication automatique) et publiés."
+          hint={
+            filterName
+              ? `Les posts de ${filterName} seulement — brouillons, planifiés, publiés.`
+              : "Brouillons à leur date suggérée, posts planifiés (publication automatique) et publiés."
+          }
         />
-        <CalendarView posts={posts} postHref={postHref} />
+        <CalendarView posts={filtered} postHref={postHref} />
       </motion.div>
     </div>
   );
@@ -179,17 +217,34 @@ function StepHeader({
 
 /* ── ① Nouvelle idée ─────────────────────────────────────────────── */
 
-function IdeaComposer({ clients }: { clients: QueueClient[] }) {
+function IdeaComposer({
+  clients,
+  batchClients,
+  filterId,
+  onFilterChange,
+  single,
+}: {
+  clients: QueueClient[];
+  /** Cible du lot « générer tous les posts dus » — suit le filtre. */
+  batchClients: QueueClient[];
+  filterId: string;
+  onFilterChange: (id: string) => void;
+  single: boolean;
+}) {
   const router = useRouter();
-  const [clientId, setClientId] = useState(
-    () => clients.find((c) => c.remaining > 0)?.id ?? clients[0]?.id ?? "",
-  );
   const [directive, setDirective] = useState("");
   const [date, setDate] = useState("");
   const [pending, startTransition] = useTransition();
 
+  const clientId = filterId === "all" ? "" : filterId;
   const selected = clients.find((c) => c.id === clientId);
-  const single = clients.length === 1;
+
+  // Base UI n'affiche le label du choix (au lieu de la valeur brute —
+  // ici un UUID) que si le root reçoit `items`.
+  const selectItems = [
+    { value: "all", label: "Tous les projets" },
+    ...clients.map((client) => ({ value: client.id, label: client.name })),
+  ];
 
   // L'image se génère côté serveur APRÈS la réponse : on repasse chercher
   // le résultat sans que l'utilisateur ait à rafraîchir lui-même.
@@ -232,18 +287,20 @@ function IdeaComposer({ clients }: { clients: QueueClient[] }) {
     <div className="rounded-lg border border-border bg-elevated p-4">
       <div className="flex flex-wrap items-end gap-3">
         {!single && (
-          <div className="flex w-56 flex-col gap-1.5">
+          <div className="flex w-60 flex-col gap-1.5">
             <Label htmlFor="idea-client" className="text-xs">
               Projet
             </Label>
             <Select
-              value={clientId}
-              onValueChange={(value) => value && setClientId(value)}
+              items={selectItems}
+              value={filterId}
+              onValueChange={(value) => value && onFilterChange(value)}
             >
               <SelectTrigger id="idea-client" className="w-full">
                 <SelectValue placeholder="Choisir un projet" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="all">Tous les projets</SelectItem>
                 {clients.map((client) => (
                   <SelectItem key={client.id} value={client.id}>
                     {client.name}
@@ -299,7 +356,7 @@ function IdeaComposer({ clients }: { clients: QueueClient[] }) {
         </Button>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
-        {selected && (
+        {selected ? (
           <p className="text-xs text-muted-foreground">
             {selected.remaining > 0 ? (
               <>
@@ -316,8 +373,12 @@ function IdeaComposer({ clients }: { clients: QueueClient[] }) {
               "Cadence du mois couverte — un post de plus reste possible."
             )}
           </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Choisis un projet pour générer un post — la page se filtre sur lui.
+          </p>
         )}
-        <BatchGenerateButton clients={clients} />
+        <BatchGenerateButton clients={batchClients} />
       </div>
     </div>
   );
@@ -516,12 +577,10 @@ function PostRows({
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-baseline gap-2">
-              <span className="text-sm">{post.clientName}</span>
-              <span className="truncate text-xs text-muted-foreground">
-                {post.summary}
-              </span>
-            </div>
+            <p className="truncate text-sm font-medium">{post.clientName}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {post.summary}
+            </p>
             {post.publishError && (
               <p className="mt-0.5 line-clamp-1 text-xs text-destructive">
                 {post.publishError}
