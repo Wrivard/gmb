@@ -11,6 +11,27 @@ const DEFAULT_OPENAI_IMAGE_MODEL = "gpt-image-1";
 const DEFAULT_GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image";
 const TIMEOUT_MS = 60_000;
 
+// Garde-fous appliqués à TOUTE image (génération initiale, régénération
+// avec directive) — au niveau provider, pas au bon vouloir du LLM qui
+// rédige le prompt de scène. Objectif : une photo qui passe pour une
+// vraie photo de terrain, jamais pour du contenu généré par IA.
+const IMAGE_STYLE =
+  "Candid documentary-style photograph, as if taken on-site by a " +
+  "professional photographer with a DSLR and a 35mm lens. Natural ambient " +
+  "lighting, realistic textures and materials, natural muted color " +
+  "grading, believable depth of field, authentic real-world imperfections.";
+const IMAGE_CONSTRAINTS =
+  "STRICT RULES: absolutely no text of any kind — no letters, words, " +
+  "numbers, readable signage, labels, captions or watermarks. No logos, " +
+  "no brand names, no branded products, vehicles or uniforms. No close-up " +
+  "human faces. Nothing staged, oversaturated, overly clean, plastic-" +
+  "looking or otherwise recognizable as AI-generated or stock photography.";
+
+/** Prompt final envoyé aux providers : scène + style réaliste + interdits. */
+export function finalizeImagePrompt(scene: string): string {
+  return `${scene.trim().replace(/\.+$/, "")}. ${IMAGE_STYLE} ${IMAGE_CONSTRAINTS}`;
+}
+
 /**
  * OpenAI Images API. gpt-image-1 (le modèle d'images de ChatGPT) exige
  * une organisation vérifiée sur platform.openai.com — sinon 403, et on
@@ -22,7 +43,7 @@ async function openaiImage(prompt: string): Promise<Buffer | null> {
 
   const body = JSON.stringify({
     model: process.env.OPENAI_IMAGE_MODEL || DEFAULT_OPENAI_IMAGE_MODEL,
-    prompt: `${prompt}. Landscape orientation, photorealistic, high quality.`,
+    prompt: `${prompt} Landscape orientation.`,
     // Seul format paysage de gpt-image-1 (3:2) — sharp recadre en 1200×900.
     size: "1536x1024",
     // « medium » ≈ 0,06 $/image; « high » ≈ 0,25 $ — garder le contrôle du coût.
@@ -76,7 +97,7 @@ async function geminiImage(prompt: string): Promise<Buffer | null> {
       {
         parts: [
           {
-            text: `${prompt}. Aspect ratio 4:3, landscape orientation, photorealistic, high quality.`,
+            text: `${prompt} Aspect ratio 4:3, landscape orientation.`,
           },
         ],
       },
@@ -128,5 +149,6 @@ async function geminiImage(prompt: string): Promise<Buffer | null> {
 export async function generatePostImage(
   prompt: string,
 ): Promise<Buffer | null> {
-  return (await openaiImage(prompt)) ?? (await geminiImage(prompt));
+  const full = finalizeImagePrompt(prompt);
+  return (await openaiImage(full)) ?? (await geminiImage(full));
 }

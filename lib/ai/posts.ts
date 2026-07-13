@@ -60,7 +60,7 @@ RÈGLES
 2. Choisis UN angle différent des derniers posts : conseil saisonnier lié au métier / service mis de l'avant / pourquoi choisir cette entreprise / rappel pratique / réalité du métier ce mois-ci au Québec.
 3. Structure : accroche concrète → valeur réelle pour le lecteur (pas du remplissage) → invitation douce à l'action.
 4. Ton : ${profile.tone ?? "chaleureux et professionnel"}. Maximum 2 émojis, zéro hashtag. Aucun prix, aucune promotion, aucune date d'événement inventés.
-5. Génère aussi un prompt d'image EN ANGLAIS pour un modèle de génération d'image : photo réaliste, liée au sujet du post et à la saison québécoise, esthétique premium sobre, lumière naturelle, SANS texte incrusté, sans logo, sans visage en gros plan.
+5. Génère aussi un prompt d'image EN ANGLAIS pour un modèle de génération d'image. Décris UNE scène documentaire crédible et SPÉCIFIQUE, comme une vraie photo prise sur le terrain : directement liée au sujet et à l'angle du post, au métier (${profile.vertical ?? "les services de l'entreprise"}) et à un décor plausible de ${profile.city ?? "la région"} au Québec en ${seasonFr(month)}. Décris concrètement le lieu, les matériaux, l'action en cours, l'heure du jour et la lumière. INTERDITS dans la scène décrite : tout texte ou lettrage visible (enseignes, affiches, étiquettes), logos et marques (produits, véhicules, uniformes), visages humains en gros plan, composition générique de banque d'images.
 
 Réponds UNIQUEMENT avec ce JSON :
 {"summary": "...", "cta_type": "LEARN_MORE|CALL", "image_prompt": "...", "angle": "..."}`;
@@ -79,7 +79,7 @@ function stubPostContent(
   return {
     summary: `L'${season} est là — le bon moment pour penser à ${vertical} à ${city}. Chez ${client.name}, on prend le temps de bien faire les choses : ${(profile.services_cles ?? ["un service fiable"]).slice(0, 2).join(" et ")}, avec ${(profile.arguments ?? ["une équipe d'expérience"])[0]}. Contactez-nous pour en discuter — ça nous fera plaisir de vous conseiller. ${profile.signature ?? `L'équipe ${client.name}`}`,
     ctaType: client.website ? "LEARN_MORE" : "CALL",
-    imagePrompt: `Realistic photo related to ${vertical} in Quebec during ${season}, premium sober aesthetic, natural light, no text, no logo`,
+    imagePrompt: `A work scene related to ${vertical} in a ${city} neighbourhood in Quebec during ${season}, tools and materials of the trade visible, natural light`,
     angle: `conseil saisonnier (${season})`,
     generatedByAi: false,
   };
