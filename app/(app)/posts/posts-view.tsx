@@ -139,6 +139,13 @@ function FilteredPipeline({
           title="Nouvelle idée"
           hint="L'angle et la date se donnent AVANT la génération — le texte et l'image arrivent prêts à réviser."
         />
+        {!single && (
+          <DueStrip
+            clients={clients}
+            filterId={filterId}
+            onFilterChange={setFilterId}
+          />
+        )}
         <IdeaComposer
           clients={clients}
           batchClients={filteredClients}
@@ -228,6 +235,76 @@ function StepHeader({
 }
 
 /* ── ① Nouvelle idée ─────────────────────────────────────────────── */
+
+/**
+ * Les projets qui attendent des posts, en un coup d'œil — cliquer une
+ * puce sélectionne le projet (et filtre toute la page), re-cliquer
+ * revient à « Tous ». Même langage couleur que la couverture de
+ * cadence : ambre = dû, rouge = en retard.
+ */
+function DueStrip({
+  clients,
+  filterId,
+  onFilterChange,
+}: {
+  clients: QueueClient[];
+  filterId: string;
+  onFilterChange: (id: string) => void;
+}) {
+  const due = [...clients]
+    .filter((client) => client.remaining > 0)
+    .sort(
+      (a, b) =>
+        Number(b.late) - Number(a.late) ||
+        b.remaining - a.remaining ||
+        a.name.localeCompare(b.name),
+    );
+
+  if (!due.length) {
+    return (
+      <p className="mb-2 text-xs text-muted-foreground">
+        Cadence du mois couverte pour tous les projets.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mb-2 flex flex-wrap items-center gap-1.5">
+      {due.map((client) => {
+        const active = filterId === client.id;
+        return (
+          <button
+            key={client.id}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onFilterChange(active ? "all" : client.id)}
+            className={cn(
+              "flex items-center gap-2 rounded-full border py-1 pr-1.5 pl-3 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+              active
+                ? "border-ring bg-muted text-foreground"
+                : "border-border bg-elevated text-muted-foreground hover:bg-hover hover:text-foreground",
+            )}
+          >
+            <span className="max-w-44 truncate font-medium">
+              {client.name}
+            </span>
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums",
+                client.late
+                  ? "bg-destructive/15 text-destructive"
+                  : "bg-warning/15 text-warning",
+              )}
+            >
+              {client.remaining} dû{client.remaining > 1 ? "s" : ""}
+              {client.late && " · retard"}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function IdeaComposer({
   clients,
