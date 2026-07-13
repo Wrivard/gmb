@@ -132,7 +132,7 @@ function FilteredPipeline({
   }, [hasPendingImage, router]);
 
   return (
-    <div className="flex max-w-4xl flex-col gap-8">
+    <div className="flex max-w-4xl flex-col gap-10">
       <motion.div {...sectionMotion(0)}>
         <StepHeader
           step={1}
@@ -215,7 +215,7 @@ function StepHeader({
   hint?: string;
 }) {
   return (
-    <div className="mb-2 flex items-baseline gap-2">
+    <div className="mb-3 flex items-baseline gap-2">
       <span className="flex size-5 shrink-0 translate-y-0.5 items-center justify-center rounded-full bg-muted text-xs font-semibold tabular-nums text-muted-foreground">
         {step}
       </span>
@@ -269,7 +269,7 @@ function DueStrip({
   }
 
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-1.5">
+    <div className="mb-3 flex flex-wrap items-center gap-2">
       {due.map((client) => {
         const active = filterId === client.id;
         return (
@@ -409,8 +409,8 @@ function IdeaComposer({
   }
 
   return (
-    <div className="rounded-lg border border-border bg-elevated p-4">
-      <div className="flex flex-wrap items-end gap-3">
+    <div className="rounded-lg border border-border bg-elevated p-5">
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-4">
         {!single && (
           <div className="flex w-60 flex-col gap-1.5">
             <Label htmlFor="idea-client" className="text-xs">
@@ -438,10 +438,13 @@ function IdeaComposer({
           </div>
         )}
         <div className="flex min-w-48 flex-1 flex-col gap-1.5">
-          <Label htmlFor="idea-directive" className="text-xs">
+          <Label
+            htmlFor="idea-directive"
+            className="text-xs whitespace-nowrap"
+          >
             Idée / angle{" "}
             <span className="font-normal text-muted-foreground">
-              (optionnel — une virgule = un post de plus)
+              (optionnel)
             </span>
           </Label>
           <Input
@@ -459,7 +462,7 @@ function IdeaComposer({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="idea-date" className="text-xs">
+          <Label htmlFor="idea-date" className="text-xs whitespace-nowrap">
             Publication{" "}
             <span className="font-normal text-muted-foreground">
               {multi ? "(auto en mode lot)" : "(auto si vide)"}
@@ -492,7 +495,7 @@ function IdeaComposer({
         </Button>
       </div>
       {multi && !pending && (
-        <p className="mt-2 text-xs text-muted-foreground">
+        <p className="mt-3 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">
             {ideas.length} posts
           </span>{" "}
@@ -505,7 +508,7 @@ function IdeaComposer({
           {" — "}dates suggérées automatiquement.
         </p>
       )}
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5">
         {selected ? (
           <p className="text-xs text-muted-foreground">
             {selected.remaining > 0 ? (
@@ -526,6 +529,11 @@ function IdeaComposer({
         ) : (
           <p className="text-xs text-muted-foreground">
             Choisis un projet pour générer un post — la page se filtre sur lui.
+          </p>
+        )}
+        {!multi && (
+          <p className="text-xs text-muted-foreground/70">
+            Plusieurs idées ? Sépare-les par des virgules — un post par idée.
           </p>
         )}
         <BatchGenerateButton clients={batchClients} />
@@ -706,7 +714,7 @@ function PostRows({
       {posts.map((post) => (
         <li
           key={post.id}
-          className="group flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors hover:bg-hover/50"
+          className="group flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-hover/50"
           onClick={() => router.push(postHref(post.id))}
         >
           <div className="size-10 shrink-0 overflow-hidden rounded bg-muted">
@@ -791,7 +799,7 @@ function CalendarView({
 
   return (
     <div>
-      <div className="mb-2 flex items-center gap-1">
+      <div className="mb-3 flex items-center gap-1">
         <h3 className="text-sm font-medium capitalize text-muted-foreground">
           {format(shown, "MMMM yyyy", { locale: frCA })}
         </h3>
@@ -832,7 +840,7 @@ function CalendarView({
           <div key={`pad-${i}`} className="min-h-24 bg-background" />
         ))}
         {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => (
-          <div key={day} className="min-h-24 bg-elevated p-1.5">
+          <div key={day} className="min-h-24 bg-elevated p-2">
             <span
               className={cn(
                 "text-xs",
@@ -869,7 +877,7 @@ function CalendarView({
           </div>
         ))}
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">
+      <p className="mt-3 text-xs text-muted-foreground">
         <span className="mr-3 inline-flex items-center gap-1.5">
           <span className="inline-block size-2 rounded-sm border border-dashed border-border" />
           brouillon (date suggérée)

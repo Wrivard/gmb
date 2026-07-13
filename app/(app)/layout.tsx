@@ -96,7 +96,7 @@ export default async function AppLayout({
           dataUnavailable={dataUnavailable}
         />
         <Topbar />
-        <main className="mx-auto max-w-[1400px] px-6 py-6">{children}</main>
+        <main className="mx-auto max-w-[1400px] px-6 py-8">{children}</main>
       </div>
       <CommandPalette clients={paletteClients} />
     </div>

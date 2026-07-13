@@ -80,12 +80,12 @@ export function GrowthView({ growth }: { growth: ClientGrowth }) {
     : null;
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="grid gap-2 sm:grid-cols-3">
+    <div className="flex flex-col gap-3">
+      <div className="grid gap-3 sm:grid-cols-3">
         {/* Note moyenne — la métrique maîtresse */}
         <motion.div
           {...cardMotion(0)}
-          className="rounded-lg border border-border bg-elevated px-4 py-3"
+          className="rounded-lg border border-border bg-elevated p-4"
         >
           <p className="text-xs text-muted-foreground">Note moyenne</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums">
@@ -166,7 +166,7 @@ export function GrowthView({ growth }: { growth: ClientGrowth }) {
         {/* Volume de reviews */}
         <motion.div
           {...cardMotion(1)}
-          className="rounded-lg border border-border bg-elevated px-4 py-3"
+          className="rounded-lg border border-border bg-elevated p-4"
         >
           <p className="text-xs text-muted-foreground">Reviews reçues / mois</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums">
@@ -213,7 +213,7 @@ export function GrowthView({ growth }: { growth: ClientGrowth }) {
         {/* Réponses aux avis */}
         <motion.div
           {...cardMotion(2)}
-          className="rounded-lg border border-border bg-elevated px-4 py-3"
+          className="rounded-lg border border-border bg-elevated p-4"
         >
           <p className="text-xs text-muted-foreground">Réponses aux avis</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums">
@@ -245,7 +245,7 @@ export function GrowthView({ growth }: { growth: ClientGrowth }) {
       {/* Couverture de la cadence */}
       <motion.div
         {...cardMotion(3)}
-        className="rounded-lg border border-border bg-elevated px-4 py-3"
+        className="rounded-lg border border-border bg-elevated p-4"
       >
         <div className="flex items-baseline justify-between">
           <p className="text-xs text-muted-foreground">

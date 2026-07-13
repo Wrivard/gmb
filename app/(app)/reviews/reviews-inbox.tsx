@@ -513,11 +513,11 @@ export function ReviewsInbox({
         )
       ) : (
         <>
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-7">
           {groups.map((group) => (
             <section key={group.clientId}>
               {groupByClient && (
-                <div className="mb-2 flex items-baseline gap-2">
+                <div className="mb-2.5 flex items-baseline gap-2">
                   <h2 className="text-sm font-semibold tracking-tight">
                     {group.clientName}
                   </h2>
