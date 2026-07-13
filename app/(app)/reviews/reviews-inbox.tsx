@@ -168,7 +168,7 @@ export function ReviewsInbox({
     return counts;
   }, [merged]);
 
-  const visible = useMemo(() => {
+  const sorted = useMemo(() => {
     const filtered = merged.filter((review) => {
       if (statusFilter === "pending" && !isPending(review.status))
         return false;
@@ -204,6 +204,39 @@ export function ReviewsInbox({
       return ga < 3 ? ta - tb : tb - ta;
     });
   }, [merged, statusFilter, ratingFilter, clientFilter, mineOnly, mySet]);
+
+  // Sections par projet : l'identité de l'entreprise porte la hiérarchie
+  // visuelle. L'ordre des groupes suit le tri global (le groupe qui
+  // contient la review la plus urgente passe en premier) et le tri par
+  // gravité survit À L'INTÉRIEUR de chaque groupe — on ne perd rien du
+  // triage. En contexte mono-projet (onglet Reviews d'une fiche), pas
+  // d'en-têtes : le nom est déjà dans le header de la page.
+  const groupByClient = useMemo(
+    () => new Set(merged.map((r) => r.clientId)).size > 1,
+    [merged],
+  );
+  const groups = useMemo(() => {
+    const map = new Map<
+      string,
+      { clientId: string; clientName: string; reviews: InboxReview[] }
+    >();
+    for (const review of sorted) {
+      const group = map.get(review.clientId) ?? {
+        clientId: review.clientId,
+        clientName: review.clientName,
+        reviews: [],
+      };
+      group.reviews.push(review);
+      map.set(review.clientId, group);
+    }
+    return [...map.values()];
+  }, [sorted]);
+
+  // Ordre plat pour la navigation (j/k, auto-avance) = ordre d'affichage.
+  const visible = useMemo(
+    () => groups.flatMap((group) => group.reviews),
+    [groups],
+  );
 
   const applyOverride = useCallback(
     (id: string, patch: Partial<InboxReview> | null) => {
@@ -358,11 +391,18 @@ export function ReviewsInbox({
             Mes projets
           </label>
         )}
+        {/* `items` sur le root : sans lui, Base UI affiche la VALEUR brute
+            (« all », un UUID…) dans le déclencheur fermé. */}
         <Select
+          items={[
+            { value: "all", label: "Tous les projets" },
+            ...clients.map(([id, name]) => ({ value: id, label: name })),
+          ]}
           value={clientFilter}
           onValueChange={(v) => {
-            setClientFilter(v as string);
-            persistFilter("projet", v as string, "all");
+            if (!v) return;
+            setClientFilter(v);
+            persistFilter("projet", v, "all");
           }}
         >
           <SelectTrigger size="sm">
@@ -382,10 +422,16 @@ export function ReviewsInbox({
         </Select>
 
         <Select
+          items={[
+            { value: "all", label: "Toutes les notes" },
+            { value: "high", label: "4–5 ★" },
+            { value: "low", label: "1–3 ★" },
+          ]}
           value={ratingFilter}
           onValueChange={(v) => {
+            if (!v) return;
             setRatingFilter(v as RatingFilter);
-            persistFilter("note", v as string, "all");
+            persistFilter("note", v, "all");
           }}
         >
           <SelectTrigger size="sm">
@@ -467,38 +513,64 @@ export function ReviewsInbox({
         )
       ) : (
         <>
-        <ul className="flex flex-col gap-2">
-          <AnimatePresence initial={false}>
-            {visible.map((review) => (
-              <motion.li
-                key={review.id}
-                // FLIP mesure chaque ligne à chaque changement de liste :
-                // au-delà de ~60 items le coût dépasse le bénéfice visuel.
-                layout={visible.length <= 60}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.18 }}
-              >
-                <ReviewItem
-                  review={review}
-                  selected={selectedId === review.id}
-                  onSelect={() => {
-                    // Ouvrir/fermer démonte le panneau courant : ne pas
-                    // jeter un brouillon édité sans prévenir.
-                    if (!confirmIfUnsaved()) return;
-                    setSelectedId((current) =>
-                      current === review.id ? null : review.id,
-                    );
-                  }}
-                  onOverride={applyOverride}
-                  onDone={advanceFrom}
-                  onRestore={restoreSelection}
-                />
-              </motion.li>
-            ))}
-          </AnimatePresence>
-        </ul>
+        <div className="flex flex-col gap-5">
+          {groups.map((group) => (
+            <section key={group.clientId}>
+              {groupByClient && (
+                <div className="mb-2 flex items-baseline gap-2">
+                  <h2 className="text-sm font-semibold tracking-tight">
+                    {group.clientName}
+                  </h2>
+                  {(pendingByClient.get(group.clientId) ?? 0) > 0 && (
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {pendingByClient.get(group.clientId)} en attente
+                    </span>
+                  )}
+                  <a
+                    href={`/clients/${group.clientId}?tab=reviews`}
+                    className="ml-auto text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+                  >
+                    Voir le projet
+                  </a>
+                </div>
+              )}
+              <ul className="flex flex-col gap-2">
+                <AnimatePresence initial={false}>
+                  {group.reviews.map((review) => (
+                    <motion.li
+                      key={review.id}
+                      // FLIP mesure chaque ligne à chaque changement de
+                      // liste : au-delà de ~60 items le coût dépasse le
+                      // bénéfice visuel.
+                      layout={visible.length <= 60}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.18 }}
+                    >
+                      <ReviewItem
+                        review={review}
+                        showClientName={!groupByClient}
+                        selected={selectedId === review.id}
+                        onSelect={() => {
+                          // Ouvrir/fermer démonte le panneau courant : ne
+                          // pas jeter un brouillon édité sans prévenir.
+                          if (!confirmIfUnsaved()) return;
+                          setSelectedId((current) =>
+                            current === review.id ? null : review.id,
+                          );
+                        }}
+                        onOverride={applyOverride}
+                        onDone={advanceFrom}
+                        onRestore={restoreSelection}
+                      />
+                    </motion.li>
+                  ))}
+                </AnimatePresence>
+              </ul>
+            </section>
+          ))}
+        </div>
         {loadMoreHref && (
           <p className="py-2 text-center text-xs text-muted-foreground">
             Historique limité aux {historyLimit} reviews traitées les plus
@@ -519,6 +591,7 @@ export function ReviewsInbox({
 
 function ReviewItem({
   review,
+  showClientName = true,
   selected,
   onSelect,
   onOverride,
@@ -526,6 +599,8 @@ function ReviewItem({
   onRestore,
 }: {
   review: InboxReview;
+  /** false quand la liste est sectionnée par projet (nom dans l'en-tête). */
+  showClientName?: boolean;
   selected: boolean;
   onSelect: () => void;
   onOverride: (id: string, patch: Partial<InboxReview> | null) => void;
@@ -569,9 +644,11 @@ function ReviewItem({
               {review.reviewerName ?? "Utilisateur Google"}
             </span>
             <StarRating value={review.starRating} size="sm" />
-            <span className="text-xs text-muted-foreground">
-              {review.clientName}
-            </span>
+            {showClientName && (
+              <span className="text-xs text-muted-foreground">
+                {review.clientName}
+              </span>
+            )}
             {review.wasUpdated && (
               <Badge variant="secondary">Avis modifié</Badge>
             )}
