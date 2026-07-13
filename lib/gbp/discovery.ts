@@ -121,6 +121,8 @@ export async function runDiscovery(
 
   let disconnected = 0;
   for (const client of allClients ?? []) {
+    // Créé à la main, pas encore de fiche liée : rien à « perdre ».
+    if (!client.gbp_location_id) continue;
     if (!seenLocationIds.has(client.gbp_location_id)) {
       await supabase
         .from("clients")

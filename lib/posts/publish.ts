@@ -56,6 +56,18 @@ export async function publishPost(
   if (!client) {
     return { ok: false, error: "Client introuvable." };
   }
+  // Projet créé à la main, fiche Google pas encore liée : impossible de
+  // publier — remettre le post dans son statut plutôt que d'appeler
+  // l'API avec un resource name « null/null ».
+  if (!client.gbp_account_id || !client.gbp_location_id) {
+    const error =
+      "Aucune fiche Google liée à ce projet — connecte le compte Google d'abord.";
+    await supabase
+      .from("posts")
+      .update({ status: "failed", publish_error: error })
+      .eq("id", post.id);
+    return { ok: false, error };
+  }
 
   try {
     const input: LocalPostInput = {

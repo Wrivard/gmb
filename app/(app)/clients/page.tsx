@@ -15,8 +15,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ClientActiveToggle } from "@/app/(app)/settings/client-toggle";
+import { Button } from "@/components/ui/button";
 import { GoldStar } from "@/components/reviews/star-rating";
 import { isBrandProfileIncomplete } from "@/lib/clients/brand-profile";
+import { onboardingProgress } from "@/lib/onboarding/steps";
+import { Plus } from "lucide-react";
 import { AssigneeSelect } from "./assignee-select";
 import { CadenceSelect } from "./cadence-select";
 
@@ -39,6 +42,8 @@ interface ProjectRow {
   coverage: { done: number; target: number } | null;
   assigneeMemberId: string | null;
   profileIncomplete: boolean;
+  /** Score d'optimisation de la fiche (null = 100 %, rien à afficher). */
+  onboardingPct: number | null;
   status: "active" | "paused" | "disconnected";
   cadence: {
     id: string;
@@ -80,6 +85,7 @@ export default async function ClientsPage() {
             : null,
         assigneeMemberId: null,
         profileIncomplete: false,
+        onboardingPct: null,
         status: client.status,
         cadence: {
           id: client.id,
@@ -170,6 +176,10 @@ export default async function ClientsPage() {
             : null,
         assigneeMemberId: client.assignee_member_id,
         profileIncomplete: isBrandProfileIncomplete(client.brand_profile),
+        onboardingPct: (() => {
+          const progress = onboardingProgress(client.onboarding);
+          return progress.complete ? null : progress.pct;
+        })(),
         status: client.status as ProjectRow["status"],
         cadence: {
           id: client.id,
@@ -186,11 +196,23 @@ export default async function ClientsPage() {
   return (
     <div className="flex flex-col gap-5">
       {demo && <DemoBanner />}
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Projets</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Une ligne par projet : sa note, son mandat, ce qui l&apos;attend.
-        </p>
+      <div className="flex flex-wrap items-start gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Projets</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Une ligne par projet : sa note, son mandat, ce qui l&apos;attend.
+          </p>
+        </div>
+        {!demo && (
+          <Button
+            size="sm"
+            className="ml-auto"
+            render={<Link href="/clients/new" />}
+          >
+            <Plus />
+            Nouveau projet
+          </Button>
+        )}
       </div>
 
       {rows.length ? (
@@ -226,10 +248,18 @@ export default async function ClientsPage() {
                     {[row.category, row.address].filter(Boolean).join(" · ") ||
                       "—"}
                   </div>
+                  {row.onboardingPct !== null && (
+                    <Link
+                      href={`/clients/${row.id}/onboarding`}
+                      className="block text-xs text-warning underline-offset-2 hover:underline"
+                    >
+                      Fiche optimisée à {row.onboardingPct} % — continuer
+                    </Link>
+                  )}
                   {row.profileIncomplete && (
                     <Link
                       href={`/clients/${row.id}?tab=settings`}
-                      className="text-xs text-warning underline-offset-2 hover:underline"
+                      className="block text-xs text-warning underline-offset-2 hover:underline"
                     >
                       Profil incomplet — les drafts AI seront génériques
                     </Link>

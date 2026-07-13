@@ -43,6 +43,8 @@ export async function GET(request: NextRequest) {
   // Clients groupés par compte; le batch v4 veut les resource names complets.
   const byAccount = new Map<string, Client[]>();
   for (const client of clients) {
+    // Créé à la main, fiche pas encore liée : rien à synchroniser.
+    if (!client.gbp_account_id || !client.gbp_location_id) continue;
     const list = byAccount.get(client.gbp_account_id) ?? [];
     list.push(client);
     byAccount.set(client.gbp_account_id, list);

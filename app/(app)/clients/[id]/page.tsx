@@ -8,6 +8,7 @@ import { isLate, remainingPosts } from "@/lib/due";
 import { HISTORY_PAGE, loadInboxReviews } from "@/lib/reviews/inbox";
 import { loadClientQueue } from "@/lib/posts/queue";
 import { loadClientGrowth } from "@/lib/clients/growth";
+import { onboardingProgress } from "@/lib/onboarding/steps";
 import { GrowthView } from "@/components/clients/growth-view";
 import {
   ACTION_LABELS,
@@ -266,6 +267,30 @@ export default async function ClientDetailPage({
           </Link>
         </span>
       </div>
+
+      {/* Onboarding inachevé : le rappel vit sur le projet lui-même,
+          pas seulement dans la liste — personne ne « passe à côté ». */}
+      {(() => {
+        const progress = onboardingProgress(client.onboarding);
+        if (progress.complete) return null;
+        return (
+          <Link
+            href={`/clients/${client.id}/onboarding`}
+            className="group flex items-center gap-3 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm transition-colors hover:bg-warning/15"
+          >
+            <span className="font-medium text-warning">
+              Fiche optimisée à {progress.pct} %
+            </span>
+            <span className="text-muted-foreground">
+              {progress.done}/{progress.total} points de la checklist —
+              l&apos;optimisation initiale est ce qui fait ranker.
+            </span>
+            <span className="ml-auto text-xs font-medium text-warning group-hover:underline">
+              Continuer →
+            </span>
+          </Link>
+        );
+      })()}
 
       {/* Consigne d'équipe : toujours sous les yeux, peu importe l'onglet. */}
       {client.internal_notes && (

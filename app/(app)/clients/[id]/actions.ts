@@ -7,7 +7,11 @@ import {
   type ActionResult,
 } from "@/lib/actions/member";
 import { logActivity } from "@/lib/activity";
-import type { BrandProfile } from "@/lib/types/database";
+import {
+  isKnownOnboardingItem,
+  onboardingProgress,
+} from "@/lib/onboarding/steps";
+import type { BrandProfile, OnboardingState } from "@/lib/types/database";
 
 export async function updateClientSettingsAction(
   clientId: string,
@@ -149,6 +153,65 @@ export async function updateClientAssigneeAction(
 
     revalidatePath("/clients");
     revalidatePath("/");
+    return { ok: true };
+  });
+}
+
+/**
+ * Coche/décoche un item de la checklist d'optimisation de la fiche.
+ * À 100 % (première fois) : completed_at + trace « fiche optimisée ».
+ */
+export async function setOnboardingItemAction(
+  clientId: string,
+  itemKey: string,
+  done: boolean,
+): Promise<ActionResult> {
+  return runAction("L'enregistrement a échoué.", async () => {
+    if (!isKnownOnboardingItem(itemKey)) {
+      return { ok: false, error: "Item de checklist inconnu." };
+    }
+
+    const { member, supabase, client } = await loadClientForMember(clientId);
+    const state: OnboardingState = client.onboarding ?? {};
+    const items = { ...(state.items ?? {}) };
+    if (done) {
+      items[itemKey] = {
+        done: true,
+        by: member.email,
+        at: new Date().toISOString(),
+      };
+    } else {
+      delete items[itemKey];
+    }
+
+    const progress = onboardingProgress({ items });
+    const justCompleted = progress.complete && !state.completed_at;
+    const next: OnboardingState = {
+      ...state,
+      items,
+      // Décocher après coup ne retire pas le jalon historique.
+      completed_at: justCompleted
+        ? new Date().toISOString()
+        : (state.completed_at ?? null),
+    };
+
+    const { error } = await supabase
+      .from("clients")
+      .update({ onboarding: next })
+      .eq("id", clientId);
+    if (error) throw new Error(error.message);
+
+    if (justCompleted) {
+      await logActivity({
+        agencyId: member.agency_id,
+        clientId,
+        actor: member.email,
+        action: "client_onboarded",
+      });
+    }
+
+    revalidatePath(`/clients/${clientId}`);
+    revalidatePath("/clients");
     return { ok: true };
   });
 }

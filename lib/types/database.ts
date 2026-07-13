@@ -41,6 +41,21 @@ export interface BrandProfile {
   notes?: string;
 }
 
+/** État d'un item de la checklist d'onboarding (fiche GBP). */
+export interface OnboardingItemState {
+  done: boolean;
+  /** Email du membre qui a coché. */
+  by?: string;
+  at?: string;
+}
+
+/** Colonne clients.onboarding — les définitions vivent dans
+    lib/onboarding/steps.ts, la base ne stocke que l'état. */
+export interface OnboardingState {
+  items?: Record<string, OnboardingItemState>;
+  completed_at?: string | null;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -141,8 +156,10 @@ export interface Database {
         Row: {
           id: string;
           agency_id: string;
-          gbp_account_id: string;
-          gbp_location_id: string;
+          // Null = projet créé à la main, fiche pas encore liée (la
+          // découverte Google remplira au premier sync).
+          gbp_account_id: string | null;
+          gbp_location_id: string | null;
           name: string;
           address: string | null;
           phone: string | null;
@@ -154,6 +171,7 @@ export interface Database {
           auto_publish_posts: boolean;
           language: string;
           brand_profile: BrandProfile;
+          onboarding: OnboardingState;
           assignee_member_id: string | null;
           internal_notes: string | null;
           last_synced_at: string | null;
@@ -163,8 +181,8 @@ export interface Database {
         Insert: {
           id?: string;
           agency_id: string;
-          gbp_account_id: string;
-          gbp_location_id: string;
+          gbp_account_id?: string | null;
+          gbp_location_id?: string | null;
           name: string;
           address?: string | null;
           phone?: string | null;
@@ -176,6 +194,7 @@ export interface Database {
           auto_publish_posts?: boolean;
           language?: string;
           brand_profile?: BrandProfile;
+          onboarding?: OnboardingState;
           assignee_member_id?: string | null;
           internal_notes?: string | null;
           last_synced_at?: string | null;
@@ -185,8 +204,8 @@ export interface Database {
         Update: {
           id?: string;
           agency_id?: string;
-          gbp_account_id?: string;
-          gbp_location_id?: string;
+          gbp_account_id?: string | null;
+          gbp_location_id?: string | null;
           name?: string;
           address?: string | null;
           phone?: string | null;
@@ -198,6 +217,7 @@ export interface Database {
           auto_publish_posts?: boolean;
           language?: string;
           brand_profile?: BrandProfile;
+          onboarding?: OnboardingState;
           assignee_member_id?: string | null;
           internal_notes?: string | null;
           last_synced_at?: string | null;
