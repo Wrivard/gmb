@@ -14,6 +14,7 @@ import {
   ActivityFeed,
 } from "@/components/activity/activity-feed";
 import { DemoBanner } from "@/components/layout/demo-banner";
+import { RealtimeRefresh } from "@/components/dashboard/realtime-refresh";
 import {
   demoActivity,
   demoBoardClients,
@@ -215,6 +216,9 @@ export default async function ClientDetailPage({
 
   return (
     <div className="flex flex-col gap-5">
+      {/* Même filet temps réel que /posts et /reviews : un cron ou un
+          collègue (ou l'image différée d'un post) met la page à jour. */}
+      <RealtimeRefresh />
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="ghost" size="sm" render={<Link href="/clients" />}>
           <ArrowLeft />

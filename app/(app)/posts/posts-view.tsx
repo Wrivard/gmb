@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ImageIcon,
+  Loader2,
   Sparkles,
   Unplug,
 } from "lucide-react";
@@ -118,6 +119,16 @@ function FilteredPipeline({
 
   const drafts = filtered.filter((p) => postGroup(p.status) === "brouillon");
   const failed = filtered.filter((p) => postGroup(p.status) === "echec");
+
+  // Tant qu'une image se génère en différé, on repasse chercher le
+  // résultat — le flag imagePending expire seul côté serveur (3 min).
+  const router = useRouter();
+  const hasPendingImage = filtered.some((p) => p.imagePending);
+  useEffect(() => {
+    if (!hasPendingImage) return;
+    const interval = setInterval(() => router.refresh(), 8000);
+    return () => clearInterval(interval);
+  }, [hasPendingImage, router]);
 
   return (
     <div className="flex max-w-4xl flex-col gap-8">
@@ -246,21 +257,6 @@ function IdeaComposer({
     ...clients.map((client) => ({ value: client.id, label: client.name })),
   ];
 
-  // L'image se génère côté serveur APRÈS la réponse : on repasse chercher
-  // le résultat sans que l'utilisateur ait à rafraîchir lui-même.
-  const refreshTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  useEffect(() => {
-    const timers = refreshTimers.current;
-    return () => timers.forEach(clearTimeout);
-  }, []);
-  function scheduleImageRefresh() {
-    for (const delay of [8000, 20000]) {
-      refreshTimers.current.push(
-        setTimeout(() => router.refresh(), delay),
-      );
-    }
-  }
-
   function generate() {
     if (!clientId) return;
     startTransition(async () => {
@@ -276,7 +272,6 @@ function IdeaComposer({
         setDirective("");
         setDate("");
         router.refresh();
-        scheduleImageRefresh();
       } else {
         toast.error(result.error);
       }
@@ -436,8 +431,6 @@ function BatchGenerateButton({ clients }: { clients: QueueClient[] }) {
       }
       setProgress(null);
       router.refresh();
-      // Les images des posts du lot se génèrent en différé côté serveur.
-      setTimeout(() => router.refresh(), 15000);
       if (cancelRef.current) {
         toast.info(
           `Lot arrêté après ${done}/${jobs.length} — les posts créés sont dans « À réviser ».`,
@@ -570,6 +563,13 @@ function PostRows({
                 height={80}
                 className="size-full object-cover"
               />
+            ) : post.imagePending ? (
+              <div
+                className="flex size-full items-center justify-center text-muted-foreground"
+                title="Image en génération — elle apparaîtra d'elle-même."
+              >
+                <Loader2 className="size-3.5 animate-spin" />
+              </div>
             ) : (
               <div className="flex size-full items-center justify-center text-muted-foreground">
                 <ImageIcon className="size-3.5" />

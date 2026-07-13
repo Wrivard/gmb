@@ -30,7 +30,15 @@ export interface QueuePost {
   publishedAt: string | null;
   publishError: string | null;
   imageUrl: string | null;
+  /** Image probablement en génération différée : post récent sans image.
+      L'UI affiche un placeholder animé et re-synchronise jusqu'à l'arrivée. */
+  imagePending?: boolean;
 }
+
+// L'image d'un post se génère APRÈS la réponse (after) et prend jusqu'à
+// ~1 min chez le provider — au-delà de cette fenêtre, on considère
+// qu'elle a échoué (l'éditeur permet de la régénérer).
+const IMAGE_PENDING_WINDOW_MS = 3 * 60_000;
 
 type PostRow = Database["public"]["Tables"]["posts"]["Row"];
 type Db = Awaited<ReturnType<typeof getDb>>;
@@ -53,6 +61,11 @@ function toQueuePost(
       ? supabase.storage.from("post-images").getPublicUrl(post.image_path)
           .data.publicUrl
       : null,
+    imagePending:
+      !post.image_path &&
+      (post.status === "draft" || post.status === "scheduled") &&
+      Date.now() - new Date(post.created_at).getTime() <
+        IMAGE_PENDING_WINDOW_MS,
   };
 }
 
