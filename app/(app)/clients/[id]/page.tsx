@@ -271,6 +271,9 @@ export default async function ClientDetailPage({
       {/* Onboarding inachevé : le rappel vit sur le projet lui-même,
           pas seulement dans la liste — personne ne « passe à côté ». */}
       {(() => {
+        // Un projet offboardé ou déconnecté n'a plus d'onboarding à faire.
+        if (client.status === "archived" || client.status === "disconnected")
+          return null;
         const progress = onboardingProgress(client.onboarding);
         if (progress.complete) return null;
         return (

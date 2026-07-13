@@ -10,8 +10,25 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, PartyPopper } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ExternalLink,
+  PartyPopper,
+} from "lucide-react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
@@ -20,7 +37,10 @@ import {
   onboardingProgress,
 } from "@/lib/onboarding/steps";
 import type { ClientStatus, OnboardingState } from "@/lib/types/database";
-import { setOnboardingItemAction } from "../actions";
+import {
+  completeOnboardingAction,
+  setOnboardingItemAction,
+} from "../actions";
 import { toggleClientActiveAction } from "@/app/(app)/settings/actions";
 
 export function OnboardingWizard({
@@ -51,6 +71,8 @@ export function OnboardingWizard({
     return index === -1 ? 0 : index;
   });
   const [activating, startActivate] = useTransition();
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulking, startBulk] = useTransition();
 
   const progress = useMemo(
     () =>
@@ -85,6 +107,26 @@ export function OnboardingWizard({
       if (result.ok) {
         toast.success(`${clientName} est actif — le mandat roule.`);
         router.push(`/clients/${clientId}`);
+        router.refresh();
+      } else {
+        toast.error(result.error);
+      }
+    });
+  }
+
+  function bulkComplete() {
+    startBulk(async () => {
+      const result = await completeOnboardingAction(clientId);
+      if (result.ok) {
+        setChecked(
+          Object.fromEntries(
+            ONBOARDING_STEPS.flatMap((step) =>
+              step.items.map((item) => [item.key, true]),
+            ),
+          ),
+        );
+        setBulkOpen(false);
+        toast.success("Checklist complétée — la fiche est marquée optimisée.");
         router.refresh();
       } else {
         toast.error(result.error);
@@ -147,39 +189,100 @@ export function OnboardingWizard({
         </div>
       )}
 
-      <div className="grid gap-6 md:grid-cols-[230px_1fr]">
-        {/* Rail des étapes */}
-        <nav className="flex flex-col gap-1">
-          {ONBOARDING_STEPS.map((entry, index) => {
-            const done = progress.doneSteps.has(entry.key);
-            const active = index === stepIndex;
-            return (
-              <button
-                key={entry.key}
-                type="button"
-                onClick={() => setStepIndex(index)}
-                className={cn(
-                  "flex items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                  active
-                    ? "bg-muted font-medium text-foreground"
-                    : "text-muted-foreground hover:bg-hover hover:text-foreground",
-                )}
-              >
-                <span
+      <div className="grid gap-6 md:grid-cols-[240px_1fr]">
+        {/* Rail des étapes — horizontal (défilant) sur mobile. */}
+        <div className="flex flex-col gap-2">
+          <nav className="flex gap-1 overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
+            {ONBOARDING_STEPS.map((entry, index) => {
+              const done = progress.doneSteps.has(entry.key);
+              const active = index === stepIndex;
+              const doneCount = entry.items.filter(
+                (item) => checked[item.key],
+              ).length;
+              return (
+                <button
+                  key={entry.key}
+                  type="button"
+                  onClick={() => setStepIndex(index)}
                   className={cn(
-                    "flex size-5 shrink-0 items-center justify-center rounded-full text-xs tabular-nums",
-                    done
-                      ? "bg-success text-primary-foreground"
-                      : "bg-muted-foreground/15",
+                    "flex shrink-0 items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50 md:whitespace-normal",
+                    active
+                      ? "bg-muted font-medium text-foreground"
+                      : "text-muted-foreground hover:bg-hover hover:text-foreground",
                   )}
                 >
-                  {done ? <Check className="size-3" /> : index + 1}
-                </span>
-                {entry.title}
-              </button>
-            );
-          })}
-        </nav>
+                  <span
+                    className={cn(
+                      "flex size-5 shrink-0 items-center justify-center rounded-full text-xs tabular-nums",
+                      done
+                        ? "bg-success text-primary-foreground"
+                        : "bg-muted-foreground/15",
+                    )}
+                  >
+                    {done ? <Check className="size-3" /> : index + 1}
+                  </span>
+                  <span className="flex-1">{entry.title}</span>
+                  {/* Entamée ≠ intacte : le compteur le montre d'un œil. */}
+                  {!done && doneCount > 0 && (
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {doneCount}/{entry.items.length}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+          <div className="hidden flex-col gap-2 border-t border-border pt-3 md:flex">
+            <a
+              href="https://business.google.com/locations"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 px-3 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ExternalLink className="size-3" />
+              Ouvrir Google Business Profile
+            </a>
+            {!progress.complete && (
+              <AlertDialog open={bulkOpen} onOpenChange={setBulkOpen}>
+                <AlertDialogTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="px-3 text-left text-xs text-muted-foreground/70 underline-offset-2 transition-colors hover:text-foreground hover:underline"
+                    >
+                      Fiche déjà optimisée ? Tout marquer comme fait
+                    </button>
+                  }
+                />
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Marquer toute la checklist comme faite ?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Pour les fiches déjà optimisées (clients de longue
+                      date). Les {progress.total - progress.done} points
+                      restants seront cochés à ton nom — c&apos;est ton
+                      affirmation que la fiche de {clientName} est
+                      réellement à niveau.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={bulking}>
+                      Annuler
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={bulkComplete}
+                      disabled={bulking}
+                    >
+                      {bulking ? "…" : "Tout marquer comme fait"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
+        </div>
 
         {/* Panneau de l'étape courante */}
         <motion.section
@@ -223,6 +326,15 @@ export function OnboardingWizard({
                         </span>
                       )}
                     </span>
+                    {item.appTab && (
+                      <Link
+                        href={`/clients/${clientId}?tab=${item.appTab}`}
+                        onClick={(event) => event.stopPropagation()}
+                        className="ml-auto shrink-0 self-center text-xs font-medium text-primary underline-offset-2 hover:underline"
+                      >
+                        Ouvrir →
+                      </Link>
+                    )}
                   </label>
                 </li>
               );

@@ -13,6 +13,8 @@ export interface OnboardingItemDef {
   key: string;
   label: string;
   hint?: string;
+  /** L'item se fait DANS l'app : onglet du projet à ouvrir. */
+  appTab?: "settings" | "posts";
 }
 
 export interface OnboardingStepDef {
@@ -195,11 +197,13 @@ export const ONBOARDING_STEPS: OnboardingStepDef[] = [
         key: "lancement.profil-marque",
         label: "Profil de marque complété dans l'app (ton, services, arguments)",
         hint: "C'est ce qui nourrit l'IA pour les réponses d'avis et les posts — Réglages du projet.",
+        appTab: "settings",
       },
       {
         key: "lancement.cadence-posts",
         label: "Cadence de posts configurée + premier post généré et approuvé",
         hint: "File posts → une idée de lancement (« nouvelle gestion de la fiche, bienvenue ») → générer, réviser, approuver.",
+        appTab: "posts",
       },
     ],
   },

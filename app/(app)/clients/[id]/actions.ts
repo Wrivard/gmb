@@ -9,6 +9,7 @@ import {
 import { logActivity } from "@/lib/activity";
 import {
   isKnownOnboardingItem,
+  ONBOARDING_STEPS,
   onboardingProgress,
 } from "@/lib/onboarding/steps";
 import type { BrandProfile, OnboardingState } from "@/lib/types/database";
@@ -207,6 +208,52 @@ export async function setOnboardingItemAction(
         clientId,
         actor: member.email,
         action: "client_onboarded",
+      });
+    }
+
+    revalidatePath(`/clients/${clientId}`);
+    revalidatePath("/clients");
+    return { ok: true };
+  });
+}
+
+/**
+ * Marque TOUTE la checklist comme faite — le cas « fiche déjà optimisée »
+ * (client de longue date grandfathered). Tracé au nom du membre : c'est
+ * une affirmation, pas un raccourci anonyme.
+ */
+export async function completeOnboardingAction(
+  clientId: string,
+): Promise<ActionResult> {
+  return runAction("L'opération a échoué.", async () => {
+    const { member, supabase, client } = await loadClientForMember(clientId);
+    const state: OnboardingState = client.onboarding ?? {};
+    const at = new Date().toISOString();
+    const items = { ...(state.items ?? {}) };
+    for (const step of ONBOARDING_STEPS) {
+      for (const item of step.items) {
+        if (!items[item.key]?.done) {
+          items[item.key] = { done: true, by: member.email, at };
+        }
+      }
+    }
+
+    const alreadyComplete = Boolean(state.completed_at);
+    const { error } = await supabase
+      .from("clients")
+      .update({
+        onboarding: { ...state, items, completed_at: state.completed_at ?? at },
+      })
+      .eq("id", clientId);
+    if (error) throw new Error(error.message);
+
+    if (!alreadyComplete) {
+      await logActivity({
+        agencyId: member.agency_id,
+        clientId,
+        actor: member.email,
+        action: "client_onboarded",
+        payload: { bulk: true },
       });
     }
 

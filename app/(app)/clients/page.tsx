@@ -318,6 +318,7 @@ export default async function ClientsPage() {
                       clientId={row.id}
                       active={row.status === "active"}
                       disabled={demo}
+                      onboardingIncomplete={row.onboardingPct !== null}
                     />
                   )}
                 </TableCell>
