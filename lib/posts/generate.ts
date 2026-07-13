@@ -1,5 +1,6 @@
 import "server-only";
 
+import { Jimp, JimpMime } from "jimp";
 import { getDb } from "@/lib/supabase/db";
 import { generatePostContent } from "@/lib/ai/posts";
 import { generatePostImage } from "@/lib/ai/images";
@@ -9,8 +10,10 @@ import { monthlyCadence } from "@/lib/posts/cadence";
 import type { Client } from "@/lib/types/database";
 
 // Pipeline de génération d'un post (specs/06 §Workflow) :
-// contenu AI → image AI (OpenAI, repli Gemini) → sharp 1200×900 JPEG 85 →
+// contenu AI → image AI (OpenAI, repli Gemini) → jimp 1200×900 JPEG 85 →
 // Storage → ligne `posts` en draft (ou scheduled si auto_publish_posts).
+// jimp (pur JS) et non sharp : le binaire natif de sharp ne survivait pas
+// au tracing Vercel (pnpm + Turbopack) — KUA-LOCALE-7.
 
 export const IMAGE_BUCKET = "post-images";
 
@@ -43,14 +46,9 @@ export async function processAndUploadImage(
   postId: string,
 ): Promise<string | null> {
   const supabase = await getDb();
-  // Import paresseux : sharp (module natif) est chargé seulement au moment
-  // de traiter une image — un binaire manquant ne doit jamais empêcher le
-  // RENDU des pages qui importent ce module via les server actions.
-  const { default: sharp } = await import("sharp");
-  const jpeg = await sharp(raw)
-    .resize(1200, 900, { fit: "cover" })
-    .jpeg({ quality: 85 })
-    .toBuffer();
+  const image = await Jimp.read(raw);
+  image.cover({ w: 1200, h: 900 });
+  const jpeg = await image.getBuffer(JimpMime.jpeg, { quality: 85 });
 
   // Clé versionnée : « générer une autre image » n'écrase plus la
   // précédente (revert possible), et l'URL change à chaque version —
@@ -77,6 +75,31 @@ export async function processAndUploadImage(
 export interface GeneratedPost {
   postId: string;
   hasImage: boolean;
+  /** Prompt d'image du post — pour lancer attachPostImage en différé. */
+  imagePrompt: string;
+}
+
+/** Génère et attache l'image d'un post déjà inséré (idempotent, différable). */
+export async function attachPostImage(
+  clientId: string,
+  postId: string,
+  imagePrompt: string,
+): Promise<boolean> {
+  const raw = await generatePostImage(imagePrompt);
+  if (!raw) return false;
+  const path = await processAndUploadImage(raw, clientId, postId);
+  if (!path) return false;
+
+  const supabase = await getDb();
+  const { error } = await supabase
+    .from("posts")
+    .update({ image_path: path })
+    .eq("id", postId);
+  if (error) {
+    console.error("Attache image post:", error.message);
+    return false;
+  }
+  return true;
 }
 
 /** Génère UN post pour un client (contenu + image + insert draft). */
@@ -87,6 +110,9 @@ export async function generatePostForClient(
   directive?: string,
   /** Date de publication voulue — sinon la prochaine suggestion de cadence. */
   scheduledForOverride?: Date,
+  /** true = ne pas générer l'image ici : l'appelant la lancera en différé
+      (after) pour rendre la main dès que le texte est prêt. */
+  deferImage = false,
 ): Promise<GeneratedPost> {
   const supabase = await getDb();
 
@@ -149,16 +175,9 @@ export async function generatePostForClient(
   const postId = inserted.id;
 
   // Image : 2 tentatives dans generatePostImage; échec → draft sans image.
-  let imagePath: string | null = null;
-  const rawImage = await generatePostImage(content.imagePrompt);
-  if (rawImage) {
-    imagePath = await processAndUploadImage(rawImage, client.id, postId);
-    if (imagePath) {
-      await supabase
-        .from("posts")
-        .update({ image_path: imagePath })
-        .eq("id", postId);
-    }
+  let hasImage = false;
+  if (!deferImage) {
+    hasImage = await attachPostImage(client.id, postId, content.imagePrompt);
   }
 
   await logActivity({
@@ -169,10 +188,10 @@ export async function generatePostForClient(
     payload: {
       post_id: postId,
       angle: content.angle,
-      has_image: Boolean(imagePath),
+      has_image: hasImage,
       by_ai: content.generatedByAi,
     },
   });
 
-  return { postId, hasImage: Boolean(imagePath) };
+  return { postId, hasImage, imagePrompt: content.imagePrompt };
 }

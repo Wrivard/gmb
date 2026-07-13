@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import {
   loadClientForMember,
   loadPostForMember,
@@ -8,6 +9,7 @@ import {
   type ActionResult,
 } from "@/lib/actions/member";
 import {
+  attachPostImage,
   generatePostForClient,
   listImageVersions,
   processAndUploadImage,
@@ -48,13 +50,24 @@ export async function generatePostAction(
     }
 
     const { member, client } = await loadClientForMember(clientId);
+    // Texte + insert seulement : la main revient dès que le brouillon
+    // existe. L'image (l'étape lente) se génère après la réponse.
     const result = await generatePostForClient(
       client,
       member.email,
       new Date(),
       directive?.trim() || undefined,
       override,
+      true,
     );
+    after(async () => {
+      try {
+        await attachPostImage(client.id, result.postId, result.imagePrompt);
+      } catch (error) {
+        console.error("Image différée du post:", error);
+      }
+      refresh();
+    });
     refresh();
     return { ok: true, postId: result.postId };
   });

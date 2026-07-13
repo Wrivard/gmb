@@ -5,7 +5,7 @@
 // les brouillons, ③ le calendrier du mois comme vue de contrôle.
 // Partagé entre la file agence (/posts) et l'onglet Posts d'un projet.
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -191,6 +191,21 @@ function IdeaComposer({ clients }: { clients: QueueClient[] }) {
   const selected = clients.find((c) => c.id === clientId);
   const single = clients.length === 1;
 
+  // L'image se génère côté serveur APRÈS la réponse : on repasse chercher
+  // le résultat sans que l'utilisateur ait à rafraîchir lui-même.
+  const refreshTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => {
+    const timers = refreshTimers.current;
+    return () => timers.forEach(clearTimeout);
+  }, []);
+  function scheduleImageRefresh() {
+    for (const delay of [8000, 20000]) {
+      refreshTimers.current.push(
+        setTimeout(() => router.refresh(), delay),
+      );
+    }
+  }
+
   function generate() {
     if (!clientId) return;
     startTransition(async () => {
@@ -201,11 +216,12 @@ function IdeaComposer({ clients }: { clients: QueueClient[] }) {
       );
       if (result.ok) {
         toast.success(
-          `Post généré pour ${selected?.name ?? "le projet"} — il est dans « À réviser ».`,
+          `Texte prêt pour ${selected?.name ?? "le projet"} — l'image arrive dans quelques secondes.`,
         );
         setDirective("");
         setDate("");
         router.refresh();
+        scheduleImageRefresh();
       } else {
         toast.error(result.error);
       }
@@ -359,6 +375,8 @@ function BatchGenerateButton({ clients }: { clients: QueueClient[] }) {
       }
       setProgress(null);
       router.refresh();
+      // Les images des posts du lot se génèrent en différé côté serveur.
+      setTimeout(() => router.refresh(), 15000);
       if (cancelRef.current) {
         toast.info(
           `Lot arrêté après ${done}/${jobs.length} — les posts créés sont dans « À réviser ».`,
