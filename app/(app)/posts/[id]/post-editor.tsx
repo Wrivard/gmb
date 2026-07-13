@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { DeletePostButton } from "@/components/posts/delete-post-button";
 import { PostPreview } from "@/components/posts/post-preview";
 import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { cn } from "@/lib/utils";
@@ -474,6 +475,14 @@ export function PostEditor({
                 >
                   {saving ? "Enregistrement…" : "Enregistrer sans approuver"}
                 </Button>
+                <span className="ml-auto">
+                  <DeletePostButton
+                    postId={post.id}
+                    clientName={clientName}
+                    variant="button"
+                    redirectTo={backHref}
+                  />
+                </span>
               </div>
               {isPostApprovable(post.status) && (
                 <p className="text-xs text-muted-foreground">

@@ -33,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DeletePostButton } from "@/components/posts/delete-post-button";
 import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { cn } from "@/lib/utils";
 import { POST_STATUS_LABELS_FR, postGroup } from "@/lib/posts/status";
@@ -596,6 +597,7 @@ function PostRows({
             {action}
             <ArrowRight className="size-3 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
           </Link>
+          <DeletePostButton postId={post.id} clientName={post.clientName} />
         </li>
       ))}
     </ul>

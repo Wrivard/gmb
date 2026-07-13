@@ -11,6 +11,7 @@ import {
 import {
   attachPostImage,
   generatePostForClient,
+  IMAGE_BUCKET,
   listImageVersions,
   processAndUploadImage,
 } from "@/lib/posts/generate";
@@ -70,6 +71,57 @@ export async function generatePostAction(
     });
     refresh();
     return { ok: true, postId: result.postId };
+  });
+}
+
+/**
+ * Supprime un post non publié (brouillon, planifié, échec) + ses images.
+ * Verrou optimiste sur le statut : si le cron est en train de le publier,
+ * la suppression est refusée proprement.
+ */
+export async function deletePostAction(postId: string): Promise<ActionResult> {
+  return runAction("La suppression a échoué.", async () => {
+    const { member, supabase, post, client } = await loadPostForMember(postId);
+    if (!isPostEditable(post.status)) {
+      return {
+        ok: false,
+        error: "Ce post est déjà publié sur Google — il ne peut plus être supprimé d'ici.",
+      };
+    }
+
+    const { data: deleted, error } = await supabase
+      .from("posts")
+      .delete()
+      .eq("id", postId)
+      .in("status", ["draft", "approved", "scheduled", "failed"])
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!deleted) {
+      return {
+        ok: false,
+        error: "Trop tard — le post est en cours de publication.",
+      };
+    }
+
+    // Ménage Storage, best-effort : un orphelin ne bloque pas la suppression.
+    const versions = await listImageVersions(supabase, client.id, postId);
+    if (versions.length) {
+      await supabase.storage
+        .from(IMAGE_BUCKET)
+        .remove(versions.map((name) => `${client.id}/${name}`));
+    }
+
+    await logActivity({
+      agencyId: member.agency_id,
+      clientId: client.id,
+      actor: member.email,
+      action: "post_deleted",
+      payload: { post_id: postId, status: post.status },
+    });
+
+    refresh();
+    return { ok: true };
   });
 }
 
