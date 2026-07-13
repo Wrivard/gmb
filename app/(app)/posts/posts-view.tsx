@@ -323,10 +323,29 @@ function IdeaComposer({
   const router = useRouter();
   const [directive, setDirective] = useState("");
   const [date, setDate] = useState("");
+  const [progress, setProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
   const [pending, startTransition] = useTransition();
 
   const clientId = filterId === "all" ? "" : filterId;
   const selected = clients.find((c) => c.id === clientId);
+
+  // Une virgule = un post de plus : « promo pizza, fête du chef le 18,
+  // party piscine le 24 » → 3 posts distincts, chacun avec son angle.
+  const ideas = directive
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const multi = ideas.length > 1;
+
+  // Quitter pendant un lot d'idées perdrait la suite du lot (chaque post
+  // déjà créé survit, il est persisté serveur).
+  useUnsavedGuard(
+    pending && multi,
+    "Des posts sont encore en cours de génération — quitter la page interrompt le reste. Continuer ?",
+  );
 
   // Base UI n'affiche le label du choix (au lieu de la valeur brute —
   // ici un UUID) que si le root reçoit `items`.
@@ -338,21 +357,54 @@ function IdeaComposer({
   function generate() {
     if (!clientId) return;
     startTransition(async () => {
-      const result = await generatePostAction(
-        clientId,
-        directive,
-        date ? new Date(date).toISOString() : undefined,
-      );
-      if (result.ok) {
+      if (!multi) {
+        const result = await generatePostAction(
+          clientId,
+          directive,
+          date ? new Date(date).toISOString() : undefined,
+        );
+        if (result.ok) {
+          toast.success(
+            `Texte prêt pour ${selected?.name ?? "le projet"} — l'image arrive dans quelques secondes.`,
+          );
+          setDirective("");
+          setDate("");
+          router.refresh();
+        } else {
+          toast.error(result.error);
+        }
+        return;
+      }
+
+      // Lot d'idées : séquentiel avec pause (même discipline que le lot
+      // « tous les posts dus »), la date de chaque post suit la cadence.
+      setProgress({ done: 0, total: ideas.length });
+      let failures = 0;
+      for (let i = 0; i < ideas.length; i++) {
+        const result = await generatePostAction(clientId, ideas[i]);
+        if (!result.ok) {
+          failures++;
+          toast.error(`« ${ideas[i]} » : ${result.error}`);
+        }
+        setProgress({ done: i + 1, total: ideas.length });
+        router.refresh();
+        if (i < ideas.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
+      setProgress(null);
+      if (failures === 0) {
         toast.success(
-          `Texte prêt pour ${selected?.name ?? "le projet"} — l'image arrive dans quelques secondes.`,
+          `${ideas.length} posts générés pour ${selected?.name ?? "le projet"} — les images arrivent.`,
         );
         setDirective("");
         setDate("");
-        router.refresh();
       } else {
-        toast.error(result.error);
+        toast.warning(
+          `${ideas.length - failures}/${ideas.length} posts générés — reprends les idées en échec.`,
+        );
       }
+      router.refresh();
     });
   }
 
@@ -389,7 +441,7 @@ function IdeaComposer({
           <Label htmlFor="idea-directive" className="text-xs">
             Idée / angle{" "}
             <span className="font-normal text-muted-foreground">
-              (optionnel)
+              (optionnel — une virgule = un post de plus)
             </span>
           </Label>
           <Input
@@ -402,7 +454,7 @@ function IdeaComposer({
                 generate();
               }
             }}
-            placeholder="« promo de juin », « nouvelle tôle en stock »…"
+            placeholder="promo 2 pour 1, fête du chef le 18 juillet, party piscine le 24…"
             disabled={pending}
           />
         </div>
@@ -410,24 +462,49 @@ function IdeaComposer({
           <Label htmlFor="idea-date" className="text-xs">
             Publication{" "}
             <span className="font-normal text-muted-foreground">
-              (auto si vide)
+              {multi ? "(auto en mode lot)" : "(auto si vide)"}
             </span>
           </Label>
           <Input
             id="idea-date"
             type="datetime-local"
-            value={date}
+            value={multi ? "" : date}
             min={toDatetimeLocal(new Date().toISOString())}
             onChange={(event) => setDate(event.target.value)}
             className="w-52 tabular-nums"
-            disabled={pending}
+            disabled={pending || multi}
+            title={
+              multi
+                ? "Plusieurs idées : chaque post reçoit une date suggérée, ajustable dans « À réviser »."
+                : undefined
+            }
           />
         </div>
         <Button onClick={generate} disabled={pending || !clientId}>
           <Sparkles />
-          {pending ? "Rédaction…" : "Générer"}
+          {pending
+            ? progress
+              ? `Génération ${progress.done}/${progress.total}…`
+              : "Rédaction…"
+            : multi
+              ? `Générer ${ideas.length} posts`
+              : "Générer"}
         </Button>
       </div>
+      {multi && !pending && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">
+            {ideas.length} posts
+          </span>{" "}
+          seront générés, un par idée :{" "}
+          {ideas.map((idea, index) => (
+            <span key={index}>
+              {index > 0 && " · "}«&nbsp;{idea}&nbsp;»
+            </span>
+          ))}
+          {" — "}dates suggérées automatiquement.
+        </p>
+      )}
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
         {selected ? (
           <p className="text-xs text-muted-foreground">
