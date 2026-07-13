@@ -74,6 +74,10 @@ importers:
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
+    optionalDependencies:
+      '@img/sharp-linux-x64':
+        specifier: 0.35.3
+        version: 0.35.3
     devDependencies:
       '@eslint/eslintrc':
         specifier: ^3

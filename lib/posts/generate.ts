@@ -1,6 +1,5 @@
 import "server-only";
 
-import sharp from "sharp";
 import { getDb } from "@/lib/supabase/db";
 import { generatePostContent } from "@/lib/ai/posts";
 import { generatePostImage } from "@/lib/ai/images";
@@ -44,6 +43,10 @@ export async function processAndUploadImage(
   postId: string,
 ): Promise<string | null> {
   const supabase = await getDb();
+  // Import paresseux : sharp (module natif) est chargé seulement au moment
+  // de traiter une image — un binaire manquant ne doit jamais empêcher le
+  // RENDU des pages qui importent ce module via les server actions.
+  const { default: sharp } = await import("sharp");
   const jpeg = await sharp(raw)
     .resize(1200, 900, { fit: "cover" })
     .jpeg({ quality: 85 })
