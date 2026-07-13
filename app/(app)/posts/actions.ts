@@ -32,17 +32,58 @@ function refresh() {
 export async function generatePostAction(
   clientId: string,
   directive?: string,
+  /** ISO — date de publication voulue (sinon suggestion de cadence). */
+  scheduledFor?: string,
 ): Promise<ActionResult & { postId?: string }> {
   return runAction("La génération a échoué.", async () => {
+    let override: Date | undefined;
+    if (scheduledFor) {
+      override = new Date(scheduledFor);
+      if (Number.isNaN(override.getTime())) {
+        return { ok: false, error: "Date de publication invalide." };
+      }
+      if (override.getTime() < Date.now()) {
+        return { ok: false, error: "La date de publication est déjà passée." };
+      }
+    }
+
     const { member, client } = await loadClientForMember(clientId);
     const result = await generatePostForClient(
       client,
       member.email,
       new Date(),
       directive?.trim() || undefined,
+      override,
     );
     refresh();
     return { ok: true, postId: result.postId };
+  });
+}
+
+/** Replanifie un brouillon depuis la liste (sans passer par l'éditeur). */
+export async function reschedulePostAction(
+  postId: string,
+  scheduledFor: string,
+): Promise<ActionResult> {
+  return runAction("La replanification a échoué.", async () => {
+    const date = new Date(scheduledFor);
+    if (Number.isNaN(date.getTime())) {
+      return { ok: false, error: "Date invalide." };
+    }
+
+    const { supabase, post } = await loadPostForMember(postId);
+    if (!isPostEditable(post.status)) {
+      return { ok: false, error: "Ce post est déjà publié." };
+    }
+
+    const { error } = await supabase
+      .from("posts")
+      .update({ scheduled_for: date.toISOString() })
+      .eq("id", postId);
+    if (error) throw new Error(error.message);
+
+    refresh();
+    return { ok: true };
   });
 }
 

@@ -1,7 +1,18 @@
-// Vue Croissance d'un projet — tendances long terme. Micro-charts SVG
-// mono-série (pas de lib) : la couleur ne porte jamais l'identité seule,
-// chaque barre/statut a son label texte. C'est l'écran du meeting client.
+"use client";
 
+// Vue Croissance d'un projet — tendances long terme en vrais graphiques
+// (Recharts via le wrapper shadcn). Mono-série : la couleur ne porte
+// jamais l'identité seule, chaque valeur a son label texte au survol.
+// C'est l'écran du meeting client.
+
+import { motion } from "framer-motion";
+import { Area, AreaChart, Bar, BarChart, Cell, XAxis, YAxis } from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 import type { ClientGrowth } from "@/lib/clients/growth";
 
@@ -9,51 +20,73 @@ function fr1(value: number): string {
   return value.toFixed(1).replace(".", ",");
 }
 
-function Sparkline({ values }: { values: Array<number | null> }) {
-  const points = values
-    .map((v, i) => (v === null ? null : ([i, v] as const)))
-    .filter((p): p is readonly [number, number] => p !== null);
-  if (points.length < 2) return null;
+// Entrée en douceur : les cartes montent en cascade, les charts
+// s'animent ensuite d'eux-mêmes (animation de tracé Recharts).
+const cardMotion = (index: number) => ({
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.3, delay: index * 0.07, ease: "easeOut" as const },
+});
 
-  const ys = points.map(([, v]) => v);
-  const min = Math.min(...ys);
-  const max = Math.max(...ys);
-  const span = max - min || 1;
-  const coords = points
-    .map(
-      ([i, v]) =>
-        `${(i / (values.length - 1)) * 100},${18 - ((v - min) / span) * 14 - 2}`,
-    )
-    .join(" ");
+const ratingConfig = {
+  note: { label: "Note moyenne", color: "var(--chart-1)" },
+} satisfies ChartConfig;
 
-  return (
-    <svg
-      viewBox="0 0 100 18"
-      preserveAspectRatio="none"
-      className="h-5 w-full"
-      role="img"
-      aria-label={`Évolution : ${points.map(([, v]) => fr1(v)).join(" → ")}`}
-    >
-      <polyline
-        points={coords}
-        fill="none"
-        stroke="var(--chart-1)"
-        strokeWidth="1.5"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
-  );
-}
+const reviewsConfig = {
+  reviews: { label: "Reviews", color: "var(--chart-1)" },
+} satisfies ChartConfig;
+
+const coverageConfig = {
+  publies: { label: "Publiés", color: "var(--success)" },
+} satisfies ChartConfig;
 
 export function GrowthView({ growth }: { growth: ClientGrowth }) {
   const current = growth.months.at(-1);
-  const maxReviews = Math.max(...growth.months.map((m) => m.reviews), 1);
+
+  const ratingData = growth.months.map((m) => ({
+    label: m.label,
+    note: m.avgCumulative,
+  }));
+  const ratedPoints = ratingData.filter((d) => d.note !== null);
+  const ratingDomain: [number, number] = [
+    Math.max(
+      1,
+      Math.floor(Math.min(...ratedPoints.map((d) => d.note ?? 5)) * 2) / 2 -
+        0.5,
+    ),
+    5,
+  ];
+
+  const reviewsData = growth.months.map((m) => ({
+    label: m.label,
+    reviews: m.reviews,
+  }));
+
+  const coverageData = growth.months.map((m, index) => ({
+    label: m.label,
+    publies: m.postsPublished,
+    cible: m.postsTarget,
+    isCurrent: index === growth.months.length - 1,
+  }));
+  const coverageMax = Math.max(
+    ...coverageData.map((d) => Math.max(d.publies, d.cible)),
+    1,
+  );
+
+  const responsePct = growth.responseRate
+    ? Math.round(
+        (growth.responseRate.replied / growth.responseRate.total) * 100,
+      )
+    : null;
 
   return (
     <div className="flex flex-col gap-2">
       <div className="grid gap-2 sm:grid-cols-3">
         {/* Note moyenne — la métrique maîtresse */}
-        <div className="rounded-lg border border-border bg-elevated px-4 py-3">
+        <motion.div
+          {...cardMotion(0)}
+          className="rounded-lg border border-border bg-elevated px-4 py-3"
+        >
           <p className="text-xs text-muted-foreground">Note moyenne</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums">
             {growth.avgRating !== null ? fr1(growth.avgRating) : "—"}
@@ -69,13 +102,72 @@ export function GrowthView({ growth }: { growth: ClientGrowth }) {
               </span>
             )}
           </p>
-          <div className="mt-2">
-            <Sparkline values={growth.months.map((m) => m.avgCumulative)} />
-          </div>
-        </div>
+          {ratedPoints.length >= 2 ? (
+            <ChartContainer
+              config={ratingConfig}
+              className="mt-2 h-20 w-full"
+              aria-label={`Évolution de la note : ${ratedPoints
+                .map((d) => fr1(d.note ?? 0))
+                .join(" → ")}`}
+            >
+              <AreaChart
+                data={ratingData}
+                margin={{ top: 4, right: 4, bottom: 0, left: 4 }}
+                accessibilityLayer
+              >
+                <defs>
+                  <linearGradient id="fill-note" x1="0" y1="0" x2="0" y2="1">
+                    <stop
+                      offset="0%"
+                      stopColor="var(--color-note)"
+                      stopOpacity={0.25}
+                    />
+                    <stop
+                      offset="100%"
+                      stopColor="var(--color-note)"
+                      stopOpacity={0}
+                    />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="label" hide />
+                <YAxis domain={ratingDomain} hide />
+                <ChartTooltip
+                  cursor={false}
+                  content={
+                    <ChartTooltipContent
+                      indicator="line"
+                      formatter={(value) => (
+                        <span className="font-mono font-medium tabular-nums">
+                          {fr1(Number(value))} ★
+                        </span>
+                      )}
+                    />
+                  }
+                />
+                <Area
+                  dataKey="note"
+                  type="monotone"
+                  stroke="var(--color-note)"
+                  strokeWidth={2}
+                  fill="url(#fill-note)"
+                  connectNulls
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 0 }}
+                />
+              </AreaChart>
+            </ChartContainer>
+          ) : (
+            <p className="mt-2 flex h-20 items-center text-xs text-muted-foreground">
+              Pas encore assez d&apos;historique pour une tendance.
+            </p>
+          )}
+        </motion.div>
 
         {/* Volume de reviews */}
-        <div className="rounded-lg border border-border bg-elevated px-4 py-3">
+        <motion.div
+          {...cardMotion(1)}
+          className="rounded-lg border border-border bg-elevated px-4 py-3"
+        >
           <p className="text-xs text-muted-foreground">Reviews reçues / mois</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums">
             {current?.reviews ?? 0}
@@ -83,30 +175,49 @@ export function GrowthView({ growth }: { growth: ClientGrowth }) {
               ce mois-ci
             </span>
           </p>
-          <div className="mt-2 flex h-5 items-end gap-1">
-            {growth.months.map((month) => (
-              <div
-                key={month.key}
-                title={`${month.label} : ${month.reviews} review${month.reviews > 1 ? "s" : ""}`}
-                className="flex-1 rounded-sm bg-chart-1/70"
-                style={{
-                  height: `${Math.max((month.reviews / maxReviews) * 100, 6)}%`,
-                }}
+          <ChartContainer
+            config={reviewsConfig}
+            className="mt-2 h-20 w-full"
+            aria-label={`Reviews par mois : ${reviewsData
+              .map((d) => `${d.label} ${d.reviews}`)
+              .join(", ")}`}
+          >
+            <BarChart
+              data={reviewsData}
+              margin={{ top: 4, right: 0, bottom: 0, left: 0 }}
+              accessibilityLayer
+            >
+              <XAxis
+                dataKey="label"
+                tickLine={false}
+                axisLine={false}
+                tick={{ fontSize: 10 }}
+                interval={0}
               />
-            ))}
-          </div>
-        </div>
+              <ChartTooltip
+                cursor={{ fill: "var(--color-hover)", opacity: 0.5 }}
+                content={<ChartTooltipContent hideIndicator />}
+              />
+              <Bar
+                dataKey="reviews"
+                fill="var(--color-reviews)"
+                fillOpacity={0.85}
+                radius={[4, 4, 0, 0]}
+                maxBarSize={28}
+                minPointSize={3}
+              />
+            </BarChart>
+          </ChartContainer>
+        </motion.div>
 
         {/* Réponses aux avis */}
-        <div className="rounded-lg border border-border bg-elevated px-4 py-3">
+        <motion.div
+          {...cardMotion(2)}
+          className="rounded-lg border border-border bg-elevated px-4 py-3"
+        >
           <p className="text-xs text-muted-foreground">Réponses aux avis</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums">
-            {growth.responseRate
-              ? `${Math.round(
-                  (growth.responseRate.replied / growth.responseRate.total) *
-                    100,
-                )} %`
-              : "—"}
+            {responsePct !== null ? `${responsePct} %` : "—"}
             {growth.responseRate && (
               <span className="ml-2 text-xs font-normal text-muted-foreground">
                 {growth.responseRate.replied}/{growth.responseRate.total}
@@ -114,12 +225,12 @@ export function GrowthView({ growth }: { growth: ClientGrowth }) {
             )}
           </p>
           <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted">
-            {growth.responseRate && (
-              <div
+            {responsePct !== null && (
+              <motion.div
                 className="h-full rounded-full bg-chart-1"
-                style={{
-                  width: `${(growth.responseRate.replied / growth.responseRate.total) * 100}%`,
-                }}
+                initial={{ width: 0 }}
+                animate={{ width: `${responsePct}%` }}
+                transition={{ duration: 0.7, delay: 0.25, ease: "easeOut" }}
               />
             )}
           </div>
@@ -128,60 +239,104 @@ export function GrowthView({ growth }: { growth: ClientGrowth }) {
               ? `Délai médian : ${growth.medianResponseHours} h`
               : "Aucune réponse publiée encore"}
           </p>
-        </div>
+        </motion.div>
       </div>
 
       {/* Couverture de la cadence */}
-      <div className="rounded-lg border border-border bg-elevated px-4 py-3">
-        <p className="text-xs text-muted-foreground">
-          Couverture de la cadence — 6 derniers mois
-        </p>
+      <motion.div
+        {...cardMotion(3)}
+        className="rounded-lg border border-border bg-elevated px-4 py-3"
+      >
+        <div className="flex items-baseline justify-between">
+          <p className="text-xs text-muted-foreground">
+            Couverture de la cadence — 6 derniers mois
+          </p>
+          {current && current.postsTarget > 0 && (
+            <p className="hidden text-xs text-muted-foreground sm:block">
+              <span className="mr-3 inline-flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-success/80" /> couvert
+              </span>
+              <span className="mr-3 inline-flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-warning/70" /> manqué
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-muted" /> en cours
+              </span>
+            </p>
+          )}
+        </div>
         {current && current.postsTarget > 0 ? (
-          <div className="mt-2 flex items-end gap-2">
-            {growth.months.map((month, index) => {
-              const isCurrent = index === growth.months.length - 1;
-              const covered = month.postsPublished >= month.postsTarget;
-              return (
-                <div
-                  key={month.key}
-                  className="flex flex-1 flex-col items-center gap-1"
-                  title={`${month.label} : ${month.postsPublished}/${month.postsTarget} posts publiés`}
-                >
-                  <div className="flex h-8 w-full items-end">
-                    <div
-                      className={cn(
-                        "w-full rounded-sm",
-                        isCurrent
-                          ? "bg-muted"
-                          : covered
-                            ? "bg-success/80"
-                            : "bg-warning/70",
-                      )}
-                      style={{
-                        height: `${Math.max(
-                          Math.min(
-                            month.postsPublished / month.postsTarget,
-                            1,
-                          ) * 100,
-                          8,
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                  <p className="text-xs tabular-nums text-muted-foreground">
-                    {month.label} {month.postsPublished}/{month.postsTarget}
-                    {isCurrent && "…"}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
+          <ChartContainer
+            config={coverageConfig}
+            className="mt-2 h-28 w-full"
+            aria-label={`Posts publiés par mois : ${coverageData
+              .map((d) => `${d.label} ${d.publies}/${d.cible}`)
+              .join(", ")}`}
+          >
+            <BarChart
+              data={coverageData}
+              margin={{ top: 14, right: 0, bottom: 0, left: 0 }}
+              accessibilityLayer
+            >
+              <XAxis
+                dataKey="label"
+                tickLine={false}
+                axisLine={false}
+                tick={{ fontSize: 10 }}
+                interval={0}
+                tickFormatter={(label: string, index: number) => {
+                  const month = coverageData[index];
+                  return `${label} ${month.publies}/${month.cible}${month.isCurrent ? "…" : ""}`;
+                }}
+              />
+              <YAxis domain={[0, coverageMax]} hide />
+              <ChartTooltip
+                cursor={{ fill: "var(--color-hover)", opacity: 0.5 }}
+                content={
+                  <ChartTooltipContent
+                    hideIndicator
+                    formatter={(value, _name, item) => {
+                      const month = item?.payload as
+                        | (typeof coverageData)[number]
+                        | undefined;
+                      return (
+                        <span className="font-mono font-medium tabular-nums">
+                          {Number(value)}/{month?.cible ?? "?"} publié
+                          {Number(value) > 1 ? "s" : ""}
+                        </span>
+                      );
+                    }}
+                  />
+                }
+              />
+              <Bar
+                dataKey="publies"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={48}
+                minPointSize={3}
+              >
+                {coverageData.map((month) => (
+                  <Cell
+                    key={month.label}
+                    fill={
+                      month.isCurrent
+                        ? "var(--muted)"
+                        : month.publies >= month.cible
+                          ? "var(--success)"
+                          : "var(--warning)"
+                    }
+                    fillOpacity={month.isCurrent ? 1 : 0.8}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ChartContainer>
         ) : (
           <p className="mt-2 text-sm text-muted-foreground">
             Mandat sans posts (reviews seulement) — rien à couvrir.
           </p>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }

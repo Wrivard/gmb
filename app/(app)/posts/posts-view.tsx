@@ -1,45 +1,57 @@
 "use client";
 
+// File de posts en pipeline — la page se lit comme le workflow réel :
+// ① une idée → génération (texte + image + date), ② réviser/replacer
+// les brouillons, ③ le calendrier du mois comme vue de contrôle.
+// Partagé entre la file agence (/posts) et l'onglet Posts d'un projet.
+
 import { useMemo, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { frCA } from "date-fns/locale";
+import { motion } from "framer-motion";
 import {
   ArrowRight,
-  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   ImageIcon,
   Sparkles,
   Unplug,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { cn } from "@/lib/utils";
-import type { PostStatus } from "@/lib/types/database";
 import { POST_STATUS_LABELS_FR, postGroup } from "@/lib/posts/status";
 import type { QueueClient, QueuePost } from "@/lib/posts/queue";
-import { TabBar } from "@/components/ui/tab-bar";
-import { generatePostAction } from "./actions";
+import { generatePostAction, reschedulePostAction } from "./actions";
 
 export type { QueueClient, QueuePost };
 
-function StatusBadge({ status }: { status: PostStatus }) {
-  const group = postGroup(status);
-  const variant =
-    group === "echec"
-      ? "destructive"
-      : group === "publie"
-        ? "secondary"
-        : group === "brouillon"
-          ? "outline"
-          : "default";
-  return <Badge variant={variant}>{POST_STATUS_LABELS_FR[status]}</Badge>;
+function toDatetimeLocal(iso: string | null): string {
+  if (!iso) return "";
+  const date = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
+
+const sectionMotion = (index: number) => ({
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.3, delay: index * 0.08, ease: "easeOut" as const },
+});
 
 export function PostsView({
   clients,
@@ -55,48 +67,252 @@ export function PostsView({
   /** false = aucun projet connecté : l'état vide oriente vers Agence. */
   hasProjects?: boolean;
 }) {
-  const [view, setView] = useState<"queue" | "calendar">("queue");
   const postHref = (id: string) =>
     backHref
       ? `/posts/${id}?back=${encodeURIComponent(backHref)}`
       : `/posts/${id}`;
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end gap-2 border-b border-border">
-        <TabBar
-          className="flex-1 border-b-0"
-          activeKey={view}
-          onSelect={(key) => setView(key as "queue" | "calendar")}
-          items={[
-            { key: "queue", label: "À traiter" },
-            { key: "calendar", label: "Calendrier" },
-          ]}
-        />
-        <div className="pb-1.5">
-          <BatchGenerateButton clients={clients} />
-        </div>
-      </div>
+  if (!hasProjects) {
+    return (
+      <EmptyState
+        icon={Unplug}
+        title="Aucun projet connecté"
+        hint={
+          <>
+            Connecte le compte Google dans{" "}
+            <a href="/settings" className="underline">
+              Agence
+            </a>{" "}
+            — les posts se génèrent selon la cadence de chaque projet.
+          </>
+        }
+      />
+    );
+  }
 
-      {view === "queue" ? (
-        <QueueView
-          clients={clients}
-          posts={posts}
-          postHref={postHref}
-          hasProjects={hasProjects}
+  const drafts = posts.filter((p) => postGroup(p.status) === "brouillon");
+  const failed = posts.filter((p) => postGroup(p.status) === "echec");
+
+  return (
+    <div className="flex max-w-4xl flex-col gap-8">
+      <motion.div {...sectionMotion(0)}>
+        <StepHeader
+          step={1}
+          title="Nouvelle idée"
+          hint="L'angle et la date se donnent AVANT la génération — le texte et l'image arrivent prêts à réviser."
         />
-      ) : (
+        <IdeaComposer clients={clients} />
+      </motion.div>
+
+      <motion.div {...sectionMotion(1)}>
+        <StepHeader
+          step={2}
+          title="À réviser"
+          count={drafts.length + failed.length}
+          hint="Vérifie le texte et l'image, ajuste la date au besoin, puis approuve."
+        />
+        {failed.length + drafts.length === 0 ? (
+          <EmptyState
+            size="sm"
+            title="Rien à réviser"
+            hint="Les brouillons générés apparaissent ici, avec leur date suggérée."
+          />
+        ) : (
+          <div className="flex flex-col gap-2">
+            {failed.length > 0 && (
+              <PostRows
+                posts={failed}
+                action="Corriger"
+                postHref={postHref}
+                tone="failed"
+              />
+            )}
+            {drafts.length > 0 && (
+              <PostRows posts={drafts} action="Réviser" postHref={postHref} />
+            )}
+          </div>
+        )}
+      </motion.div>
+
+      <motion.div {...sectionMotion(2)}>
+        <StepHeader
+          step={3}
+          title="Calendrier"
+          hint="Brouillons à leur date suggérée, posts planifiés (publication automatique) et publiés."
+        />
         <CalendarView posts={posts} postHref={postHref} />
+      </motion.div>
+    </div>
+  );
+}
+
+function StepHeader({
+  step,
+  title,
+  count,
+  hint,
+}: {
+  step: number;
+  title: string;
+  count?: number;
+  hint?: string;
+}) {
+  return (
+    <div className="mb-2 flex items-baseline gap-2">
+      <span className="flex size-5 shrink-0 translate-y-0.5 items-center justify-center rounded-full bg-muted text-xs font-semibold tabular-nums text-muted-foreground">
+        {step}
+      </span>
+      <h2 className="text-sm font-medium">{title}</h2>
+      {count !== undefined && (
+        <span className="text-sm tabular-nums text-muted-foreground">
+          {count}
+        </span>
       )}
+      {hint && (
+        <p className="ml-2 hidden text-xs text-muted-foreground sm:block">
+          {hint}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ── ① Nouvelle idée ─────────────────────────────────────────────── */
+
+function IdeaComposer({ clients }: { clients: QueueClient[] }) {
+  const router = useRouter();
+  const [clientId, setClientId] = useState(
+    () => clients.find((c) => c.remaining > 0)?.id ?? clients[0]?.id ?? "",
+  );
+  const [directive, setDirective] = useState("");
+  const [date, setDate] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  const selected = clients.find((c) => c.id === clientId);
+  const single = clients.length === 1;
+
+  function generate() {
+    if (!clientId) return;
+    startTransition(async () => {
+      const result = await generatePostAction(
+        clientId,
+        directive,
+        date ? new Date(date).toISOString() : undefined,
+      );
+      if (result.ok) {
+        toast.success(
+          `Post généré pour ${selected?.name ?? "le projet"} — il est dans « À réviser ».`,
+        );
+        setDirective("");
+        setDate("");
+        router.refresh();
+      } else {
+        toast.error(result.error);
+      }
+    });
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-elevated p-4">
+      <div className="flex flex-wrap items-end gap-3">
+        {!single && (
+          <div className="flex w-56 flex-col gap-1.5">
+            <Label htmlFor="idea-client" className="text-xs">
+              Projet
+            </Label>
+            <Select
+              value={clientId}
+              onValueChange={(value) => value && setClientId(value)}
+            >
+              <SelectTrigger id="idea-client" className="w-full">
+                <SelectValue placeholder="Choisir un projet" />
+              </SelectTrigger>
+              <SelectContent>
+                {clients.map((client) => (
+                  <SelectItem key={client.id} value={client.id}>
+                    {client.name}
+                    {client.remaining > 0 &&
+                      ` — ${client.remaining} dû${client.remaining > 1 ? "s" : ""}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <div className="flex min-w-48 flex-1 flex-col gap-1.5">
+          <Label htmlFor="idea-directive" className="text-xs">
+            Idée / angle{" "}
+            <span className="font-normal text-muted-foreground">
+              (optionnel)
+            </span>
+          </Label>
+          <Input
+            id="idea-directive"
+            value={directive}
+            onChange={(event) => setDirective(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !pending) {
+                event.preventDefault();
+                generate();
+              }
+            }}
+            placeholder="« promo de juin », « nouvelle tôle en stock »…"
+            disabled={pending}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="idea-date" className="text-xs">
+            Publication{" "}
+            <span className="font-normal text-muted-foreground">
+              (auto si vide)
+            </span>
+          </Label>
+          <Input
+            id="idea-date"
+            type="datetime-local"
+            value={date}
+            min={toDatetimeLocal(new Date().toISOString())}
+            onChange={(event) => setDate(event.target.value)}
+            className="w-52 tabular-nums"
+            disabled={pending}
+          />
+        </div>
+        <Button onClick={generate} disabled={pending || !clientId}>
+          <Sparkles />
+          {pending ? "Rédaction…" : "Générer"}
+        </Button>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+        {selected && (
+          <p className="text-xs text-muted-foreground">
+            {selected.remaining > 0 ? (
+              <>
+                Cadence : {selected.remaining} post
+                {selected.remaining > 1 ? "s" : ""} restant
+                {selected.remaining > 1 ? "s" : ""} ce mois-ci
+                {selected.late && (
+                  <span className="ml-1 font-medium text-destructive">
+                    — en retard
+                  </span>
+                )}
+              </>
+            ) : (
+              "Cadence du mois couverte — un post de plus reste possible."
+            )}
+          </p>
+        )}
+        <BatchGenerateButton clients={clients} />
+      </div>
     </div>
   );
 }
 
 function BatchGenerateButton({ clients }: { clients: QueueClient[] }) {
   const router = useRouter();
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(
-    null,
-  );
+  const [progress, setProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
   const [pending, startTransition] = useTransition();
   const cancelRef = useRef(false);
 
@@ -116,7 +332,8 @@ function BatchGenerateButton({ clients }: { clients: QueueClient[] }) {
     [clients],
   );
 
-  if (!jobs.length) return null;
+  // Le lot n'a de sens que s'il couvre plus qu'une génération manuelle.
+  if (jobs.length < 2) return null;
 
   function run() {
     cancelRef.current = false;
@@ -182,7 +399,7 @@ function BatchGenerateButton({ clients }: { clients: QueueClient[] }) {
           Arrêter
         </Button>
       )}
-      <Button size="sm" onClick={run} disabled={pending}>
+      <Button size="sm" variant="outline" onClick={run} disabled={pending}>
         <Sparkles />
         {pending
           ? "Génération…"
@@ -192,303 +409,123 @@ function BatchGenerateButton({ clients }: { clients: QueueClient[] }) {
   );
 }
 
-function QueueView({
-  clients,
-  posts,
-  postHref,
-  hasProjects = true,
-}: {
-  clients: QueueClient[];
-  posts: QueuePost[];
-  postHref: (id: string) => string;
-  hasProjects?: boolean;
-}) {
-  const due = clients.filter((c) => c.remaining > 0);
-  const drafts = posts.filter((p) => postGroup(p.status) === "brouillon");
-  const failed = posts.filter((p) => postGroup(p.status) === "echec");
-  const scheduled = posts.filter((p) => postGroup(p.status) === "planifie");
-  const published = posts.filter((p) => postGroup(p.status) === "publie");
+/* ── ② À réviser ─────────────────────────────────────────────────── */
 
-  const remainingTotal = due.reduce((sum, c) => sum + c.remaining, 0);
-  const todoCount = remainingTotal + drafts.length + failed.length;
-  const nextScheduled = scheduled.find((p) => p.scheduledFor);
-
-  return (
-    <div className="flex max-w-3xl flex-col gap-8">
-      {/* Zone action : ce qui attend une décision humaine. */}
-      {todoCount === 0 ? (
-        !hasProjects ? (
-          <EmptyState
-            icon={Unplug}
-            title="Aucun projet connecté"
-            hint={
-              <>
-                Connecte le compte Google dans{" "}
-                <a href="/settings" className="underline">
-                  Agence
-                </a>{" "}
-                — les posts se génèrent selon la cadence de chaque projet.
-              </>
-            }
-          />
-        ) : (
-          <EmptyState
-            icon={CheckCircle2}
-            title="Rien à traiter"
-            hint={
-              nextScheduled?.scheduledFor
-                ? `Prochain post : ${nextScheduled.clientName}, le ${format(
-                    new Date(nextScheduled.scheduledFor),
-                    "d MMMM à HH:mm",
-                    { locale: frCA },
-                  )} (publication automatique).`
-                : "La cadence du mois est couverte pour tous les clients."
-            }
-          />
-        )
-      ) : (
-        <>
-          {failed.length > 0 && (
-            <Section
-              title="À corriger"
-              count={failed.length}
-              hint="La publication a échoué chez Google. Ouvre le post, ajuste, réessaie."
-            >
-              <PostRows posts={failed} action="Corriger" postHref={postHref} />
-            </Section>
-          )}
-
-          {due.length > 0 && (
-            <Section
-              title="À créer"
-              count={remainingTotal}
-              hint="Un clic génère le texte et l'image, à réviser ensuite."
-            >
-              <ul className="divide-y divide-border rounded-lg border border-border bg-elevated">
-                {due.map((client) => (
-                  <DueClientRow key={client.id} client={client} />
-                ))}
-              </ul>
-            </Section>
-          )}
-
-          {drafts.length > 0 && (
-            <Section
-              title="À réviser"
-              count={drafts.length}
-              hint="Vérifie le texte et l'image, puis approuve."
-            >
-              <PostRows posts={drafts} action="Réviser" postHref={postHref} />
-            </Section>
-          )}
-        </>
-      )}
-
-      {/* Zone automatique : rien à faire, l'app s'en occupe. */}
-      {(scheduled.length > 0 || published.length > 0) && (
-        <div className="flex flex-col gap-8 border-t border-border pt-8">
-          {scheduled.length > 0 && (
-            <Section
-              title="Publication automatique"
-              count={scheduled.length}
-              hint="Chaque post part tout seul à la date prévue."
-              quiet
-            >
-              <PostRows posts={scheduled} quiet postHref={postHref} />
-            </Section>
-          )}
-
-          {published.length > 0 && (
-            <Section title="Publiés ce mois" count={published.length} quiet>
-              <PostRows posts={published} quiet postHref={postHref} />
-            </Section>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Section({
-  title,
-  count,
-  hint,
-  quiet = false,
-  children,
-}: {
-  title: string;
-  count: number;
-  hint?: string;
-  quiet?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <section>
-      <div className="flex items-baseline gap-2">
-        <h2
-          className={cn(
-            "text-sm font-medium",
-            quiet && "text-muted-foreground",
-          )}
-        >
-          {title}
-        </h2>
-        <span className="text-sm tabular-nums text-muted-foreground">
-          {count}
-        </span>
-        {hint && (
-          <p className="ml-2 hidden text-xs text-muted-foreground sm:block">
-            {hint}
-          </p>
-        )}
-      </div>
-      <div className="mt-2">{children}</div>
-    </section>
-  );
-}
-
-function DueClientRow({ client }: { client: QueueClient }) {
+function InlineSchedule({ post }: { post: QueuePost }) {
   const router = useRouter();
-  const [directive, setDirective] = useState("");
+  const committed = toDatetimeLocal(post.scheduledFor);
+  const [value, setValue] = useState(committed);
   const [pending, startTransition] = useTransition();
 
-  function generate() {
+  function commit() {
+    if (!value || value === committed) return;
     startTransition(async () => {
-      const result = await generatePostAction(client.id, directive);
+      const result = await reschedulePostAction(
+        post.id,
+        new Date(value).toISOString(),
+      );
       if (result.ok) {
-        toast.success(`Post généré pour ${client.name}.`);
-        setDirective("");
+        toast.success(
+          `${post.clientName} — replanifié au ${format(new Date(value), "d MMMM à HH:mm", { locale: frCA })}.`,
+        );
         router.refresh();
       } else {
         toast.error(result.error);
+        setValue(committed);
       }
     });
   }
 
   return (
-    <li className="flex items-center gap-3 px-4 py-2.5">
-      <div className="min-w-0 flex-1">
-        <span className="text-sm">{client.name}</span>
-        <span className="ml-2 text-xs text-muted-foreground">
-          {client.remaining} post{client.remaining > 1 ? "s" : ""} restant
-          {client.remaining > 1 ? "s" : ""}
-        </span>
-        {client.late && (
-          <span className="ml-2 text-xs font-medium text-destructive">
-            en retard
-          </span>
-        )}
-      </div>
-      {/* L'angle se donne AVANT la génération — sinon on brûle toujours
-          une génération à l'aveugle puis on régénère avec directive. */}
-      <Input
-        value={directive}
-        onChange={(event) => setDirective(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !pending) {
-            event.preventDefault();
-            generate();
-          }
-        }}
-        aria-label={`Angle du post pour ${client.name}`}
-        placeholder="Angle (optionnel) : « promo de juin »…"
-        className="h-7 w-56 text-xs"
-        disabled={pending}
-      />
-      <Button size="sm" variant="outline" disabled={pending} onClick={generate}>
-        <Sparkles />
-        {pending ? "Rédaction…" : "Générer"}
-      </Button>
-    </li>
+    <Input
+      type="datetime-local"
+      value={value}
+      onChange={(event) => setValue(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          commit();
+        }
+      }}
+      // Le clic sur l'input ne doit pas suivre le lien de la rangée.
+      onClick={(event) => event.stopPropagation()}
+      aria-label={`Date de publication — ${post.clientName}`}
+      className="h-7 w-44 text-xs tabular-nums"
+      disabled={pending}
+    />
   );
-}
-
-function postDateLabel(post: QueuePost): string {
-  if (post.status === "published" && post.publishedAt) {
-    return `Publié le ${format(new Date(post.publishedAt), "d MMM", { locale: frCA })}`;
-  }
-  if (post.scheduledFor) {
-    return `le ${format(new Date(post.scheduledFor), "d MMM à HH:mm", { locale: frCA })}`;
-  }
-  return "Sans date";
 }
 
 function PostRows({
   posts,
   action,
-  quiet = false,
   postHref,
+  tone,
 }: {
   posts: QueuePost[];
-  action?: string;
-  quiet?: boolean;
+  action: string;
   postHref: (id: string) => string;
+  tone?: "failed";
 }) {
+  const router = useRouter();
   return (
     <ul
       className={cn(
-        "divide-y divide-border rounded-lg border border-border",
-        quiet ? "bg-transparent" : "bg-elevated",
+        "divide-y divide-border rounded-lg border bg-elevated",
+        tone === "failed" ? "border-destructive/40" : "border-border",
       )}
     >
       {posts.map((post) => (
-        <li key={post.id}>
+        <li
+          key={post.id}
+          className="group flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors hover:bg-hover/50"
+          onClick={() => router.push(postHref(post.id))}
+        >
+          <div className="size-10 shrink-0 overflow-hidden rounded bg-muted">
+            {post.imageUrl ? (
+              <Image
+                src={post.imageUrl}
+                alt=""
+                width={80}
+                height={80}
+                className="size-full object-cover"
+              />
+            ) : (
+              <div className="flex size-full items-center justify-center text-muted-foreground">
+                <ImageIcon className="size-3.5" />
+              </div>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2">
+              <span className="text-sm">{post.clientName}</span>
+              <span className="truncate text-xs text-muted-foreground">
+                {post.summary}
+              </span>
+            </div>
+            {post.publishError && (
+              <p className="mt-0.5 line-clamp-1 text-xs text-destructive">
+                {post.publishError}
+              </p>
+            )}
+          </div>
+          <InlineSchedule post={post} />
           <Link
             href={postHref(post.id)}
-            className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-hover/50"
+            onClick={(event) => event.stopPropagation()}
+            className="flex w-20 shrink-0 items-center justify-end gap-1 text-xs font-medium text-foreground"
           >
-            <div
-              className={cn(
-                "shrink-0 overflow-hidden rounded bg-muted",
-                quiet ? "size-8" : "size-10",
-              )}
-            >
-              {post.imageUrl ? (
-                <Image
-                  src={post.imageUrl}
-                  alt=""
-                  width={80}
-                  height={80}
-                  className="size-full object-cover"
-                />
-              ) : (
-                <div className="flex size-full items-center justify-center text-muted-foreground">
-                  <ImageIcon className="size-3.5" />
-                </div>
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline gap-2">
-                <span className="text-sm">{post.clientName}</span>
-                <span className="truncate text-xs text-muted-foreground">
-                  {post.summary}
-                </span>
-              </div>
-              {post.publishError && (
-                <p className="mt-0.5 line-clamp-1 text-xs text-destructive">
-                  {post.publishError}
-                </p>
-              )}
-            </div>
-            <span className="shrink-0 text-xs text-muted-foreground">
-              {postDateLabel(post)}
-            </span>
-            {action ? (
-              <span className="flex w-20 shrink-0 items-center justify-end gap-1 text-xs font-medium text-foreground">
-                {action}
-                <ArrowRight className="size-3 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-              </span>
-            ) : (
-              <span className="flex w-20 shrink-0 justify-end">
-                <StatusBadge status={post.status} />
-              </span>
-            )}
+            {action}
+            <ArrowRight className="size-3 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
           </Link>
         </li>
       ))}
     </ul>
   );
 }
+
+/* ── ③ Calendrier ────────────────────────────────────────────────── */
 
 function CalendarView({
   posts,
@@ -498,12 +535,13 @@ function CalendarView({
   postHref: (id: string) => string;
 }) {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const firstDay = new Date(year, month, 1);
+  const [offset, setOffset] = useState(0);
+  const shown = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  const year = shown.getFullYear();
+  const month = shown.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   // Lundi = colonne 1.
-  const offset = (firstDay.getDay() + 6) % 7;
+  const gridStart = (shown.getDay() + 6) % 7;
 
   const byDay = new Map<number, QueuePost[]>();
   for (const post of posts) {
@@ -516,19 +554,38 @@ function CalendarView({
     byDay.set(day, [...(byDay.get(day) ?? []), post]);
   }
 
+  const isCurrentMonth = offset === 0;
+
   return (
     <div>
-      <h2 className="mb-2 text-sm font-medium capitalize text-muted-foreground">
-        {format(now, "MMMM yyyy", { locale: frCA })}
-      </h2>
-      {byDay.size === 0 && (
-        <EmptyState
-          size="sm"
-          className="mb-2"
-          title="Aucun post planifié ou publié ce mois-ci"
-          hint="Les posts approuvés apparaissent ici à leur date de publication."
-        />
-      )}
+      <div className="mb-2 flex items-center gap-1">
+        <h3 className="text-sm font-medium capitalize text-muted-foreground">
+          {format(shown, "MMMM yyyy", { locale: frCA })}
+        </h3>
+        <div className="ml-auto flex items-center gap-1">
+          {!isCurrentMonth && (
+            <Button size="sm" variant="ghost" onClick={() => setOffset(0)}>
+              Aujourd&apos;hui
+            </Button>
+          )}
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Mois précédent"
+            onClick={() => setOffset((o) => o - 1)}
+          >
+            <ChevronLeft />
+          </Button>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Mois suivant"
+            onClick={() => setOffset((o) => o + 1)}
+          >
+            <ChevronRight />
+          </Button>
+        </div>
+      </div>
       <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-border bg-border">
         {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((label) => (
           <div
@@ -538,7 +595,7 @@ function CalendarView({
             {label}
           </div>
         ))}
-        {Array.from({ length: offset }).map((_, i) => (
+        {Array.from({ length: gridStart }).map((_, i) => (
           <div key={`pad-${i}`} className="min-h-24 bg-background" />
         ))}
         {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => (
@@ -546,7 +603,7 @@ function CalendarView({
             <span
               className={cn(
                 "text-xs",
-                day === now.getDate()
+                isCurrentMonth && day === now.getDate()
                   ? "font-semibold text-primary"
                   : "text-muted-foreground",
               )}
@@ -558,6 +615,7 @@ function CalendarView({
                 <Link
                   key={post.id}
                   href={postHref(post.id)}
+                  title={`${post.clientName} — ${POST_STATUS_LABELS_FR[post.status]}`}
                   className={cn(
                     // Mêmes couleurs que StatusBadge : un statut = une
                     // couleur, peu importe la vue.
@@ -566,7 +624,9 @@ function CalendarView({
                       ? "bg-secondary text-secondary-foreground"
                       : postGroup(post.status) === "echec"
                         ? "bg-destructive/10 text-destructive"
-                        : "bg-primary/15 text-primary",
+                        : postGroup(post.status) === "brouillon"
+                          ? "border border-dashed border-border text-muted-foreground"
+                          : "bg-primary/15 text-primary",
                   )}
                 >
                   {post.clientName}
@@ -576,6 +636,20 @@ function CalendarView({
           </div>
         ))}
       </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        <span className="mr-3 inline-flex items-center gap-1.5">
+          <span className="inline-block size-2 rounded-sm border border-dashed border-border" />
+          brouillon (date suggérée)
+        </span>
+        <span className="mr-3 inline-flex items-center gap-1.5">
+          <span className="inline-block size-2 rounded-sm bg-primary/40" />
+          planifié — part tout seul
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block size-2 rounded-sm bg-secondary" />
+          publié
+        </span>
+      </p>
     </div>
   );
 }

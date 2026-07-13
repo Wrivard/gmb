@@ -82,6 +82,8 @@ export async function generatePostForClient(
   actor: string,
   now: Date = new Date(),
   directive?: string,
+  /** Date de publication voulue — sinon la prochaine suggestion de cadence. */
+  scheduledForOverride?: Date,
 ): Promise<GeneratedPost> {
   const supabase = await getDb();
 
@@ -111,6 +113,7 @@ export async function generatePostForClient(
     Math.max(cadence.remaining, cadence.drafts + 1),
   );
   const scheduledFor =
+    scheduledForOverride ??
     suggestions[Math.min(cadence.drafts, suggestions.length - 1)] ??
     suggestions[0];
 
