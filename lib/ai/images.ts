@@ -7,7 +7,10 @@ import "server-only";
 // badge « image à ajouter ».
 
 const OPENAI_IMAGE_URL = "https://api.openai.com/v1/images/generations";
-const DEFAULT_OPENAI_IMAGE_MODEL = "gpt-image-1";
+// gpt-image-1.5 : le flagship image d'OpenAI (gpt-image-1 s'éteint en
+// oct. 2026) — meilleure qualité ET ~20 % moins cher. gpt-image-2 existe
+// mais son API est différente (asynchrone, polling) — pas un drop-in.
+const DEFAULT_OPENAI_IMAGE_MODEL = "gpt-image-1.5";
 const DEFAULT_GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image";
 const TIMEOUT_MS = 60_000;
 
@@ -46,8 +49,10 @@ async function openaiImage(prompt: string): Promise<Buffer | null> {
     prompt: `${prompt} Landscape orientation.`,
     // Seul format paysage de gpt-image-1 (3:2) — sharp recadre en 1200×900.
     size: "1536x1024",
-    // « medium » ≈ 0,06 $/image; « high » ≈ 0,25 $ — garder le contrôle du coût.
-    quality: process.env.OPENAI_IMAGE_QUALITY || "medium",
+    // « high » ≈ 0,20 $/image sur gpt-image-1.5 — assumé : l'image EST le
+    // livrable du post, et le volume mensuel reste faible (1-3/client).
+    // OPENAI_IMAGE_QUALITY=medium en env pour redescendre au besoin.
+    quality: process.env.OPENAI_IMAGE_QUALITY || "high",
     n: 1,
   });
 

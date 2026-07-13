@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { frCA } from "date-fns/locale";
 import { motion } from "framer-motion";
@@ -69,11 +69,6 @@ export function PostsView({
   /** false = aucun projet connecté : l'état vide oriente vers Agence. */
   hasProjects?: boolean;
 }) {
-  const postHref = (id: string) =>
-    backHref
-      ? `/posts/${id}?back=${encodeURIComponent(backHref)}`
-      : `/posts/${id}`;
-
   if (!hasProjects) {
     return (
       <EmptyState
@@ -93,25 +88,48 @@ export function PostsView({
   }
 
   return (
-    <FilteredPipeline clients={clients} posts={posts} postHref={postHref} />
+    <FilteredPipeline clients={clients} posts={posts} backHref={backHref} />
   );
 }
 
 function FilteredPipeline({
   clients,
   posts,
-  postHref,
+  backHref,
 }: {
   clients: QueueClient[];
   posts: QueuePost[];
-  postHref: (id: string) => string;
+  backHref?: string;
 }) {
   const single = clients.length === 1;
   // Le projet choisi dans ① filtre TOUTE la page : projet A coché →
   // seulement les posts de A dans « À réviser » et le calendrier.
-  const [filterId, setFilterId] = useState<string>(
-    single ? clients[0].id : "all",
-  );
+  // Persisté dans l'URL (?projet=) : le filtre survit à l'aller-retour
+  // vers l'éditeur et au refresh temps réel, et se partage en lien.
+  const searchParams = useSearchParams();
+  const [filterId, setFilterId] = useState<string>(() => {
+    if (single) return clients[0].id;
+    const raw = searchParams.get("projet");
+    return raw && clients.some((c) => c.id === raw) ? raw : "all";
+  });
+  const changeFilter = (id: string) => {
+    setFilterId(id);
+    const params = new URLSearchParams(window.location.search);
+    if (id === "all") params.delete("projet");
+    else params.set("projet", id);
+    const query = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      query ? `?${query}` : window.location.pathname,
+    );
+  };
+
+  // « Retour » depuis l'éditeur = revenir ICI, filtre compris.
+  const back =
+    backHref ?? (filterId === "all" ? "/posts" : `/posts?projet=${filterId}`);
+  const postHref = (id: string) =>
+    `/posts/${id}?back=${encodeURIComponent(back)}`;
   const filtered =
     filterId === "all" ? posts : posts.filter((p) => p.clientId === filterId);
   const filteredClients =
@@ -143,14 +161,14 @@ function FilteredPipeline({
           <DueStrip
             clients={clients}
             filterId={filterId}
-            onFilterChange={setFilterId}
+            onFilterChange={changeFilter}
           />
         )}
         <IdeaComposer
           clients={clients}
           batchClients={filteredClients}
           filterId={filterId}
-          onFilterChange={setFilterId}
+          onFilterChange={changeFilter}
           single={single}
         />
       </motion.div>
