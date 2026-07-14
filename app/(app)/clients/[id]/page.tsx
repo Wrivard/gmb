@@ -50,6 +50,10 @@ const ClientSettings = dynamic(
   () => import("./client-settings").then((m) => m.ClientSettings),
   { loading: () => tabFallback },
 );
+const ReviewKitCard = dynamic(
+  () => import("./review-kit-card").then((m) => m.ReviewKitCard),
+  { loading: () => tabFallback },
+);
 
 export const metadata = { title: "Projet" };
 
@@ -331,7 +335,14 @@ export default async function ClientDetailPage({
       )}
       {tab === "posts" && <PostsTab client={client} />}
       {tab === "settings" && (
-        <ClientSettings client={client} isOwner={member.role === "owner"} />
+        <ClientSettings client={client} isOwner={member.role === "owner"}>
+          <ReviewKitCard
+            clientId={client.id}
+            clientName={client.name}
+            token={client.review_kit_token}
+            kit={client.review_kit ?? {}}
+          />
+        </ClientSettings>
       )}
     </div>
   );

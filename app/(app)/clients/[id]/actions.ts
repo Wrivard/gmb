@@ -24,6 +24,7 @@ import type {
   GbpPhotoRole,
   GbpProfileData,
   OnboardingState,
+  ReviewKitData,
 } from "@/lib/types/database";
 
 export async function updateClientSettingsAction(
@@ -571,6 +572,43 @@ export async function deleteGbpPhotoAction(
     revalidatePath(`/clients/${clientId}`);
     revalidatePath("/clients");
     return { ok: true, photos };
+  });
+}
+
+/** Config du kit d'avis (lien d'avis direct + gabarit du texto). */
+export async function updateReviewKitAction(
+  clientId: string,
+  kit: ReviewKitData,
+): Promise<ActionResult> {
+  return runAction("L'enregistrement du kit d'avis a échoué.", async () => {
+    const link = kit.review_link?.trim();
+    if (link && !/^https:\/\//.test(link)) {
+      return {
+        ok: false,
+        error: "Le lien d'avis doit être une URL https (g.page/r/… ou search.google.com/local/writereview…).",
+      };
+    }
+
+    const { member, supabase } = await loadClientForMember(clientId);
+    const next: ReviewKitData = {
+      ...(link ? { review_link: link } : {}),
+      ...(kit.message?.trim() ? { message: kit.message.trim() } : {}),
+    };
+    const { error } = await supabase
+      .from("clients")
+      .update({ review_kit: next })
+      .eq("id", clientId);
+    if (error) throw new Error(error.message);
+
+    await logActivity({
+      agencyId: member.agency_id,
+      clientId,
+      actor: member.email,
+      action: "review_kit_updated",
+    });
+
+    revalidatePath(`/clients/${clientId}`);
+    return { ok: true };
   });
 }
 

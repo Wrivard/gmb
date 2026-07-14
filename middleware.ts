@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseConfigured } from "@/lib/env";
 
-const PUBLIC_PATHS = ["/login", "/auth"];
+// /avis = page publique « Demander un avis » (kit d'avis) — l'accès se
+// contrôle par token non devinable, pas par session.
+const PUBLIC_PATHS = ["/login", "/auth", "/avis"];
 
 export async function middleware(request: NextRequest) {
   // Mode scaffold : sans projet Supabase branché, on laisse passer

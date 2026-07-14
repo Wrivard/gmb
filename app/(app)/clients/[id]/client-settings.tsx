@@ -60,10 +60,13 @@ export function ClientSettings({
   client,
   readOnly = false,
   isOwner = false,
+  children,
 }: {
   client: ClientSettingsClient;
   readOnly?: boolean;
   isOwner?: boolean;
+  /** Sections additionnelles (kit d'avis) — avant les notes internes. */
+  children?: React.ReactNode;
 }) {
   const router = useRouter();
   const profile: BrandProfile = client.brand_profile ?? {};
@@ -412,6 +415,8 @@ export function ClientSettings({
           </Button>
         )}
       </section>
+
+      {children}
 
       {/* Notes internes — le seul endroit humain : brand_profile.notes
           part dans les prompts, celles-ci jamais. */}

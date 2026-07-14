@@ -71,6 +71,14 @@ export type GbpWeekday =
   | "saturday"
   | "sunday";
 
+/** Colonne clients.review_kit — config de la page « Demander un avis ».
+    Le message accepte les gabarits {prenom}, {entreprise} et {lien}. */
+export interface ReviewKitData {
+  /** Lien d'avis direct Google (g.page/r/…/review ou writereview?placeid=). */
+  review_link?: string;
+  message?: string;
+}
+
 export type GbpPhotoRole = "logo" | "cover" | "photo";
 
 /** Photo de la fiche, stockée dans le bucket public gbp-photos. */
@@ -229,6 +237,8 @@ export interface Database {
           brand_profile: BrandProfile;
           onboarding: OnboardingState;
           gbp_profile: GbpProfileData;
+          review_kit_token: string;
+          review_kit: ReviewKitData;
           assignee_member_id: string | null;
           internal_notes: string | null;
           last_synced_at: string | null;
@@ -253,6 +263,8 @@ export interface Database {
           brand_profile?: BrandProfile;
           onboarding?: OnboardingState;
           gbp_profile?: GbpProfileData;
+          review_kit_token?: string;
+          review_kit?: ReviewKitData;
           assignee_member_id?: string | null;
           internal_notes?: string | null;
           last_synced_at?: string | null;
@@ -277,6 +289,8 @@ export interface Database {
           brand_profile?: BrandProfile;
           onboarding?: OnboardingState;
           gbp_profile?: GbpProfileData;
+          review_kit_token?: string;
+          review_kit?: ReviewKitData;
           assignee_member_id?: string | null;
           internal_notes?: string | null;
           last_synced_at?: string | null;
@@ -547,6 +561,14 @@ export interface Database {
       user_agency_ids: {
         Args: Record<string, never>;
         Returns: string[];
+      };
+      review_kit: {
+        Args: { token: string };
+        Returns: Array<{
+          client_name: string;
+          review_link: string | null;
+          message: string | null;
+        }>;
       };
     };
     Enums: Record<string, never>;

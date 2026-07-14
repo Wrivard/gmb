@@ -241,14 +241,15 @@ export const ONBOARDING_STEPS: OnboardingStepDef[] = [
     requirements: [
       {
         key: "avis.lien",
-        label: "Lien court « laissez-nous un avis » remis au client",
-        hint: "Depuis la fiche : Demander des avis → copier le lien. Le client le met dans ses courriels/factures.",
+        label: "Kit d'avis configuré et remis au client",
+        hint: "Réglages → Kit d'avis : colle le lien d'avis de la fiche, envoie la page « Demander un avis » au client (favori sur son téléphone) et imprime le QR.",
         manual: true,
+        appTab: "settings",
       },
       {
         key: "avis.processus",
         label: "Processus de collecte CONTINU convenu avec le client",
-        hint: "Qui demande, quand, comment — et demander du TEXTE (« écrivez deux phrases »), pas juste des étoiles.",
+        hint: "Le réflexe : fin de chantier → page « Demander un avis » → deux taps. Et demander du TEXTE (« écrivez deux phrases »), pas juste des étoiles.",
         manual: true,
       },
       {
