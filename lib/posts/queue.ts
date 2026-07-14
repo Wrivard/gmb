@@ -8,7 +8,7 @@ import "server-only";
 // la même interface.
 
 import { getDb } from "@/lib/supabase/db";
-import { isDemoDataMode } from "@/lib/data-mode";
+import { getAgencyClients } from "@/lib/queries/agency";
 import { supabaseConfigured } from "@/lib/env";
 import { demoQueueClients, demoQueuePosts } from "@/lib/demo";
 import { monthlyCadence, torontoMonthTester } from "@/lib/posts/cadence";
@@ -84,14 +84,10 @@ export async function loadAgencyQueue(
 
   const supabase = await getDb();
 
-  const { data: clients } = await supabase
-    .from("clients")
-    .select("*")
-    .eq("agency_id", agencyId)
-    .eq("status", "active")
-    .eq("is_demo", await isDemoDataMode())
-    .order("name");
-  const clientById = new Map((clients ?? []).map((c) => [c.id, c]));
+  // Loader partagé (mode réel/démo appliqué là-bas, une fois).
+  const { data: allClients } = await getAgencyClients(agencyId);
+  const clients = (allClients ?? []).filter((c) => c.status === "active");
+  const clientById = new Map(clients.map((c) => [c.id, c]));
 
   const { data: posts } = await supabase
     .from("posts")

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
-import { isDemoDataMode } from "@/lib/data-mode";
+import { getAgencyClients } from "@/lib/queries/agency";
 import { supabaseConfigured } from "@/lib/env";
 import { DemoBanner } from "@/components/layout/demo-banner";
 import { demoBoardClients, demoClientRows } from "@/lib/demo";
@@ -103,13 +103,9 @@ export default async function ClientsPage() {
     if (!member) return null; // Le layout gère la whitelist.
 
     const supabase = await getDb();
-    const demoData = await isDemoDataMode();
-    const { data: clients, error: clientsError } = await supabase
-      .from("clients")
-      .select("*")
-      .eq("agency_id", member.agency_id)
-      .eq("is_demo", demoData)
-      .order("name");
+    const { data: clients, error: clientsError } = await getAgencyClients(
+      member.agency_id,
+    );
     // Ne pas confondre « échec de chargement » et « aucun projet ».
     if (clientsError) throw new Error(clientsError.message);
 

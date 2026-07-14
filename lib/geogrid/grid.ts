@@ -91,8 +91,9 @@ function hash(input: string): number {
 
 /**
  * Rangs simulés plausibles : bons au centre (l'adresse), qui se
- * dégradent avec la distance, avec du bruit déterministe et des trous
- * aux coins. Permet de développer/valider l'UI avant les accès API.
+ * dégradent avec la distance (courbe superlinéaire — comme en vrai),
+ * avec du bruit déterministe et des cases « absent » vers les coins.
+ * Permet de développer/valider l'UI avant les accès API.
  */
 export function mockScanRanks(
   seed: string,
@@ -109,7 +110,9 @@ export function mockScanRanks(
       Math.cos((centerLat * Math.PI) / 180);
     const distanceKm = Math.sqrt(dLatKm * dLatKm + dLngKm * dLngKm);
     const noise = hash(`${seed}:${point.lat}:${point.lng}`) % 5;
-    const rank = Math.round(1 + distanceKm / (spacingKm * 0.7) + noise);
+    const rank = Math.round(
+      1 + Math.pow(distanceKm / (spacingKm * 0.55), 1.6) + noise,
+    );
     return { ...point, rank: rank > GEOGRID_DEPTH ? null : rank };
   });
 }

@@ -637,6 +637,22 @@ export async function scanGeogridAction(
       return { ok: false, error: "Configure d'abord les mots-clés suivis." };
     }
 
+    // Anti-rafale : chaque scan coûte de l'API — un re-scan immédiat ne
+    // mesure rien de nouveau (Maps ne bouge pas en 5 minutes).
+    const { data: last } = await supabase
+      .from("geogrid_scans")
+      .select("scanned_at")
+      .eq("client_id", clientId)
+      .order("scanned_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (last && Date.now() - new Date(last.scanned_at).getTime() < 5 * 60_000) {
+      return {
+        ok: false,
+        error: "Un scan vient de passer — attends quelques minutes avant de relancer.",
+      };
+    }
+
     const summary = await runGeogridScan(supabase, client);
     if (summary.skipped) {
       return { ok: false, error: `Scan impossible : ${summary.skipped}.` };

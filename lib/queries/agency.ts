@@ -33,6 +33,19 @@ export const getGoogleConnectionStatus = cache(async (agencyId: string) => {
     .maybeSingle();
 });
 
+/** Clients de l'agence, lignes complètes (page Projets, file posts).
+    LE point de passage des listes de clients — le mode réel/démo s'y
+    applique une fois pour toutes. */
+export const getAgencyClients = cache(async (agencyId: string) => {
+  const supabase = await getDb();
+  return supabase
+    .from("clients")
+    .select("*")
+    .eq("agency_id", agencyId)
+    .eq("is_demo", await isDemoDataMode())
+    .order("name");
+});
+
 /** Index léger des clients de l'agence (palette, méta des cartes). */
 export const getClientsIndex = cache(async (agencyId: string) => {
   const supabase = await getDb();

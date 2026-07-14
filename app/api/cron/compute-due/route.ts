@@ -19,14 +19,15 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = await getDb();
+  // Board COMPLET (fictifs inclus) : la comptabilité mensuelle et
+  // l'ancrage d'agence en ont besoin. Seul le digest exclut les
+  // fictifs — le filtre vit là-bas, pas ici.
   const { data: board } = await supabase
     .from("client_board_state")
     .select(
-      "agency_id, client_id, name, unreplied_count, posts_due, worst_pending_rating, oldest_pending_review_at, failed_post_count, posts_per_month, posts_published_this_month",
+      "agency_id, client_id, name, unreplied_count, posts_due, worst_pending_rating, oldest_pending_review_at, failed_post_count, posts_per_month, posts_published_this_month, is_demo",
     )
-    .eq("status", "active")
-    // Les clients fictifs (mode démo) ne génèrent pas de digest.
-    .eq("is_demo", false);
+    .eq("status", "active");
 
   // Couverture mensuelle persistée : posts_target figé au premier
   // passage du mois (ignoreDuplicates), posts_published rafraîchi chaque
@@ -55,11 +56,14 @@ export async function GET(request: NextRequest) {
   }
 
   const agencyId = board?.[0]?.agency_id ?? null;
+  // Digest et compteurs du jour : les clients fictifs (mode démo) n'y
+  // figurent jamais — pas de notification sur des dentistes imaginaires.
+  const realBoard = (board ?? []).filter((row) => !row.is_demo);
   const totals = {
-    clients: board?.length ?? 0,
-    unreplied: (board ?? []).reduce((sum, row) => sum + row.unreplied_count, 0),
-    postsDue: (board ?? []).reduce((sum, row) => sum + row.posts_due, 0),
-    failed: (board ?? []).reduce((sum, row) => sum + row.failed_post_count, 0),
+    clients: realBoard.length,
+    unreplied: realBoard.reduce((sum, row) => sum + row.unreplied_count, 0),
+    postsDue: realBoard.reduce((sum, row) => sum + row.posts_due, 0),
+    failed: realBoard.reduce((sum, row) => sum + row.failed_post_count, 0),
   };
 
   await logActivity({
@@ -93,7 +97,7 @@ export async function GET(request: NextRequest) {
       );
     }
     if (totals.unreplied) {
-      const urgent = (board ?? []).filter(
+      const urgent = realBoard.filter(
         (row) =>
           row.unreplied_count > 0 &&
           row.worst_pending_rating !== null &&

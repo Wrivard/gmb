@@ -77,4 +77,10 @@ describe("mockScanRanks", () => {
     expect(center.rank).not.toBeNull();
     expect(corner.rank === null || corner.rank > center.rank!).toBe(true);
   });
+
+  it("des cases « absent » apparaissent vers les bords (la légende dit vrai)", () => {
+    const ranks = mockScanRanks("seed", points, CENTER.lat, CENTER.lng);
+    expect(ranks.some((p) => p.rank === null)).toBe(true);
+    expect(ranks.some((p) => p.rank !== null)).toBe(true);
+  });
 });

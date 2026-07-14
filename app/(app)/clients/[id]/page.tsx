@@ -382,8 +382,11 @@ async function GrowthTab({
         .from("geogrid_scans")
         .select("*")
         .eq("client_id", client.id)
+        // Filtré par mot-clé configuré : une rafale de scans d'un
+        // mot-clé ne peut pas pousser l'autre hors de la fenêtre.
+        .in("keyword", (client.geogrid?.keywords ?? []).filter(Boolean))
         .order("scanned_at", { ascending: false })
-        .limit(8),
+        .limit(24),
     ]);
 
   // Dernier scan par mot-clé CONFIGURÉ (les mots-clés retirés ne
