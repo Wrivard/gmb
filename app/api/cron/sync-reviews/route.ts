@@ -41,10 +41,14 @@ export async function GET(request: NextRequest) {
   }
 
   // Clients groupés par compte; le batch v4 veut les resource names complets.
+  const gbpReal = (process.env.GBP_MODE ?? "mock") === "real";
   const byAccount = new Map<string, Client[]>();
   for (const client of clients) {
     // Créé à la main, fiche pas encore liée : rien à synchroniser.
     if (!client.gbp_account_id || !client.gbp_location_id) continue;
+    // Fictifs (démo) : jamais contre la vraie API — leurs ids Google
+    // n'existent pas. En mock, ils continuent de vivre.
+    if (gbpReal && client.is_demo) continue;
     const list = byAccount.get(client.gbp_account_id) ?? [];
     list.push(client);
     byAccount.set(client.gbp_account_id, list);

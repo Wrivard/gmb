@@ -7,6 +7,7 @@ import "server-only";
 // la même interface — le scope ne sert alors qu'au filtre clientId.
 
 import { getDb } from "@/lib/supabase/db";
+import { isDemoDataMode } from "@/lib/data-mode";
 import { supabaseConfigured } from "@/lib/env";
 import { demoInboxReviews } from "@/lib/demo";
 import type { ReviewStatus } from "@/lib/types/database";
@@ -55,6 +56,7 @@ export async function loadInboxReviews(
 
   const supabase = await getDb();
   const historyLimit = options?.historyLimit ?? HISTORY_PAGE;
+  const demoData = await isDemoDataMode();
 
   const base = () => {
     const query = supabase
@@ -64,6 +66,7 @@ export async function loadInboxReviews(
     return "agencyId" in scope
       ? query
           .eq("clients.agency_id", scope.agencyId)
+          .eq("clients.is_demo", demoData)
           .neq("clients.status", "archived")
       : query.eq("client_id", scope.clientId);
   };

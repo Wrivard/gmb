@@ -22,9 +22,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { DemoBanner } from "@/components/layout/demo-banner";
+import { getDataMode } from "@/lib/data-mode";
 import { ResyncButton } from "./resync-button";
 import { TeamSection } from "./team-section";
 import { DefaultsForm } from "./defaults-form";
+import { DataModeCard } from "./data-mode-card";
 
 export const metadata = { title: "Agence" };
 
@@ -116,6 +118,7 @@ export default async function SettingsPage({
   const { member } = await getSessionContext();
   if (!member) return null; // Le layout gère la whitelist.
   const isOwner = member.role === "owner";
+  const dataMode = await getDataMode();
 
   const supabase = await getDb();
   const [
@@ -273,6 +276,9 @@ export default async function SettingsPage({
           />
         </CardContent>
       </Card>
+
+      {/* Réel ↔ démo */}
+      <DataModeCard mode={dataMode} />
     </div>
   );
 }

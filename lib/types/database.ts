@@ -262,6 +262,8 @@ export interface Database {
           review_kit_token: string;
           review_kit: ReviewKitData;
           geogrid: GeogridConfig;
+          /** Client fictif du seed — visible en mode démo seulement. */
+          is_demo: boolean;
           assignee_member_id: string | null;
           internal_notes: string | null;
           last_synced_at: string | null;
@@ -289,6 +291,7 @@ export interface Database {
           review_kit_token?: string;
           review_kit?: ReviewKitData;
           geogrid?: GeogridConfig;
+          is_demo?: boolean;
           assignee_member_id?: string | null;
           internal_notes?: string | null;
           last_synced_at?: string | null;
@@ -316,6 +319,7 @@ export interface Database {
           review_kit_token?: string;
           review_kit?: ReviewKitData;
           geogrid?: GeogridConfig;
+          is_demo?: boolean;
           assignee_member_id?: string | null;
           internal_notes?: string | null;
           last_synced_at?: string | null;
@@ -632,6 +636,7 @@ export interface Database {
           next_scheduled_post: string | null;
           failed_post_count: number;
           assignee_member_id: string | null;
+          is_demo: boolean;
         };
         Relationships: [];
       };

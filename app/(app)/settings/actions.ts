@@ -1,14 +1,32 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import {
   getMemberDb,
   requireMember,
   runAction,
   type ActionResult,
 } from "@/lib/actions/member";
+import { DATA_MODE_COOKIE, type DataMode } from "@/lib/data-mode";
 import { runDiscovery } from "@/lib/gbp/discovery";
 import { logActivity } from "@/lib/activity";
+
+/** Bascule réel ↔ démo (cookie par navigateur — voir lib/data-mode.ts). */
+export async function setDataModeAction(mode: DataMode): Promise<ActionResult> {
+  return runAction("Le changement de mode a échoué.", async () => {
+    await requireMember();
+    const store = await cookies();
+    store.set(DATA_MODE_COOKIE, mode === "demo" ? "demo" : "real", {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+      sameSite: "lax",
+      httpOnly: true,
+    });
+    revalidatePath("/", "layout");
+    return { ok: true };
+  });
+}
 
 export async function resyncClientsAction(): Promise<
   ActionResult & { created?: number; discovered?: number }

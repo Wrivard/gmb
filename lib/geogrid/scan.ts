@@ -124,7 +124,9 @@ export async function runGeogridScan(
     return { ...summary, skipped: "aucun mot-clé configuré" };
   }
 
-  const real = geogridConfigured();
+  // Les clients fictifs (démo) restent en simulation : pas un sou
+  // d'API pour des entreprises qui n'existent pas sur Maps.
+  const real = geogridConfigured() && !client.is_demo;
   let configDirty = false;
 
   // 1. Coordonnées du centre — géocodage de l'adresse, une seule fois.

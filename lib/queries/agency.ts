@@ -6,6 +6,10 @@ import "server-only";
 
 import { cache } from "react";
 import { getDb } from "@/lib/supabase/db";
+import { isDemoDataMode } from "@/lib/data-mode";
+
+// Le mode de données (réel/démo, cookie) se lit ICI, dans les loaders
+// partagés : tout ce qui liste des clients suit automatiquement.
 
 /** Board kanban : une ligne par client actif, compteurs agrégés. */
 export const getBoardState = cache(async (agencyId: string) => {
@@ -15,6 +19,7 @@ export const getBoardState = cache(async (agencyId: string) => {
     .select("*")
     .eq("agency_id", agencyId)
     .eq("status", "active")
+    .eq("is_demo", await isDemoDataMode())
     .order("name");
 });
 
@@ -37,5 +42,6 @@ export const getClientsIndex = cache(async (agencyId: string) => {
       "id, name, primary_category, address, last_synced_at, status, assignee_member_id, brand_profile",
     )
     .eq("agency_id", agencyId)
+    .eq("is_demo", await isDemoDataMode())
     .order("name");
 });

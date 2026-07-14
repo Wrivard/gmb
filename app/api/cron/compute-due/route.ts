@@ -24,7 +24,9 @@ export async function GET(request: NextRequest) {
     .select(
       "agency_id, client_id, name, unreplied_count, posts_due, worst_pending_rating, oldest_pending_review_at, failed_post_count, posts_per_month, posts_published_this_month",
     )
-    .eq("status", "active");
+    .eq("status", "active")
+    // Les clients fictifs (mode démo) ne génèrent pas de digest.
+    .eq("is_demo", false);
 
   // Couverture mensuelle persistée : posts_target figé au premier
   // passage du mois (ignoreDuplicates), posts_published rafraîchi chaque

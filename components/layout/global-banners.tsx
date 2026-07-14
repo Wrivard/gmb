@@ -8,15 +8,32 @@ export function GlobalBanners({
   connectionRevoked,
   accessPending,
   dataUnavailable = false,
+  demoDataMode = false,
 }: {
   connectionRevoked: boolean;
   accessPending: boolean;
   dataUnavailable?: boolean;
+  /** Mode démo (clients fictifs) actif dans ce navigateur. */
+  demoDataMode?: boolean;
 }) {
-  if (!connectionRevoked && !accessPending && !dataUnavailable) return null;
+  if (
+    !connectionRevoked &&
+    !accessPending &&
+    !dataUnavailable &&
+    !demoDataMode
+  )
+    return null;
 
   return (
     <div className="flex flex-col print:hidden">
+      {demoDataMode && (
+        <div className="bg-info/10 px-6 py-2 text-center text-sm text-info">
+          Mode démo — données fictives affichées.{" "}
+          <Link href="/settings" className="font-medium underline">
+            Repasser en mode réel
+          </Link>
+        </div>
+      )}
       {dataUnavailable && (
         <div className="bg-warning/10 px-6 py-2 text-center text-sm text-warning">
           Impossible de charger certains compteurs — les badges peuvent être

@@ -68,6 +68,15 @@ export async function publishPost(
       .eq("id", post.id);
     return { ok: false, error };
   }
+  // Client fictif (démo) + API réelle : ses ids Google n'existent pas.
+  if (client.is_demo && (process.env.GBP_MODE ?? "mock") === "real") {
+    const error = "Client de démonstration — pas de publication réelle.";
+    await supabase
+      .from("posts")
+      .update({ status: "failed", publish_error: error })
+      .eq("id", post.id);
+    return { ok: false, error };
+  }
 
   try {
     const input: LocalPostInput = {

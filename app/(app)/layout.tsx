@@ -11,6 +11,7 @@ import {
   getGoogleConnectionStatus,
 } from "@/lib/queries/agency";
 import { supabaseConfigured } from "@/lib/env";
+import { isDemoDataMode } from "@/lib/data-mode";
 import { demoBoardClients } from "@/lib/demo";
 
 export default async function AppLayout({
@@ -24,8 +25,10 @@ export default async function AppLayout({
   let connectionRevoked = false;
   let accessPending = false;
   let dataUnavailable = false;
+  let demoDataMode = false;
 
   if (supabaseConfigured()) {
+    demoDataMode = await isDemoDataMode();
     const { user, member } = await getSessionContext();
     // Le middleware garantit une session; ici on applique la whitelist.
     if (user && !member) {
@@ -94,6 +97,7 @@ export default async function AppLayout({
           connectionRevoked={connectionRevoked}
           accessPending={accessPending}
           dataUnavailable={dataUnavailable}
+          demoDataMode={demoDataMode}
         />
         <Topbar />
         <main className="mx-auto max-w-[1400px] px-6 py-8">{children}</main>
