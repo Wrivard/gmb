@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { defaultReviewMessage, renderReviewMessage, smsHref } from "./kit";
+import {
+  defaultReviewMessage,
+  isIos,
+  renderReviewMessage,
+  smsHref,
+} from "./kit";
 
 const kit = {
   review_link: "https://g.page/r/Xyz/review",
@@ -44,24 +49,37 @@ describe("renderReviewMessage", () => {
   });
 });
 
+describe("isIos", () => {
+  it("iPhone", () => {
+    expect(
+      isIos("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"),
+    ).toBe(true);
+  });
+
+  it("iPadOS en mode desktop (UA Macintosh + tactile)", () => {
+    const ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)";
+    expect(isIos(ua, 5)).toBe(true);
+    expect(isIos(ua, 0)).toBe(false); // vrai Mac
+  });
+
+  it("Android", () => {
+    expect(isIos("Mozilla/5.0 (Linux; Android 14)")).toBe(false);
+  });
+});
+
 describe("smsHref", () => {
   const message = "Salut! Un avis? https://g.page/r/Xyz/review";
 
   it("iOS : séparateur &", () => {
-    const href = smsHref(
-      message,
-      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
-    );
-    expect(href.startsWith("sms:&body=")).toBe(true);
+    expect(smsHref(message, true).startsWith("sms:&body=")).toBe(true);
   });
 
   it("Android : séparateur ?", () => {
-    const href = smsHref(message, "Mozilla/5.0 (Linux; Android 14)");
-    expect(href.startsWith("sms:?body=")).toBe(true);
+    expect(smsHref(message, false).startsWith("sms:?body=")).toBe(true);
   });
 
   it("le corps est encodé", () => {
-    const href = smsHref(message, "Mozilla/5.0 (Linux; Android 14)");
+    const href = smsHref(message, false);
     expect(href).toContain(encodeURIComponent("https://g.page/r/Xyz/review"));
     expect(href).not.toContain(" ");
   });

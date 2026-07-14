@@ -10,7 +10,7 @@ import { ClipboardCopy, ExternalLink, MessageSquareText, Star } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { renderReviewMessage, smsHref } from "@/lib/reviews/kit";
+import { isIos, renderReviewMessage, smsHref } from "@/lib/reviews/kit";
 
 export function RequestReview({
   businessName,
@@ -34,13 +34,21 @@ export function RequestReview({
   );
 
   function sendSms() {
-    window.location.href = smsHref(message, navigator.userAgent);
+    window.location.href = smsHref(
+      message,
+      isIos(navigator.userAgent, navigator.maxTouchPoints),
+    );
   }
 
   async function copyMessage() {
-    await navigator.clipboard.writeText(message);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Contexte non sécurisé ou permission refusée — l'aperçu reste
+      // sélectionnable à la main.
+    }
   }
 
   if (!reviewLink) {
@@ -73,7 +81,7 @@ export function RequestReview({
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="rk-firstname">
-          Prénom du client{" "}
+          Prénom ou nom du client{" "}
           <span className="font-normal text-muted-foreground">
             (optionnel — personnalise le texto)
           </span>
@@ -84,6 +92,8 @@ export function RequestReview({
           onChange={(e) => setFirstName(e.target.value)}
           placeholder="Mme Bouchard"
           autoComplete="off"
+          autoCapitalize="words"
+          enterKeyHint="done"
           className="h-11"
         />
       </div>

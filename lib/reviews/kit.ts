@@ -36,11 +36,21 @@ export function renderReviewMessage(
 }
 
 /**
- * Lien sms: pré-rempli. iOS et Android n'utilisent pas le même
- * séparateur avant body — on détecte via le user-agent.
+ * Détection iOS pour le séparateur sms:. Safari sur iPadOS se présente
+ * comme un Mac — le tactile (maxTouchPoints) le trahit.
  */
-export function smsHref(message: string, userAgent: string): string {
-  const isIos = /iPad|iPhone|iPod/i.test(userAgent);
-  const separator = isIos ? "&" : "?";
+export function isIos(userAgent: string, maxTouchPoints = 0): boolean {
+  return (
+    /iPad|iPhone|iPod/i.test(userAgent) ||
+    (/Macintosh/i.test(userAgent) && maxTouchPoints > 1)
+  );
+}
+
+/**
+ * Lien sms: pré-rempli. iOS et Android n'utilisent pas le même
+ * séparateur avant body.
+ */
+export function smsHref(message: string, ios: boolean): string {
+  const separator = ios ? "&" : "?";
   return `sms:${separator}body=${encodeURIComponent(message)}`;
 }

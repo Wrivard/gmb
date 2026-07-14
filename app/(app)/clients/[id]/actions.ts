@@ -588,6 +588,12 @@ export async function updateReviewKitAction(
         error: "Le lien d'avis doit être une URL https (g.page/r/… ou search.google.com/local/writereview…).",
       };
     }
+    if ((kit.message?.trim().length ?? 0) > 500) {
+      return {
+        ok: false,
+        error: "Gabarit trop long (max 500 caractères) — un texto, pas une lettre.",
+      };
+    }
 
     const { member, supabase } = await loadClientForMember(clientId);
     const next: ReviewKitData = {

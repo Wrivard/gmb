@@ -51,6 +51,10 @@ export function ReviewKitCard({
         message,
       });
       if (result.ok) {
+        // Aligner l'état local sur ce qui a été persisté (trim) — sinon
+        // le bouton reste faussement « à enregistrer ».
+        setReviewLink(reviewLink.trim());
+        setMessage(message.trim());
         toast.success("Kit d'avis enregistré.");
         router.refresh();
       } else {
@@ -82,13 +86,19 @@ export function ReviewKitCard({
             <code className="min-w-0 flex-1 truncate rounded-md bg-muted px-2 py-1.5 text-xs">
               {pageUrl || "…"}
             </code>
-            <Button size="sm" variant="outline" onClick={copyPageUrl}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={copyPageUrl}
+              disabled={!pageUrl}
+            >
               <ClipboardCopy />
               Copier
             </Button>
             <Button
               size="sm"
               variant="ghost"
+              disabled={!pageUrl}
               render={
                 <a href={pageUrl || "#"} target="_blank" rel="noreferrer" />
               }
@@ -121,11 +131,12 @@ export function ReviewKitCard({
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             rows={4}
+            maxLength={500}
             placeholder={defaultReviewMessage()}
             className="text-sm"
           />
           <p className="text-xs text-muted-foreground">
-            {"Placeholders : {prenom} (saisi sur la page), {entreprise}, {lien}. Vide = gabarit par défaut."}
+            {"Placeholders : {prenom} (saisi sur la page), {entreprise}, {lien}. Vide = gabarit par défaut. Court = mieux : un texto, pas une lettre."}
           </p>
         </div>
 
@@ -183,9 +194,11 @@ function QrTile({
   useEffect(() => {
     if (!value) return;
     let cancelled = false;
-    void QRCode.toDataURL(value, { width: 512, margin: 2 }).then((url) => {
-      if (!cancelled) setDataUrl(url);
-    });
+    QRCode.toDataURL(value, { width: 512, margin: 2 })
+      .then((url) => {
+        if (!cancelled) setDataUrl(url);
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
