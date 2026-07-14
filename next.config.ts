@@ -8,6 +8,13 @@ const supabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
   : null;
 
 const nextConfig: NextConfig = {
+  experimental: {
+    serverActions: {
+      // Upload des photos de fiche (wizard) — compressées côté client,
+      // mais au-dessus du 1 Mo par défaut. Vercel plafonne à 4,5 Mo.
+      bodySizeLimit: "4mb",
+    },
+  },
   images: {
     remotePatterns: [
       ...(supabaseHost

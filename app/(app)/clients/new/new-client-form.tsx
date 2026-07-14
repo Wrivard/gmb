@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { GBP_CATEGORY_SUGGESTIONS } from "@/lib/gbp/categories";
 import { createClientAction } from "../actions";
 
 export function NewClientForm() {
@@ -87,8 +88,14 @@ export function NewClientForm() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="np-category">Métier / catégorie</Label>
+            <datalist id="gbp-categories-new">
+              {GBP_CATEGORY_SUGGESTIONS.map((category) => (
+                <option key={category} value={category} />
+              ))}
+            </datalist>
             <Input
               id="np-category"
+              list="gbp-categories-new"
               value={form.category}
               onChange={set("category")}
               placeholder="Couvreur"

@@ -71,6 +71,17 @@ export type GbpWeekday =
   | "saturday"
   | "sunday";
 
+export type GbpPhotoRole = "logo" | "cover" | "photo";
+
+/** Photo de la fiche, stockée dans le bucket public gbp-photos. */
+export interface GbpPhoto {
+  path: string;
+  /** URL publique — affichage dans l'app et sourceUrl du futur push média. */
+  url: string;
+  role: GbpPhotoRole;
+  at: string;
+}
+
 /** État de push d'une section de la fiche vers Google. */
 export interface GbpSectionSync {
   pushed_at: string;
@@ -97,6 +108,7 @@ export interface GbpProfileData {
   opening_date?: string;
   services?: Array<{ name: string; description?: string }>;
   qna?: Array<{ question: string; answer: string }>;
+  photos?: GbpPhoto[];
   sync?: Record<string, GbpSectionSync>;
 }
 

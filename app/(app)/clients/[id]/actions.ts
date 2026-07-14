@@ -20,6 +20,8 @@ import {
 } from "@/lib/onboarding/steps";
 import type {
   BrandProfile,
+  GbpPhoto,
+  GbpPhotoRole,
   GbpProfileData,
   OnboardingState,
 } from "@/lib/types/database";
@@ -464,6 +466,111 @@ export async function pushGbpSectionAction(
 
     revalidatePath(`/clients/${clientId}`);
     return { ok: true };
+  });
+}
+
+/* ── Photos de la fiche ───────────────────────────────────────────── */
+
+const GBP_PHOTO_BUCKET = "gbp-photos";
+const GBP_PHOTO_ROLES: GbpPhotoRole[] = ["logo", "cover", "photo"];
+/** Le navigateur compresse avant l'envoi — au-delà, c'est un raté. */
+const GBP_PHOTO_MAX_BYTES = 4 * 1024 * 1024;
+
+type PhotosResult = { ok: true; photos: GbpPhoto[] } | { ok: false; error: string };
+
+/**
+ * Téléverse une photo de la fiche (logo, couverture ou galerie). Logo et
+ * couverture sont uniques : un nouvel envoi remplace l'ancien.
+ */
+export async function uploadGbpPhotoAction(
+  clientId: string,
+  role: GbpPhotoRole,
+  formData: FormData,
+): Promise<PhotosResult> {
+  return runAction("Le téléversement a échoué.", async () => {
+    if (!GBP_PHOTO_ROLES.includes(role)) {
+      return { ok: false, error: "Type de photo inconnu." };
+    }
+    const file = formData.get("file");
+    if (!(file instanceof File) || !file.type.startsWith("image/")) {
+      return { ok: false, error: "Fichier image attendu." };
+    }
+    if (file.size > GBP_PHOTO_MAX_BYTES) {
+      return { ok: false, error: "Image trop lourde (max 4 Mo)." };
+    }
+
+    const { member, supabase, client } = await loadClientForMember(clientId);
+    const profile: GbpProfileData = client.gbp_profile ?? {};
+
+    const ext =
+      file.type === "image/png"
+        ? "png"
+        : file.type === "image/webp"
+          ? "webp"
+          : "jpg";
+    const path = `${clientId}/${role}-${Date.now()}.${ext}`;
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const { error: uploadError } = await supabase.storage
+      .from(GBP_PHOTO_BUCKET)
+      .upload(path, bytes, { contentType: file.type });
+    if (uploadError) throw new Error(uploadError.message);
+    const url = supabase.storage.from(GBP_PHOTO_BUCKET).getPublicUrl(path)
+      .data.publicUrl;
+
+    let photos = [...(profile.photos ?? [])];
+    if (role !== "photo") {
+      const previous = photos.filter((p) => p.role === role);
+      if (previous.length) {
+        await supabase.storage
+          .from(GBP_PHOTO_BUCKET)
+          .remove(previous.map((p) => p.path));
+      }
+      photos = photos.filter((p) => p.role !== role);
+    }
+    photos.push({ path, url, role, at: new Date().toISOString() });
+
+    const nextProfile: GbpProfileData = { ...profile, photos };
+    const nextOnboarding = await stampIfComplete(
+      supabase,
+      member,
+      client,
+      nextProfile,
+      client.onboarding ?? {},
+    );
+    const { error } = await supabase
+      .from("clients")
+      .update({ gbp_profile: nextProfile, onboarding: nextOnboarding })
+      .eq("id", clientId);
+    if (error) throw new Error(error.message);
+
+    revalidatePath(`/clients/${clientId}`);
+    revalidatePath("/clients");
+    return { ok: true, photos };
+  });
+}
+
+export async function deleteGbpPhotoAction(
+  clientId: string,
+  path: string,
+): Promise<PhotosResult> {
+  return runAction("La suppression a échoué.", async () => {
+    const { supabase, client } = await loadClientForMember(clientId);
+    const profile: GbpProfileData = client.gbp_profile ?? {};
+    const photos = (profile.photos ?? []).filter((p) => p.path !== path);
+    if (photos.length === (profile.photos ?? []).length) {
+      return { ok: false, error: "Photo introuvable." };
+    }
+
+    await supabase.storage.from(GBP_PHOTO_BUCKET).remove([path]);
+    const { error } = await supabase
+      .from("clients")
+      .update({ gbp_profile: { ...profile, photos } })
+      .eq("id", clientId);
+    if (error) throw new Error(error.message);
+
+    revalidatePath(`/clients/${clientId}`);
+    revalidatePath("/clients");
+    return { ok: true, photos };
   });
 }
 

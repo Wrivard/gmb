@@ -44,6 +44,16 @@ const fullProfile: GbpProfileData = {
     { question: "Soumission gratuite ?", answer: "Oui, sous 48 h." },
     { question: "Garanties ?", answer: "10 ans sur la pose." },
   ],
+  photos: [
+    { path: "c/logo.jpg", url: "https://x/logo.jpg", role: "logo", at: "2026-07-14" },
+    { path: "c/cover.jpg", url: "https://x/cover.jpg", role: "cover", at: "2026-07-14" },
+    ...Array.from({ length: 10 }, (_, i) => ({
+      path: `c/photo-${i}.jpg`,
+      url: `https://x/photo-${i}.jpg`,
+      role: "photo" as const,
+      at: "2026-07-14",
+    })),
+  ],
 };
 
 /** Toutes les cases manuelles cochées. */
@@ -111,6 +121,28 @@ describe("onboardingProgress (v2 — données + checks manuels)", () => {
       }),
     );
     expect(progress.done).toBe(full.done - 1);
+  });
+
+  it("photos : logo + couverture et 10 photos de galerie requis", () => {
+    const nineGallery = {
+      ...fullProfile,
+      photos: (fullProfile.photos ?? []).slice(0, 11), // logo + cover + 9
+    };
+    const a = onboardingProgress(
+      onboardingCtx({
+        gbp_profile: nineGallery,
+        onboarding: {},
+        brandProfileComplete: false,
+      }),
+    );
+    const b = onboardingProgress(
+      onboardingCtx({
+        gbp_profile: fullProfile,
+        onboarding: {},
+        brandProfileComplete: false,
+      }),
+    );
+    expect(a.done).toBe(b.done - 1);
   });
 
   it("description : 250 caractères minimum", () => {

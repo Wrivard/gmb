@@ -208,15 +208,23 @@ export const ONBOARDING_STEPS: OnboardingStepDef[] = [
     requirements: [
       {
         key: "photos.logo-couverture",
-        label: "Logo + photo de couverture posés sur la fiche",
-        hint: "La couverture = la première impression dans Maps. La meilleure photo réelle, pas le logo étiré.",
-        manual: true,
+        label: "Logo + photo de couverture téléversés",
+        hint: "La couverture = la première impression dans Maps. La meilleure photo réelle, pas le logo étiré. (Push média à l'approbation API — pose-les sur la fiche en attendant.)",
+        test: (ctx) => {
+          const photos = ctx.profile.photos ?? [];
+          return (
+            photos.some((p) => p.role === "logo") &&
+            photos.some((p) => p.role === "cover")
+          );
+        },
       },
       {
         key: "photos.lot-initial",
         label: "Minimum 10 vraies photos : extérieur, intérieur, équipe, réalisations",
-        hint: "Prises par le client ou l'agence. Avant/après pour les métiers de la construction. (L'upload direct depuis l'app viendra avec l'API média.)",
-        manual: true,
+        hint: "Prises par le client ou l'agence — jamais de stock. Avant/après pour les métiers de la construction.",
+        test: (ctx) =>
+          (ctx.profile.photos ?? []).filter((p) => p.role === "photo")
+            .length >= 10,
       },
       {
         key: "photos.cadence",
