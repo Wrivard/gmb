@@ -2,20 +2,24 @@
 
 // Carte geogrid (onglet Croissance) : où la fiche sort dans Google
 // Maps autour de l'adresse, mot-clé par mot-clé — grille 7×7 colorée
-// par rang, scan mensuel automatique. Version minimale : pas de scan à
-// la demande, pas d'historique — la dernière photo du mois suffit.
+// par rang. Scan à la demande (bouton) : le coût se déclenche à la
+// main, typiquement une fois par mois avant le rapport. Pas
+// d'historique — la dernière photo suffit.
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { MapPin } from "lucide-react";
+import { MapPin, Radar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { GEOGRID_MAX_KEYWORDS } from "@/lib/geogrid/grid";
-import { updateGeogridKeywordsAction } from "@/app/(app)/clients/[id]/actions";
+import {
+  scanGeogridAction,
+  updateGeogridKeywordsAction,
+} from "@/app/(app)/clients/[id]/actions";
 import type { GeogridScan } from "@/lib/types/database";
 
 export function GeogridCard({
@@ -35,6 +39,7 @@ export function GeogridCard({
   const [editing, setEditing] = useState(keywords.length === 0);
   const [draft, setDraft] = useState(keywords.join(", "));
   const [saving, startSave] = useTransition();
+  const [scanning, startScan] = useTransition();
 
   function save() {
     startSave(async () => {
@@ -42,10 +47,26 @@ export function GeogridCard({
       if (result.ok) {
         toast.success(
           draft.trim()
-            ? "Mots-clés enregistrés — scan au prochain passage du cron."
+            ? "Mots-clés enregistrés — lance un scan quand tu veux."
             : "Suivi local désactivé.",
         );
         setEditing(false);
+        router.refresh();
+      } else {
+        toast.error(result.error);
+      }
+    });
+  }
+
+  function scan() {
+    startScan(async () => {
+      const result = await scanGeogridAction(clientId);
+      if (result.ok) {
+        toast.success(
+          result.costUsd > 0
+            ? `Scan terminé — ${result.scanned.join(", ")} (${result.costUsd.toFixed(2)} $ US).`
+            : `Scan terminé (simulation) — ${result.scanned.join(", ")}.`,
+        );
         router.refresh();
       } else {
         toast.error(result.error);
@@ -63,21 +84,34 @@ export function GeogridCard({
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
             Où la fiche sort dans Google Maps autour de l&apos;adresse —
-            scan automatique une fois par mois.
+            à lancer une fois par mois, avant le rapport.
           </p>
         </div>
         {!editing && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="ml-auto text-xs"
-            onClick={() => {
-              setDraft(keywords.join(", "));
-              setEditing(true);
-            }}
-          >
-            Modifier les mots-clés
-          </Button>
+          <div className="ml-auto flex items-center gap-1.5">
+            {keywords.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={scan}
+                disabled={scanning}
+              >
+                <Radar />
+                {scanning ? "Scan en cours… (~30 s)" : "Scanner maintenant"}
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-xs"
+              onClick={() => {
+                setDraft(keywords.join(", "));
+                setEditing(true);
+              }}
+            >
+              Modifier les mots-clés
+            </Button>
+          </div>
         )}
       </div>
 
@@ -119,8 +153,8 @@ export function GeogridCard({
 
       {!editing && keywords.length > 0 && scans.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          Premier scan au prochain passage du cron (quotidien) — la carte
-          apparaîtra ici.
+          Aucun scan encore — clique « Scanner maintenant » pour la
+          première carte (~0,10&nbsp;$ US par mot-clé).
         </p>
       )}
 

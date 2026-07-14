@@ -10,6 +10,7 @@ import { logActivity } from "@/lib/activity";
 import { isBrandProfileIncomplete } from "@/lib/clients/brand-profile";
 import { normalizeReviewKit } from "@/lib/reviews/kit";
 import { GEOGRID_MAX_KEYWORDS } from "@/lib/geogrid/grid";
+import { runGeogridScan } from "@/lib/geogrid/scan";
 import { getGbpClient } from "@/lib/gbp/client";
 import { GbpAccessPendingError } from "@/lib/gbp/types";
 import {
@@ -615,6 +616,55 @@ export async function updateGeogridKeywordsAction(
 
     revalidatePath(`/clients/${clientId}`);
     return { ok: true };
+  });
+}
+
+type GeogridScanResult =
+  | { ok: true; scanned: string[]; costUsd: number }
+  | { ok: false; error: string };
+
+/**
+ * Scan geogrid à la demande (bouton de l'onglet Croissance) — pas de
+ * cron : le coût (~0,10 $ US par mot-clé) se déclenche à la main,
+ * typiquement une fois par mois avant le rapport.
+ */
+export async function scanGeogridAction(
+  clientId: string,
+): Promise<GeogridScanResult> {
+  return runAction("Le scan a échoué.", async () => {
+    const { member, supabase, client } = await loadClientForMember(clientId);
+    if (!(client.geogrid?.keywords ?? []).some((k) => k.trim())) {
+      return { ok: false, error: "Configure d'abord les mots-clés suivis." };
+    }
+
+    const summary = await runGeogridScan(supabase, client);
+    if (summary.skipped) {
+      return { ok: false, error: `Scan impossible : ${summary.skipped}.` };
+    }
+    if (!summary.scanned.length) {
+      return {
+        ok: false,
+        error: "Scan interrompu (trop de points en échec) — réessaie.",
+      };
+    }
+
+    await logActivity({
+      agencyId: member.agency_id,
+      clientId,
+      actor: member.email,
+      action: "geogrid_scanned",
+      payload: {
+        keywords: summary.scanned,
+        cost_usd: Number(summary.costUsd.toFixed(4)),
+      },
+    });
+
+    revalidatePath(`/clients/${clientId}`);
+    return {
+      ok: true,
+      scanned: summary.scanned,
+      costUsd: summary.costUsd,
+    };
   });
 }
 

@@ -87,8 +87,13 @@ export async function mapsSearch(input: {
   }
 
   const raw: DataForSeoItem[] = task.result?.[0]?.items ?? [];
+  // Type observé en réel le 2026-07-14 : "maps_search" (la doc montre
+  // aussi "maps_search_element" — on accepte les deux).
   const items = raw
-    .filter((item) => item.type === "maps_search_element")
+    .filter(
+      (item) =>
+        item.type === "maps_search" || item.type === "maps_search_element",
+    )
     .map((item, index) => ({
       rank: index + 1,
       title: item.title ?? "",

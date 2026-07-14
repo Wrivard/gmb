@@ -34,19 +34,3 @@ jobs:
           curl --fail-with-body --silent --show-error \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             "${{ vars.APP_URL }}/api/cron/sync-reviews"
-
-  geogrid-scan:
-    runs-on: ubuntu-latest
-    if: vars.APP_URL != ''
-    steps:
-      - name: geogrid-scan (1x/jour à ~9h UTC — scanne les clients dus du mois)
-        run: |
-          hour=$(date -u +%H)
-          minute=$(date -u +%M)
-          if [ "$hour" != "09" ] || [ "$minute" -ge 15 ]; then
-            echo "Pas l'heure du geogrid (${hour}:${minute} UTC) — skip."
-            exit 0
-          fi
-          curl --fail-with-body --silent --show-error \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "${{ vars.APP_URL }}/api/cron/geogrid-scan"
