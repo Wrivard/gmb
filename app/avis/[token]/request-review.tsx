@@ -11,26 +11,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isIos, renderReviewMessage, smsHref } from "@/lib/reviews/kit";
+import type { ReviewKitData } from "@/lib/types/database";
 
 export function RequestReview({
   businessName,
-  reviewLink,
-  messageTemplate,
+  kit,
 }: {
   businessName: string;
-  reviewLink: string | null;
-  messageTemplate: string | null;
+  kit: ReviewKitData;
 }) {
   const [firstName, setFirstName] = useState("");
   const [copied, setCopied] = useState(false);
+  const reviewLink = kit.review_link;
 
   const message = useMemo(
-    () =>
-      renderReviewMessage(
-        { review_link: reviewLink ?? "", message: messageTemplate ?? "" },
-        { businessName, firstName },
-      ),
-    [businessName, reviewLink, messageTemplate, firstName],
+    () => renderReviewMessage(kit, { businessName, firstName }),
+    [kit, businessName, firstName],
   );
 
   function sendSms() {

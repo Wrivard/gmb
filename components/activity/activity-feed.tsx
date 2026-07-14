@@ -19,6 +19,7 @@ export const ACTION_LABELS: Record<string, string> = {
   sync_completed: "Sync terminé",
   client_settings_updated: "Réglages modifiés",
   brand_profile_updated: "Profil de marque modifié",
+  review_kit_updated: "Kit d'avis modifié",
   client_archived: "Projet archivé",
   client_created: "Projet créé",
   client_onboarded: "Fiche 100 % optimisée",
@@ -37,6 +38,7 @@ export const AGENCY_FEED_ACTIONS = [
   "post_published",
   "client_settings_updated",
   "brand_profile_updated",
+  "review_kit_updated",
 ];
 
 export interface ActivityEntry {

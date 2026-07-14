@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   defaultReviewMessage,
   isIos,
+  normalizeReviewKit,
   renderReviewMessage,
+  REVIEW_MESSAGE_MAX,
   smsHref,
 } from "./kit";
 
@@ -46,6 +48,35 @@ describe("renderReviewMessage", () => {
       { businessName: "X" },
     );
     expect(message).toBe("Avis:");
+  });
+});
+
+describe("normalizeReviewKit", () => {
+  it("trim + champs vides supprimés", () => {
+    const result = normalizeReviewKit({
+      review_link: "  https://g.page/r/Xyz/review  ",
+      message: "   ",
+    });
+    expect(result).toEqual({
+      ok: true,
+      kit: { review_link: "https://g.page/r/Xyz/review" },
+    });
+  });
+
+  it("rejette un lien non-https", () => {
+    const result = normalizeReviewKit({ review_link: "g.page/r/Xyz/review" });
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejette un gabarit trop long", () => {
+    const result = normalizeReviewKit({
+      message: "x".repeat(REVIEW_MESSAGE_MAX + 1),
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("kit vide = valide (gabarit par défaut, lien non configuré)", () => {
+    expect(normalizeReviewKit({})).toEqual({ ok: true, kit: {} });
   });
 });
 

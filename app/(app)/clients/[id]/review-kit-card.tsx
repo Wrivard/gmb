@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { defaultReviewMessage } from "@/lib/reviews/kit";
+import { defaultReviewMessage, REVIEW_MESSAGE_MAX } from "@/lib/reviews/kit";
+import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import type { ReviewKitData } from "@/lib/types/database";
 import { updateReviewKitAction } from "./actions";
 
@@ -43,6 +44,9 @@ export function ReviewKitCard({
   const dirty =
     reviewLink.trim() !== (kit.review_link ?? "") ||
     message.trim() !== (kit.message ?? "");
+  // Les onglets de la fiche sont des <Link> : en changer démonte ce
+  // composant — même garde que le reste de l'app.
+  useUnsavedGuard(dirty && !saving);
 
   function save() {
     startSave(async () => {
@@ -64,8 +68,12 @@ export function ReviewKitCard({
   }
 
   async function copyPageUrl() {
-    await navigator.clipboard.writeText(pageUrl);
-    toast.success("Lien de la page copié — envoie-le au client.");
+    try {
+      await navigator.clipboard.writeText(pageUrl);
+      toast.success("Lien de la page copié — envoie-le au client.");
+    } catch {
+      toast.error("Copie refusée par le navigateur — sélectionne le lien à la main.");
+    }
   }
 
   return (
@@ -131,7 +139,7 @@ export function ReviewKitCard({
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             rows={4}
-            maxLength={500}
+            maxLength={REVIEW_MESSAGE_MAX}
             placeholder={defaultReviewMessage()}
             className="text-sm"
           />

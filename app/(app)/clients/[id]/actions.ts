@@ -8,6 +8,7 @@ import {
 } from "@/lib/actions/member";
 import { logActivity } from "@/lib/activity";
 import { isBrandProfileIncomplete } from "@/lib/clients/brand-profile";
+import { normalizeReviewKit } from "@/lib/reviews/kit";
 import { getGbpClient } from "@/lib/gbp/client";
 import { GbpAccessPendingError } from "@/lib/gbp/types";
 import {
@@ -581,28 +582,13 @@ export async function updateReviewKitAction(
   kit: ReviewKitData,
 ): Promise<ActionResult> {
   return runAction("L'enregistrement du kit d'avis a échoué.", async () => {
-    const link = kit.review_link?.trim();
-    if (link && !/^https:\/\//.test(link)) {
-      return {
-        ok: false,
-        error: "Le lien d'avis doit être une URL https (g.page/r/… ou search.google.com/local/writereview…).",
-      };
-    }
-    if ((kit.message?.trim().length ?? 0) > 500) {
-      return {
-        ok: false,
-        error: "Gabarit trop long (max 500 caractères) — un texto, pas une lettre.",
-      };
-    }
+    const normalized = normalizeReviewKit(kit);
+    if (!normalized.ok) return normalized;
 
     const { member, supabase } = await loadClientForMember(clientId);
-    const next: ReviewKitData = {
-      ...(link ? { review_link: link } : {}),
-      ...(kit.message?.trim() ? { message: kit.message.trim() } : {}),
-    };
     const { error } = await supabase
       .from("clients")
-      .update({ review_kit: next })
+      .update({ review_kit: normalized.kit })
       .eq("id", clientId);
     if (error) throw new Error(error.message);
 

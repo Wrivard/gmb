@@ -6,6 +6,42 @@
 
 import type { ReviewKitData } from "@/lib/types/database";
 
+export const REVIEW_MESSAGE_MAX = 500;
+
+export type NormalizedReviewKit =
+  | { ok: true; kit: ReviewKitData }
+  | { ok: false; error: string };
+
+/**
+ * Trim + règles du kit — LA source des règles, partagée par le panneau
+ * (garde-fou UI) et la server action (garde-fou réel). Les champs vides
+ * disparaissent (vide = gabarit par défaut / lien non configuré).
+ */
+export function normalizeReviewKit(input: ReviewKitData): NormalizedReviewKit {
+  const link = input.review_link?.trim();
+  const message = input.message?.trim();
+  if (link && !/^https:\/\//.test(link)) {
+    return {
+      ok: false,
+      error:
+        "Le lien d'avis doit être une URL https (g.page/r/… ou search.google.com/local/writereview…).",
+    };
+  }
+  if ((message?.length ?? 0) > REVIEW_MESSAGE_MAX) {
+    return {
+      ok: false,
+      error: `Gabarit trop long (max ${REVIEW_MESSAGE_MAX} caractères) — un texto, pas une lettre.`,
+    };
+  }
+  return {
+    ok: true,
+    kit: {
+      ...(link ? { review_link: link } : {}),
+      ...(message ? { message } : {}),
+    },
+  };
+}
+
 /** Gabarit par défaut — placeholders {prenom}, {entreprise}, {lien}. */
 export function defaultReviewMessage(): string {
   return (

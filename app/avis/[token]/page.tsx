@@ -1,6 +1,7 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { supabaseConfigured } from "@/lib/env";
 import { getPublicDb } from "@/lib/supabase/public";
 import { RequestReview } from "./request-review";
 
@@ -13,6 +14,8 @@ const UUID_RE =
 
 // cache() : un seul appel RPC par requête (generateMetadata + page).
 const loadKit = cache(async (token: string) => {
+  // Mode scaffold (env Supabase absente) : la page n'existe pas.
+  if (!supabaseConfigured()) return null;
   const { data, error } = await getPublicDb().rpc("review_kit", { token });
   if (error) throw new Error(error.message);
   return data?.[0] ?? null;
@@ -51,8 +54,10 @@ export default async function ReviewKitPage({
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 px-5 py-10">
       <RequestReview
         businessName={kit.client_name}
-        reviewLink={kit.review_link}
-        messageTemplate={kit.message}
+        kit={{
+          review_link: kit.review_link ?? undefined,
+          message: kit.message ?? undefined,
+        }}
       />
       <div className="flex flex-col gap-1.5 text-center text-xs text-muted-foreground/60">
         <p>
