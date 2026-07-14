@@ -188,6 +188,20 @@ export class RealGbpClient implements GbpClient {
     return { name: json.name, state: json.state };
   }
 
+  async updateLocation(
+    locationName: string,
+    patch: Record<string, unknown>,
+    updateMask: string,
+  ): Promise<void> {
+    const url = new URL(`${BUSINESS_INFO}/${locationName}`);
+    url.searchParams.set("updateMask", updateMask);
+    const response = await gbpFetch(url.toString(), {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+    await parseOrThrow(response, "updateLocation");
+  }
+
   async deleteLocalPost(postName: string): Promise<void> {
     const response = await gbpFetch(`${GMB_V4}/${postName}`, {
       method: "DELETE",

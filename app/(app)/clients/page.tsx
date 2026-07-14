@@ -18,7 +18,7 @@ import { ClientActiveToggle } from "@/app/(app)/settings/client-toggle";
 import { Button } from "@/components/ui/button";
 import { GoldStar } from "@/components/reviews/star-rating";
 import { isBrandProfileIncomplete } from "@/lib/clients/brand-profile";
-import { onboardingProgress } from "@/lib/onboarding/steps";
+import { onboardingCtx, onboardingProgress } from "@/lib/onboarding/steps";
 import { Plus } from "lucide-react";
 import { AssigneeSelect } from "./assignee-select";
 import { CadenceSelect } from "./cadence-select";
@@ -177,7 +177,15 @@ export default async function ClientsPage() {
         assigneeMemberId: client.assignee_member_id,
         profileIncomplete: isBrandProfileIncomplete(client.brand_profile),
         onboardingPct: (() => {
-          const progress = onboardingProgress(client.onboarding);
+          const progress = onboardingProgress(
+            onboardingCtx({
+              gbp_profile: client.gbp_profile,
+              onboarding: client.onboarding,
+              brandProfileComplete: !isBrandProfileIncomplete(
+                client.brand_profile,
+              ),
+            }),
+          );
           return progress.complete ? null : progress.pct;
         })(),
         status: client.status as ProjectRow["status"],

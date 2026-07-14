@@ -25,6 +25,15 @@ export interface GbpClient {
     post: LocalPostInput,
   ): Promise<{ name: string; state: LocalPostState }>;
   deleteLocalPost(postName: string): Promise<void>;
+  /**
+   * Patch partiel de la fiche (Business Information locations.patch).
+   * `updateMask` = champs touchés, ex. "profile.description,openInfo".
+   */
+  updateLocation(
+    locationName: string,
+    patch: Record<string, unknown>,
+    updateMask: string,
+  ): Promise<void>;
 }
 
 let client: GbpClient | null = null;

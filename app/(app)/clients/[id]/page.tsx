@@ -8,7 +8,8 @@ import { isLate, remainingPosts } from "@/lib/due";
 import { HISTORY_PAGE, loadInboxReviews } from "@/lib/reviews/inbox";
 import { loadClientQueue } from "@/lib/posts/queue";
 import { loadClientGrowth } from "@/lib/clients/growth";
-import { onboardingProgress } from "@/lib/onboarding/steps";
+import { onboardingCtx, onboardingProgress } from "@/lib/onboarding/steps";
+import { isBrandProfileIncomplete } from "@/lib/clients/brand-profile";
 import { GrowthView } from "@/components/clients/growth-view";
 import {
   ACTION_LABELS,
@@ -274,7 +275,15 @@ export default async function ClientDetailPage({
         // Un projet offboardé ou déconnecté n'a plus d'onboarding à faire.
         if (client.status === "archived" || client.status === "disconnected")
           return null;
-        const progress = onboardingProgress(client.onboarding);
+        const progress = onboardingProgress(
+          onboardingCtx({
+            gbp_profile: client.gbp_profile,
+            onboarding: client.onboarding,
+            brandProfileComplete: !isBrandProfileIncomplete(
+              client.brand_profile,
+            ),
+          }),
+        );
         if (progress.complete) return null;
         return (
           <Link

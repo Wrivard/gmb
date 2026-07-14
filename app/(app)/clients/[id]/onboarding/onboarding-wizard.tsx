@@ -1,10 +1,10 @@
 "use client";
 
-// Wizard d'optimisation de la fiche GBP — l'onboarding guidé d'un
-// nouveau projet. Chaque étape dit POURQUOI (impact classé par les
-// études de ranking local) et chaque item se coche une fois fait sur
-// la fiche Google. Rien ne se saute en silence : le score est visible
-// partout tant que la fiche n'est pas à 100 %.
+// Wizard d'optimisation de la fiche GBP — v2 : on SAISIT les données de
+// la fiche ici (elles vivent dans l'app) et on les POUSSE vers Google
+// section par section, via le même tuyau que les posts (mock tant que
+// l'accès API n'est pas approuvé). Le score se calcule sur les données
+// réelles; quelques critères restent des confirmations manuelles.
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
@@ -14,86 +14,201 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  CircleDashed,
+  CloudUpload,
   ExternalLink,
   PartyPopper,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
+  isRequirementMet,
   ONBOARDING_STEPS,
   onboardingProgress,
+  PUSHABLE_SECTIONS,
+  WEEKDAYS,
+  type OnboardingCtx,
+  type PushSection,
+  type Requirement,
 } from "@/lib/onboarding/steps";
-import type { ClientStatus, OnboardingState } from "@/lib/types/database";
+import type {
+  ClientStatus,
+  GbpDayHours,
+  GbpProfileData,
+  GbpWeekday,
+  OnboardingItemState,
+} from "@/lib/types/database";
 import {
-  completeOnboardingAction,
+  pushGbpSectionAction,
+  saveGbpProfileAction,
   setOnboardingItemAction,
 } from "../actions";
 import { toggleClientActiveAction } from "@/app/(app)/settings/actions";
+
+/* ── Découpage de gbp_profile en sections sauvegardables ──────────── */
+
+type SectionKey =
+  | "categories"
+  | "identity"
+  | "hours"
+  | "presentation"
+  | "services"
+  | "qna";
+
+function sectionPatch(
+  profile: GbpProfileData,
+  section: SectionKey,
+): Partial<GbpProfileData> {
+  switch (section) {
+    case "categories":
+      return { categories: profile.categories };
+    case "identity":
+      return { identity: profile.identity };
+    case "hours":
+      return { hours: profile.hours };
+    case "presentation":
+      return {
+        description: profile.description,
+        opening_date: profile.opening_date,
+      };
+    case "services":
+      return { services: profile.services };
+    case "qna":
+      return { qna: profile.qna };
+  }
+}
+
+function sectionEquals(
+  a: GbpProfileData,
+  b: GbpProfileData,
+  section: SectionKey,
+): boolean {
+  return (
+    JSON.stringify(sectionPatch(a, section)) ===
+    JSON.stringify(sectionPatch(b, section))
+  );
+}
+
+/** Sections éditées par chaque étape (identity édite aussi les heures). */
+const STEP_SECTIONS: Record<string, SectionKey[]> = {
+  categories: ["categories"],
+  identity: ["identity", "hours"],
+  services: ["services"],
+  presentation: ["presentation"],
+  lancement: ["qna"],
+};
 
 export function OnboardingWizard({
   clientId,
   clientName,
   clientStatus,
-  initialState,
+  initialProfile,
+  initialChecks,
+  brandProfileComplete,
 }: {
   clientId: string;
   clientName: string;
   clientStatus: ClientStatus;
-  initialState: OnboardingState;
+  initialProfile: GbpProfileData;
+  initialChecks: Record<string, OnboardingItemState>;
+  brandProfileComplete: boolean;
 }) {
   const router = useRouter();
-  const [checked, setChecked] = useState<Record<string, boolean>>(() => {
-    const map: Record<string, boolean> = {};
-    for (const [key, item] of Object.entries(initialState.items ?? {})) {
-      if (item.done) map[key] = true;
-    }
-    return map;
-  });
-  // Première étape pas encore complétée = point de reprise naturel.
+  const [profile, setProfile] = useState<GbpProfileData>(initialProfile);
+  const [saved, setSaved] = useState<GbpProfileData>(initialProfile);
+  const [checks, setChecks] =
+    useState<Record<string, OnboardingItemState>>(initialChecks);
+  const [saving, startSave] = useTransition();
+  const [pushing, startPush] = useTransition();
+  const [activating, startActivate] = useTransition();
+
+  const ctx: OnboardingCtx = useMemo(
+    () => ({ profile: saved, checks, brandProfileComplete }),
+    [saved, checks, brandProfileComplete],
+  );
+  const progress = useMemo(() => onboardingProgress(ctx), [ctx]);
+
   const [stepIndex, setStepIndex] = useState(() => {
-    const progress = onboardingProgress(initialState);
+    const initial = onboardingProgress({
+      profile: initialProfile,
+      checks: initialChecks,
+      brandProfileComplete,
+    });
     const index = ONBOARDING_STEPS.findIndex(
-      (step) => !progress.doneSteps.has(step.key),
+      (step) => !initial.doneSteps.has(step.key),
     );
     return index === -1 ? 0 : index;
   });
-  const [activating, startActivate] = useTransition();
-  const [bulkOpen, setBulkOpen] = useState(false);
-  const [bulking, startBulk] = useTransition();
-
-  const progress = useMemo(
-    () =>
-      onboardingProgress({
-        items: Object.fromEntries(
-          Object.entries(checked).map(([key, done]) => [key, { done }]),
-        ),
-      }),
-    [checked],
+  const step = ONBOARDING_STEPS[stepIndex];
+  const stepSections = STEP_SECTIONS[step.key] ?? [];
+  const stepUnsaved = stepSections.some(
+    (section) => !sectionEquals(profile, saved, section),
   );
 
-  const step = ONBOARDING_STEPS[stepIndex];
-  const stepDone = progress.doneSteps.has(step.key);
+  function saveStep() {
+    const patch = stepSections.reduce(
+      (acc, section) => ({ ...acc, ...sectionPatch(profile, section) }),
+      {} as Partial<GbpProfileData>,
+    );
+    startSave(async () => {
+      const result = await saveGbpProfileAction(clientId, patch);
+      if (result.ok) {
+        setSaved((prev) => ({ ...prev, ...patch }));
+        toast.success("Section enregistrée.");
+        router.refresh();
+      } else {
+        toast.error(result.error);
+      }
+    });
+  }
 
-  function toggle(itemKey: string) {
-    const next = !checked[itemKey];
-    // Optimiste : la coche répond au doigt; le serveur suit.
-    setChecked((prev) => ({ ...prev, [itemKey]: next }));
-    void setOnboardingItemAction(clientId, itemKey, next).then((result) => {
+  function pushSection(section: PushSection) {
+    startPush(async () => {
+      const result = await pushGbpSectionAction(clientId, section);
+      if (result.ok) {
+        const sync = {
+          pushed_at: new Date().toISOString(),
+          by: "toi",
+        };
+        setProfile((prev) => ({
+          ...prev,
+          sync: { ...(prev.sync ?? {}), [section]: sync },
+        }));
+        setSaved((prev) => ({
+          ...prev,
+          sync: { ...(prev.sync ?? {}), [section]: sync },
+        }));
+        toast.success("Poussé sur la fiche Google.");
+        router.refresh();
+      } else {
+        toast.error(result.error);
+      }
+    });
+  }
+
+  function toggleCheck(key: string) {
+    const next = !checks[key]?.done;
+    setChecks((prev) => {
+      const map = { ...prev };
+      if (next) map[key] = { done: true };
+      else delete map[key];
+      return map;
+    });
+    void setOnboardingItemAction(clientId, key, next).then((result) => {
       if (!result.ok) {
-        setChecked((prev) => ({ ...prev, [itemKey]: !next }));
+        setChecks((prev) => {
+          const map = { ...prev };
+          if (next) delete map[key];
+          else map[key] = { done: true };
+          return map;
+        });
         toast.error(result.error);
       } else {
         router.refresh();
@@ -114,28 +229,8 @@ export function OnboardingWizard({
     });
   }
 
-  function bulkComplete() {
-    startBulk(async () => {
-      const result = await completeOnboardingAction(clientId);
-      if (result.ok) {
-        setChecked(
-          Object.fromEntries(
-            ONBOARDING_STEPS.flatMap((step) =>
-              step.items.map((item) => [item.key, true]),
-            ),
-          ),
-        );
-        setBulkOpen(false);
-        toast.success("Checklist complétée — la fiche est marquée optimisée.");
-        router.refresh();
-      } else {
-        toast.error(result.error);
-      }
-    });
-  }
-
   return (
-    <div className="flex max-w-4xl flex-col gap-6">
+    <div className="flex max-w-5xl flex-col gap-6">
       {/* En-tête : contexte + progression globale toujours visible. */}
       <div className="flex flex-wrap items-center gap-3">
         <Button
@@ -196,8 +291,8 @@ export function OnboardingWizard({
             {ONBOARDING_STEPS.map((entry, index) => {
               const done = progress.doneSteps.has(entry.key);
               const active = index === stepIndex;
-              const doneCount = entry.items.filter(
-                (item) => checked[item.key],
+              const doneCount = entry.requirements.filter((req) =>
+                isRequirementMet(req, ctx),
               ).length;
               return (
                 <button
@@ -222,66 +317,24 @@ export function OnboardingWizard({
                     {done ? <Check className="size-3" /> : index + 1}
                   </span>
                   <span className="flex-1">{entry.title}</span>
-                  {/* Entamée ≠ intacte : le compteur le montre d'un œil. */}
                   {!done && doneCount > 0 && (
                     <span className="text-xs tabular-nums text-muted-foreground">
-                      {doneCount}/{entry.items.length}
+                      {doneCount}/{entry.requirements.length}
                     </span>
                   )}
                 </button>
               );
             })}
           </nav>
-          <div className="hidden flex-col gap-2 border-t border-border pt-3 md:flex">
-            <a
-              href="https://business.google.com/locations"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 px-3 text-xs text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <ExternalLink className="size-3" />
-              Ouvrir Google Business Profile
-            </a>
-            {!progress.complete && (
-              <AlertDialog open={bulkOpen} onOpenChange={setBulkOpen}>
-                <AlertDialogTrigger
-                  render={
-                    <button
-                      type="button"
-                      className="px-3 text-left text-xs text-muted-foreground/70 underline-offset-2 transition-colors hover:text-foreground hover:underline"
-                    >
-                      Fiche déjà optimisée ? Tout marquer comme fait
-                    </button>
-                  }
-                />
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      Marquer toute la checklist comme faite ?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Pour les fiches déjà optimisées (clients de longue
-                      date). Les {progress.total - progress.done} points
-                      restants seront cochés à ton nom — c&apos;est ton
-                      affirmation que la fiche de {clientName} est
-                      réellement à niveau.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel disabled={bulking}>
-                      Annuler
-                    </AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={bulkComplete}
-                      disabled={bulking}
-                    >
-                      {bulking ? "…" : "Tout marquer comme fait"}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
-          </div>
+          <a
+            href="https://business.google.com/locations"
+            target="_blank"
+            rel="noreferrer"
+            className="hidden items-center gap-1.5 border-t border-border px-3 pt-3 text-xs text-muted-foreground transition-colors hover:text-foreground md:flex"
+          >
+            <ExternalLink className="size-3" />
+            Ouvrir Google Business Profile
+          </a>
         </div>
 
         {/* Panneau de l'étape courante */}
@@ -292,54 +345,92 @@ export function OnboardingWizard({
           transition={{ duration: 0.2, ease: "easeOut" }}
           className="rounded-lg border border-border bg-elevated p-5"
         >
-          <div className="mb-4">
+          <div className="mb-5">
             <h2 className="text-base font-semibold tracking-tight">
               {stepIndex + 1}. {step.title}
             </h2>
             <p className="mt-1.5 text-sm text-muted-foreground">{step.why}</p>
           </div>
 
-          <ul className="flex flex-col divide-y divide-border/60">
-            {step.items.map((item) => {
-              const done = Boolean(checked[item.key]);
-              return (
-                <li key={item.key}>
-                  <label className="flex cursor-pointer items-start gap-3 py-3">
-                    <Checkbox
-                      checked={done}
-                      onCheckedChange={() => toggle(item.key)}
-                      className="mt-0.5"
-                      aria-label={item.label}
-                    />
-                    <span className="min-w-0">
-                      <span
-                        className={cn(
-                          "block text-sm",
-                          done && "text-muted-foreground line-through",
-                        )}
-                      >
-                        {item.label}
-                      </span>
-                      {item.hint && (
-                        <span className="mt-0.5 block text-xs text-muted-foreground">
-                          {item.hint}
-                        </span>
-                      )}
-                    </span>
-                    {item.appTab && (
-                      <Link
-                        href={`/clients/${clientId}?tab=${item.appTab}`}
-                        onClick={(event) => event.stopPropagation()}
-                        className="ml-auto shrink-0 self-center text-xs font-medium text-primary underline-offset-2 hover:underline"
-                      >
-                        Ouvrir →
-                      </Link>
-                    )}
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
+          {/* Éditeur de l'étape */}
+          {step.key === "categories" && (
+            <CategoriesEditor profile={profile} onChange={setProfile} />
+          )}
+          {step.key === "identity" && (
+            <IdentityEditor profile={profile} onChange={setProfile} />
+          )}
+          {step.key === "services" && (
+            <ServicesEditor profile={profile} onChange={setProfile} />
+          )}
+          {step.key === "presentation" && (
+            <PresentationEditor profile={profile} onChange={setProfile} />
+          )}
+          {step.key === "lancement" && (
+            <QnaEditor profile={profile} onChange={setProfile} />
+          )}
+
+          {/* Enregistrer + pousser */}
+          {stepSections.length > 0 && (
+            <div className="mt-5 flex flex-wrap items-center gap-3 rounded-md border border-border bg-background p-3">
+              <Button
+                size="sm"
+                variant={stepUnsaved ? "default" : "outline"}
+                onClick={saveStep}
+                disabled={saving || !stepUnsaved}
+              >
+                {saving
+                  ? "Enregistrement…"
+                  : stepUnsaved
+                    ? "Enregistrer"
+                    : "Enregistré"}
+              </Button>
+              {stepSections
+                .filter((section): section is PushSection =>
+                  (PUSHABLE_SECTIONS as string[]).includes(section),
+                )
+                .map((section) => (
+                  <PushButton
+                    key={section}
+                    section={section}
+                    profile={saved}
+                    unsaved={stepUnsaved}
+                    pushing={pushing}
+                    onPush={() => pushSection(section)}
+                  />
+                ))}
+              {stepSections.includes("categories") && (
+                <p className="text-xs text-muted-foreground">
+                  Push des catégories à l&apos;approbation API (il exige le
+                  référentiel officiel de Google) — applique-les sur la fiche
+                  en attendant.
+                </p>
+              )}
+              {stepSections.includes("qna") && (
+                <p className="text-xs text-muted-foreground">
+                  Push des Q&amp;R à venir (API dédiée) — copie-colle sur la
+                  fiche en attendant.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Critères de l'étape */}
+          <div className="mt-5 border-t border-border pt-4">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">
+              Critères pour compléter l&apos;étape
+            </p>
+            <ul className="flex flex-col gap-2">
+              {step.requirements.map((req) => (
+                <RequirementRow
+                  key={req.key}
+                  requirement={req}
+                  met={isRequirementMet(req, ctx)}
+                  clientId={clientId}
+                  onToggle={() => toggleCheck(req.key)}
+                />
+              ))}
+            </ul>
+          </div>
 
           <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
             <Button
@@ -351,15 +442,12 @@ export function OnboardingWizard({
               <ArrowLeft />
               Précédent
             </Button>
-            <p className="text-xs text-muted-foreground">
-              {stepDone
-                ? "Étape complétée."
-                : `${step.items.filter((i) => checked[i.key]).length}/${step.items.length} sur cette étape`}
-            </p>
             {stepIndex < ONBOARDING_STEPS.length - 1 ? (
               <Button
                 size="sm"
-                variant={stepDone ? "default" : "outline"}
+                variant={
+                  progress.doneSteps.has(step.key) ? "default" : "outline"
+                }
                 onClick={() =>
                   setStepIndex((i) =>
                     Math.min(ONBOARDING_STEPS.length - 1, i + 1),
@@ -381,6 +469,480 @@ export function OnboardingWizard({
           </div>
         </motion.section>
       </div>
+    </div>
+  );
+}
+
+/* ── Critères ─────────────────────────────────────────────────────── */
+
+function RequirementRow({
+  requirement,
+  met,
+  clientId,
+  onToggle,
+}: {
+  requirement: Requirement;
+  met: boolean;
+  clientId: string;
+  onToggle: () => void;
+}) {
+  return (
+    <li className="flex items-start gap-2.5">
+      {requirement.manual ? (
+        <Checkbox
+          checked={met}
+          onCheckedChange={onToggle}
+          className="mt-0.5"
+          aria-label={requirement.label}
+        />
+      ) : met ? (
+        <Check className="mt-0.5 size-4 shrink-0 text-success" />
+      ) : (
+        <CircleDashed className="mt-0.5 size-4 shrink-0 text-muted-foreground/60" />
+      )}
+      <span className="min-w-0">
+        <span
+          className={cn(
+            "block text-sm",
+            met && "text-muted-foreground line-through",
+          )}
+        >
+          {requirement.label}
+        </span>
+        {requirement.hint && (
+          <span className="mt-0.5 block text-xs text-muted-foreground">
+            {requirement.hint}
+          </span>
+        )}
+      </span>
+      {requirement.appTab && (
+        <Link
+          href={`/clients/${clientId}?tab=${requirement.appTab}`}
+          className="ml-auto shrink-0 self-center text-xs font-medium text-primary underline-offset-2 hover:underline"
+        >
+          Ouvrir →
+        </Link>
+      )}
+    </li>
+  );
+}
+
+/* ── Push ─────────────────────────────────────────────────────────── */
+
+function PushButton({
+  section,
+  profile,
+  unsaved,
+  pushing,
+  onPush,
+}: {
+  section: PushSection;
+  profile: GbpProfileData;
+  unsaved: boolean;
+  pushing: boolean;
+  onPush: () => void;
+}) {
+  const sync = profile.sync?.[section];
+  const label =
+    section === "hours" ? "Pousser les heures" : "Pousser sur Google";
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onPush}
+        disabled={pushing || unsaved}
+        title={unsaved ? "Enregistre d'abord les modifications." : undefined}
+      >
+        <CloudUpload />
+        {pushing ? "Push…" : label}
+      </Button>
+      <span className="text-xs text-muted-foreground">
+        {sync?.dirty
+          ? "Modifié depuis le dernier push"
+          : sync
+            ? `Poussé le ${new Date(sync.pushed_at).toLocaleDateString("fr-CA")}`
+            : "Jamais poussé"}
+      </span>
+    </div>
+  );
+}
+
+/* ── Éditeurs par étape ───────────────────────────────────────────── */
+
+type EditorProps = {
+  profile: GbpProfileData;
+  onChange: React.Dispatch<React.SetStateAction<GbpProfileData>>;
+};
+
+function CategoriesEditor({ profile, onChange }: EditorProps) {
+  const categories = profile.categories ?? {};
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="cat-primary">Catégorie principale</Label>
+        <Input
+          id="cat-primary"
+          value={categories.primary ?? ""}
+          onChange={(e) =>
+            onChange((prev) => ({
+              ...prev,
+              categories: {
+                ...(prev.categories ?? {}),
+                primary: e.target.value,
+              },
+            }))
+          }
+          placeholder="Couvreur"
+          className="max-w-sm"
+        />
+        <p className="text-xs text-muted-foreground">
+          Le nom EXACT d&apos;une catégorie Google (tape-le dans la fiche pour
+          voir les suggestions officielles).
+        </p>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="cat-additional">
+          Catégories secondaires{" "}
+          <span className="font-normal text-muted-foreground">
+            (une par ligne)
+          </span>
+        </Label>
+        <Textarea
+          id="cat-additional"
+          value={(categories.additional ?? []).join("\n")}
+          onChange={(e) =>
+            onChange((prev) => ({
+              ...prev,
+              categories: {
+                ...(prev.categories ?? {}),
+                additional: e.target.value
+                  .split("\n")
+                  .map((line) => line.trim())
+                  .filter(Boolean),
+              },
+            }))
+          }
+          rows={3}
+          placeholder={"Entrepreneur en toiture\nService de déneigement"}
+          className="max-w-sm text-sm"
+        />
+      </div>
+    </div>
+  );
+}
+
+function IdentityEditor({ profile, onChange }: EditorProps) {
+  const identity = profile.identity ?? {};
+  const hours = profile.hours ?? {};
+
+  const setIdentity = (key: keyof NonNullable<GbpProfileData["identity"]>) =>
+    (e: React.ChangeEvent<HTMLInputElement>) =>
+      onChange((prev) => ({
+        ...prev,
+        identity: { ...(prev.identity ?? {}), [key]: e.target.value },
+      }));
+
+  function setDay(day: GbpWeekday, value: GbpDayHours | null | undefined) {
+    onChange((prev) => {
+      const next = { ...(prev.hours ?? {}) };
+      if (value === undefined) delete next[day];
+      else next[day] = value;
+      return { ...prev, hours: next };
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="id-name">Nom exact</Label>
+          <Input
+            id="id-name"
+            value={identity.name ?? ""}
+            onChange={setIdentity("name")}
+            placeholder="Toitures Bergeron"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="id-phone">Téléphone local</Label>
+          <Input
+            id="id-phone"
+            type="tel"
+            value={identity.phone ?? ""}
+            onChange={setIdentity("phone")}
+            placeholder="450-555-0123"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="id-website">Site web</Label>
+          <Input
+            id="id-website"
+            type="url"
+            value={identity.website ?? ""}
+            onChange={setIdentity("website")}
+            placeholder="https://…"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="id-address">Adresse</Label>
+          <Input
+            id="id-address"
+            value={identity.address ?? ""}
+            onChange={setIdentity("address")}
+            placeholder="450 rue Blainville O., Sainte-Thérèse"
+          />
+          <p className="text-xs text-muted-foreground">
+            L&apos;adresse ne se pousse pas par API (elle déclencherait une
+            re-vérification) — modifie-la sur la fiche au besoin.
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-medium">Heures d&apos;ouverture</p>
+        <div className="flex flex-col gap-1.5">
+          {WEEKDAYS.map((day) => {
+            const value = hours[day.key];
+            const state =
+              value === undefined ? "unset" : value === null ? "closed" : "open";
+            return (
+              <div key={day.key} className="flex items-center gap-2 text-sm">
+                <span className="w-24 text-muted-foreground">{day.label}</span>
+                <select
+                  value={state}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    if (next === "closed") setDay(day.key, null);
+                    else if (next === "open")
+                      setDay(
+                        day.key,
+                        value ?? { open: "08:00", close: "17:00" },
+                      );
+                    else setDay(day.key, undefined);
+                  }}
+                  className="h-7 rounded-md border border-input bg-transparent px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50 dark:bg-input/30"
+                  aria-label={`Statut du ${day.label}`}
+                >
+                  <option value="unset">—</option>
+                  <option value="open">Ouvert</option>
+                  <option value="closed">Fermé</option>
+                </select>
+                {state === "open" && value && (
+                  <>
+                    <Input
+                      type="time"
+                      value={value.open}
+                      onChange={(e) =>
+                        setDay(day.key, { ...value, open: e.target.value })
+                      }
+                      className="h-7 w-28 text-xs tabular-nums"
+                      aria-label={`Ouverture ${day.label}`}
+                    />
+                    <span className="text-muted-foreground">–</span>
+                    <Input
+                      type="time"
+                      value={value.close}
+                      onChange={(e) =>
+                        setDay(day.key, { ...value, close: e.target.value })
+                      }
+                      className="h-7 w-28 text-xs tabular-nums"
+                      aria-label={`Fermeture ${day.label}`}
+                    />
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ServicesEditor({ profile, onChange }: EditorProps) {
+  const services = profile.services ?? [];
+
+  function update(
+    index: number,
+    patch: Partial<{ name: string; description: string }>,
+  ) {
+    onChange((prev) => {
+      const list = [...(prev.services ?? [])];
+      list[index] = { ...list[index], ...patch };
+      return { ...prev, services: list };
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {services.map((service, index) => (
+        <div
+          key={index}
+          className="flex flex-col gap-2 rounded-md border border-border bg-background p-3"
+        >
+          <div className="flex items-center gap-2">
+            <Input
+              value={service.name}
+              onChange={(e) => update(index, { name: e.target.value })}
+              placeholder="Réfection de toiture"
+              aria-label={`Nom du service ${index + 1}`}
+            />
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Retirer ce service"
+              className="shrink-0 text-muted-foreground hover:text-destructive"
+              onClick={() =>
+                onChange((prev) => ({
+                  ...prev,
+                  services: (prev.services ?? []).filter(
+                    (_, i) => i !== index,
+                  ),
+                }))
+              }
+            >
+              <Trash2 />
+            </Button>
+          </div>
+          <Textarea
+            value={service.description ?? ""}
+            onChange={(e) => update(index, { description: e.target.value })}
+            rows={2}
+            placeholder="2-3 phrases concrètes sur ce service…"
+            className="text-sm"
+            aria-label={`Description du service ${index + 1}`}
+          />
+        </div>
+      ))}
+      <Button
+        size="sm"
+        variant="outline"
+        className="self-start"
+        onClick={() =>
+          onChange((prev) => ({
+            ...prev,
+            services: [...(prev.services ?? []), { name: "" }],
+          }))
+        }
+      >
+        <Plus />
+        Ajouter un service
+      </Button>
+    </div>
+  );
+}
+
+function PresentationEditor({ profile, onChange }: EditorProps) {
+  const length = profile.description?.length ?? 0;
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="pres-desc">Description de l&apos;entreprise</Label>
+        <Textarea
+          id="pres-desc"
+          value={profile.description ?? ""}
+          onChange={(e) =>
+            onChange((prev) => ({ ...prev, description: e.target.value }))
+          }
+          rows={6}
+          maxLength={750}
+          placeholder="Ce qui rend l'entreprise unique, ses services clés, sa zone — l'essentiel dans les 250 premiers caractères…"
+          className="text-sm"
+        />
+        <p
+          className={cn(
+            "text-xs tabular-nums",
+            length >= 250 ? "text-muted-foreground" : "text-warning",
+          )}
+        >
+          {length}/750 {length < 250 && "— vise au moins 250 caractères"}
+        </p>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="pres-open">Date d&apos;ouverture</Label>
+        <Input
+          id="pres-open"
+          type="month"
+          value={profile.opening_date ?? ""}
+          onChange={(e) =>
+            onChange((prev) => ({ ...prev, opening_date: e.target.value }))
+          }
+          className="w-44 tabular-nums"
+        />
+      </div>
+    </div>
+  );
+}
+
+function QnaEditor({ profile, onChange }: EditorProps) {
+  const qna = profile.qna ?? [];
+
+  function update(
+    index: number,
+    patch: Partial<{ question: string; answer: string }>,
+  ) {
+    onChange((prev) => {
+      const list = [...(prev.qna ?? [])];
+      list[index] = { ...list[index], ...patch };
+      return { ...prev, qna: list };
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-sm font-medium">Questions &amp; réponses</p>
+      {qna.map((pair, index) => (
+        <div
+          key={index}
+          className="flex flex-col gap-2 rounded-md border border-border bg-background p-3"
+        >
+          <div className="flex items-center gap-2">
+            <Input
+              value={pair.question}
+              onChange={(e) => update(index, { question: e.target.value })}
+              placeholder="Offrez-vous des soumissions gratuites ?"
+              aria-label={`Question ${index + 1}`}
+            />
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Retirer cette question"
+              className="shrink-0 text-muted-foreground hover:text-destructive"
+              onClick={() =>
+                onChange((prev) => ({
+                  ...prev,
+                  qna: (prev.qna ?? []).filter((_, i) => i !== index),
+                }))
+              }
+            >
+              <Trash2 />
+            </Button>
+          </div>
+          <Textarea
+            value={pair.answer}
+            onChange={(e) => update(index, { answer: e.target.value })}
+            rows={2}
+            placeholder="Oui — réponse sous 48 h, sans engagement…"
+            className="text-sm"
+            aria-label={`Réponse ${index + 1}`}
+          />
+        </div>
+      ))}
+      <Button
+        size="sm"
+        variant="outline"
+        className="self-start"
+        onClick={() =>
+          onChange((prev) => ({
+            ...prev,
+            qna: [...(prev.qna ?? []), { question: "", answer: "" }],
+          }))
+        }
+      >
+        <Plus />
+        Ajouter une question
+      </Button>
     </div>
   );
 }

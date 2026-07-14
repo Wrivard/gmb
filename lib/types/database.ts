@@ -56,6 +56,50 @@ export interface OnboardingState {
   completed_at?: string | null;
 }
 
+/** Heures d'un jour : null = fermé. */
+export interface GbpDayHours {
+  open: string; // "08:00"
+  close: string; // "17:00"
+}
+
+export type GbpWeekday =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
+
+/** État de push d'une section de la fiche vers Google. */
+export interface GbpSectionSync {
+  pushed_at: string;
+  by: string;
+  /** Données modifiées depuis le dernier push. */
+  dirty?: boolean;
+}
+
+/**
+ * Colonne clients.gbp_profile — les données de la fiche saisies dans
+ * l'app (wizard d'onboarding). Le push vers Google passe par GbpClient.
+ */
+export interface GbpProfileData {
+  categories?: { primary?: string; additional?: string[] };
+  identity?: {
+    name?: string;
+    phone?: string;
+    website?: string;
+    address?: string;
+  };
+  hours?: Partial<Record<GbpWeekday, GbpDayHours | null>>;
+  description?: string;
+  /** "YYYY-MM" — date d'ouverture de l'entreprise. */
+  opening_date?: string;
+  services?: Array<{ name: string; description?: string }>;
+  qna?: Array<{ question: string; answer: string }>;
+  sync?: Record<string, GbpSectionSync>;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -172,6 +216,7 @@ export interface Database {
           language: string;
           brand_profile: BrandProfile;
           onboarding: OnboardingState;
+          gbp_profile: GbpProfileData;
           assignee_member_id: string | null;
           internal_notes: string | null;
           last_synced_at: string | null;
@@ -195,6 +240,7 @@ export interface Database {
           language?: string;
           brand_profile?: BrandProfile;
           onboarding?: OnboardingState;
+          gbp_profile?: GbpProfileData;
           assignee_member_id?: string | null;
           internal_notes?: string | null;
           last_synced_at?: string | null;
@@ -218,6 +264,7 @@ export interface Database {
           language?: string;
           brand_profile?: BrandProfile;
           onboarding?: OnboardingState;
+          gbp_profile?: GbpProfileData;
           assignee_member_id?: string | null;
           internal_notes?: string | null;
           last_synced_at?: string | null;

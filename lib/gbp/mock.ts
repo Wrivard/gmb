@@ -138,4 +138,9 @@ export class MockGbpClient implements GbpClient {
   async deleteLocalPost(): Promise<void> {
     await simulateNetwork();
   }
+
+  async updateLocation(): Promise<void> {
+    // Le mock accepte tout patch — le workflow de push se rôde sans API.
+    await simulateNetwork();
+  }
 }

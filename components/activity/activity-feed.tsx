@@ -22,6 +22,7 @@ export const ACTION_LABELS: Record<string, string> = {
   client_archived: "Projet archivé",
   client_created: "Projet créé",
   client_onboarded: "Fiche 100 % optimisée",
+  gbp_pushed: "Fiche poussée sur Google",
 };
 
 // Le feed agence ne montre que les événements qui racontent le travail
