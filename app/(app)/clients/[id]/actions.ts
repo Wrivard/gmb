@@ -9,6 +9,7 @@ import {
 import { logActivity } from "@/lib/activity";
 import { isBrandProfileIncomplete } from "@/lib/clients/brand-profile";
 import { normalizeReviewKit } from "@/lib/reviews/kit";
+import { GEOGRID_MAX_KEYWORDS } from "@/lib/geogrid/grid";
 import { getGbpClient } from "@/lib/gbp/client";
 import { GbpAccessPendingError } from "@/lib/gbp/types";
 import {
@@ -573,6 +574,47 @@ export async function deleteGbpPhotoAction(
     revalidatePath(`/clients/${clientId}`);
     revalidatePath("/clients");
     return { ok: true, photos };
+  });
+}
+
+/** Mots-clés du suivi de position locale (geogrid) — max 2, garde de
+    coût. Vide = suivi désactivé. */
+export async function updateGeogridKeywordsAction(
+  clientId: string,
+  keywordsText: string,
+): Promise<ActionResult> {
+  return runAction("L'enregistrement des mots-clés a échoué.", async () => {
+    const keywords = keywordsText
+      .split(",")
+      .map((k) => k.trim().toLowerCase())
+      .filter(Boolean);
+    if (keywords.length > GEOGRID_MAX_KEYWORDS) {
+      return {
+        ok: false,
+        error: `Maximum ${GEOGRID_MAX_KEYWORDS} mots-clés (chaque mot-clé coûte ~0,10 $/mois de scans).`,
+      };
+    }
+    if (keywords.some((k) => k.length > 60)) {
+      return { ok: false, error: "Mot-clé trop long (max 60 caractères)." };
+    }
+
+    const { member, supabase, client } = await loadClientForMember(clientId);
+    const { error } = await supabase
+      .from("clients")
+      .update({ geogrid: { ...(client.geogrid ?? {}), keywords } })
+      .eq("id", clientId);
+    if (error) throw new Error(error.message);
+
+    await logActivity({
+      agencyId: member.agency_id,
+      clientId,
+      actor: member.email,
+      action: "geogrid_config_updated",
+      payload: { keywords },
+    });
+
+    revalidatePath(`/clients/${clientId}`);
+    return { ok: true };
   });
 }
 

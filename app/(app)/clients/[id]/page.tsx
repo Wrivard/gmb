@@ -11,6 +11,8 @@ import { loadClientGrowth } from "@/lib/clients/growth";
 import { onboardingCtx, onboardingProgress } from "@/lib/onboarding/steps";
 import { isBrandProfileIncomplete } from "@/lib/clients/brand-profile";
 import { GrowthView } from "@/components/clients/growth-view";
+import { GeogridCard } from "@/components/clients/geogrid-card";
+import type { GeogridConfig } from "@/lib/types/database";
 import {
   ACTION_LABELS,
   ActivityFeed,
@@ -351,26 +353,46 @@ export default async function ClientDetailPage({
 async function GrowthTab({
   client,
 }: {
-  client: { id: string; posts_per_month: number };
+  client: {
+    id: string;
+    posts_per_month: number;
+    primary_category: string | null;
+    geogrid: GeogridConfig;
+  };
 }) {
   const reportHref = `/clients/${client.id}/rapport`;
   const supabase = await getDb();
   const now = new Date();
 
-  const [growth, { data: board }, { data: activity }] = await Promise.all([
-    loadClientGrowth(client, now),
-    supabase
-      .from("client_board_state")
-      .select("*")
-      .eq("client_id", client.id)
-      .maybeSingle(),
-    supabase
-      .from("activity_log")
-      .select("*")
-      .eq("client_id", client.id)
-      .order("created_at", { ascending: false })
-      .limit(15),
-  ]);
+  const [growth, { data: board }, { data: activity }, { data: geogridScans }] =
+    await Promise.all([
+      loadClientGrowth(client, now),
+      supabase
+        .from("client_board_state")
+        .select("*")
+        .eq("client_id", client.id)
+        .maybeSingle(),
+      supabase
+        .from("activity_log")
+        .select("*")
+        .eq("client_id", client.id)
+        .order("created_at", { ascending: false })
+        .limit(15),
+      supabase
+        .from("geogrid_scans")
+        .select("*")
+        .eq("client_id", client.id)
+        .order("scanned_at", { ascending: false })
+        .limit(8),
+    ]);
+
+  // Dernier scan par mot-clé CONFIGURÉ (les mots-clés retirés ne
+  // laissent pas de grille fantôme).
+  const geogridKeywords = (client.geogrid?.keywords ?? []).filter(Boolean);
+  const latestScans = geogridKeywords.flatMap((keyword) => {
+    const scan = (geogridScans ?? []).find((s) => s.keyword === keyword);
+    return scan ? [scan] : [];
+  });
 
   const remaining = board
     ? remainingPosts({
@@ -408,6 +430,12 @@ async function GrowthTab({
         </Button>
       </div>
       <GrowthView growth={growth} />
+      <GeogridCard
+        clientId={client.id}
+        keywords={geogridKeywords}
+        suggestion={client.primary_category}
+        scans={latestScans}
+      />
       <div className="grid gap-2 sm:grid-cols-3">
         {stats.map((stat) => (
           <div

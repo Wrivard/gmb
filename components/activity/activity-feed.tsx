@@ -20,6 +20,8 @@ export const ACTION_LABELS: Record<string, string> = {
   client_settings_updated: "Réglages modifiés",
   brand_profile_updated: "Profil de marque modifié",
   review_kit_updated: "Kit d'avis modifié",
+  geogrid_config_updated: "Suivi local configuré",
+  geogrid_scanned: "Scan des positions locales",
   client_archived: "Projet archivé",
   client_created: "Projet créé",
   client_onboarded: "Fiche 100 % optimisée",

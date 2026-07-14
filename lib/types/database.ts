@@ -71,6 +71,28 @@ export type GbpWeekday =
   | "saturday"
   | "sunday";
 
+/** Colonne clients.geogrid — config du suivi de position locale.
+    Les coordonnées et l'identité Maps se résolvent au premier scan. */
+export interface GeogridConfig {
+  /** Mots-clés suivis (max 2 — garde de coût). */
+  keywords?: string[];
+  /** Identité Maps résolue au premier scan réel. */
+  place_id?: string;
+  cid?: string;
+  /** Coordonnées du centre de la grille (géocodage de l'adresse). */
+  lat?: number;
+  lng?: number;
+  /** Espacement entre les points (défaut lib/geogrid/grid.ts). */
+  spacing_km?: number;
+}
+
+/** Un point de la grille avec le rang trouvé (null = hors top). */
+export interface GeogridRankPoint {
+  lat: number;
+  lng: number;
+  rank: number | null;
+}
+
 /** Colonne clients.review_kit — config de la page « Demander un avis ».
     Le message accepte les gabarits {prenom}, {entreprise} et {lien}. */
 export interface ReviewKitData {
@@ -239,6 +261,7 @@ export interface Database {
           gbp_profile: GbpProfileData;
           review_kit_token: string;
           review_kit: ReviewKitData;
+          geogrid: GeogridConfig;
           assignee_member_id: string | null;
           internal_notes: string | null;
           last_synced_at: string | null;
@@ -265,6 +288,7 @@ export interface Database {
           gbp_profile?: GbpProfileData;
           review_kit_token?: string;
           review_kit?: ReviewKitData;
+          geogrid?: GeogridConfig;
           assignee_member_id?: string | null;
           internal_notes?: string | null;
           last_synced_at?: string | null;
@@ -291,11 +315,66 @@ export interface Database {
           gbp_profile?: GbpProfileData;
           review_kit_token?: string;
           review_kit?: ReviewKitData;
+          geogrid?: GeogridConfig;
           assignee_member_id?: string | null;
           internal_notes?: string | null;
           last_synced_at?: string | null;
           created_at?: string;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      geogrid_scans: {
+        Row: {
+          id: string;
+          client_id: string;
+          keyword: string;
+          provider: string;
+          grid_size: number;
+          spacing_km: number;
+          center_lat: number;
+          center_lng: number;
+          ranks: GeogridRankPoint[];
+          avg_rank: number | null;
+          best_rank: number | null;
+          found_count: number;
+          cost_usd: number;
+          scanned_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          client_id: string;
+          keyword: string;
+          provider: string;
+          grid_size: number;
+          spacing_km: number;
+          center_lat: number;
+          center_lng: number;
+          ranks: GeogridRankPoint[];
+          avg_rank?: number | null;
+          best_rank?: number | null;
+          found_count?: number;
+          cost_usd?: number;
+          scanned_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          client_id?: string;
+          keyword?: string;
+          provider?: string;
+          grid_size?: number;
+          spacing_km?: number;
+          center_lat?: number;
+          center_lng?: number;
+          ranks?: GeogridRankPoint[];
+          avg_rank?: number | null;
+          best_rank?: number | null;
+          found_count?: number;
+          cost_usd?: number;
+          scanned_at?: string;
+          created_at?: string;
         };
         Relationships: [];
       };
@@ -591,5 +670,6 @@ export type Review = Tables<"reviews">;
 export type ReviewReply = Tables<"review_replies">;
 export type Post = Tables<"posts">;
 export type ActivityLog = Tables<"activity_log">;
+export type GeogridScan = Tables<"geogrid_scans">;
 export type ClientBoardState =
   Database["public"]["Views"]["client_board_state"]["Row"];
