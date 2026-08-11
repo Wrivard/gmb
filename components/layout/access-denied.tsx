@@ -11,7 +11,9 @@ export function AccessDenied({ email }: { email: string }) {
   async function signOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push("/login");
+    // ?error=denied : sinon la page de login ne rappelle pas pourquoi on
+    // vient d'être éjecté (le message existait déjà, sans déclencheur).
+    router.push("/login?error=denied");
     router.refresh();
   }
 

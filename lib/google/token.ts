@@ -4,11 +4,17 @@ import { getDb } from "@/lib/supabase/db";
 import { decrypt } from "@/lib/crypto";
 
 // Gestion du access token Google (specs/02 §B).
-// La connexion est relue à chaque appel (la RLS scope la requête à
-// l'agence de l'appelant — une connexion par agence, contrainte unique);
-// seul le refresh OAuth est mis en cache, par connexion, jusqu'à
-// expiry - 60 s. Un cache global partagé servirait le token d'une
-// agence à une autre dans le même process.
+// La connexion est relue à chaque appel; seul le refresh OAuth est mis
+// en cache, par connexion, jusqu'à expiry - 60 s. Un cache global
+// partagé servirait le token d'une agence à une autre dans le même
+// process.
+//
+// Scope : mono-agence, VÉRIFIÉ et non supposé. Le commentaire d'origine
+// affirmait que « la RLS scope la requête à l'agence de l'appelant » —
+// faux dès que getDb() rend le client service-role (auth.uid() NULL,
+// RLS contournée), ce qui est le cas normal en production. Tant que
+// GbpClient ne transporte pas d'agence (refactor à faire quand l'accès
+// GBP réel sera approuvé et validable), on refuse de deviner.
 
 export class GoogleConnectionRevokedError extends Error {
   constructor() {
@@ -37,13 +43,22 @@ export function clearTokenCache(): void {
 
 export async function getAccessToken(): Promise<string> {
   const supabase = await getDb();
-  const { data: connection } = await supabase
+  const { data: connections } = await supabase
     .from("google_connections")
     .select("*")
     .eq("status", "active")
-    .maybeSingle();
+    .limit(2);
 
-  if (!connection) throw new GoogleNotConnectedError();
+  if (!connections?.length) throw new GoogleNotConnectedError();
+  if (connections.length > 1) {
+    // Échec bruyant plutôt qu'un token servi à la mauvaise agence.
+    throw new Error(
+      "Plusieurs connexions Google actives : getAccessToken() ne peut pas " +
+        "déterminer celle de l'appelant. Passer l'agence explicitement " +
+        "avant d'ouvrir l'app à une seconde agence.",
+    );
+  }
+  const connection = connections[0];
 
   const cached = cacheByConnection.get(connection.id);
   if (cached && Date.now() < cached.expiresAt - 60_000) {

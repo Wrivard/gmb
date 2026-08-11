@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  assertOwner,
   loadClientForMember,
   runAction,
   type ActionResult,
@@ -51,11 +52,8 @@ export async function updateClientSettingsAction(
     const autoChanged =
       input.autoPublishReplies !== client.auto_publish_replies ||
       input.autoPublishPosts !== client.auto_publish_posts;
-    if (autoChanged && member.role !== "owner") {
-      return {
-        ok: false,
-        error: "Seul un admin peut modifier l'auto-publication.",
-      };
+    if (autoChanged) {
+      assertOwner(member, "Seul un admin peut modifier l'auto-publication.");
     }
 
     const { error } = await supabase
@@ -112,9 +110,7 @@ export async function archiveClientAction(
 ): Promise<ActionResult> {
   return runAction("L'archivage a échoué.", async () => {
     const { member, supabase, client } = await loadClientForMember(clientId);
-    if (member.role !== "owner") {
-      return { ok: false, error: "Seul un admin peut archiver un projet." };
-    }
+    assertOwner(member, "Seul un admin peut archiver un projet.");
     if (client.status === "active") {
       return {
         ok: false,

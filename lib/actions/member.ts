@@ -7,6 +7,7 @@ import "server-only";
 
 import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
+import type { AgencyMember } from "@/lib/types/database";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -18,6 +19,33 @@ export async function requireMember() {
 
 export async function getMemberDb() {
   const member = await requireMember();
+  const supabase = await getDb();
+  return { member, supabase };
+}
+
+/**
+ * Actions réservées aux admins. Le contrôle était copié-collé dans 6
+ * fichiers avec un message différent chaque fois — un oubli sur une
+ * nouvelle action mutante ne se voyait pas. La RLS le double désormais
+ * en base (policy agency_members_owner_write).
+ */
+export function assertOwner(
+  member: AgencyMember,
+  message = "Action réservée aux admins.",
+): void {
+  if (member.role !== "owner") throw new Error(message);
+}
+
+export async function requireOwner(
+  message = "Action réservée aux admins.",
+): Promise<AgencyMember> {
+  const member = await requireMember();
+  assertOwner(member, message);
+  return member;
+}
+
+export async function getOwnerDb(message?: string) {
+  const member = await requireOwner(message);
   const supabase = await getDb();
   return { member, supabase };
 }

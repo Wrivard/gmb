@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import {
   getMemberDb,
+  getOwnerDb,
   requireMember,
   runAction,
   type ActionResult,
@@ -64,10 +65,9 @@ export async function addMemberAction(
   role: "owner" | "member",
 ): Promise<ActionResult> {
   return runAction("Échec de l'ajout.", async () => {
-    const { member, supabase } = await getMemberDb();
-    if (member.role !== "owner") {
-      return { ok: false, error: "Seul un admin peut gérer l'équipe." };
-    }
+    const { member, supabase } = await getOwnerDb(
+      "Seul un admin peut gérer l'équipe.",
+    );
     const trimmed = email.trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmed)) {
       return { ok: false, error: "Courriel invalide." };
@@ -98,10 +98,9 @@ export async function removeMemberAction(
   memberId: string,
 ): Promise<ActionResult> {
   return runAction("Échec du retrait.", async () => {
-    const { member, supabase } = await getMemberDb();
-    if (member.role !== "owner") {
-      return { ok: false, error: "Seul un admin peut gérer l'équipe." };
-    }
+    const { member, supabase } = await getOwnerDb(
+      "Seul un admin peut gérer l'équipe.",
+    );
     if (member.id === memberId) {
       return { ok: false, error: "Tu ne peux pas te retirer toi-même." };
     }
@@ -121,10 +120,9 @@ export async function updateAgencyDefaultsAction(input: {
   defaultLanguage: string;
 }): Promise<ActionResult> {
   return runAction("Échec de la mise à jour.", async () => {
-    const { member, supabase } = await getMemberDb();
-    if (member.role !== "owner") {
-      return { ok: false, error: "Seul un admin peut modifier les défauts." };
-    }
+    const { member, supabase } = await getOwnerDb(
+      "Seul un admin peut modifier les défauts.",
+    );
     const posts = Math.max(0, Math.min(10, Math.round(input.defaultPostsPerMonth)));
     const { error } = await supabase
       .from("agencies")

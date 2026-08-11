@@ -654,6 +654,15 @@ export interface Database {
           message: string | null;
         }>;
       };
+      /** Appartenance de l'appelant, hors RLS (voir lib/auth.ts). */
+      current_member: {
+        Args: Record<string, never>;
+        Returns: Database["public"]["Tables"]["agency_members"]["Row"][];
+      };
+      user_is_owner_of: {
+        Args: { target_agency: string };
+        Returns: boolean;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
