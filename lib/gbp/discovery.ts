@@ -46,6 +46,11 @@ export async function runDiscovery(
 ): Promise<DiscoveryResult> {
   const gbp = getGbpClient();
   const supabase = await getDb();
+  // En mock, les fiches « découvertes » sortent des fixtures : elles
+  // naissent fictives, sinon une base neuve se remplirait de faux
+  // commerces indiscernables des vrais (les 8 clients de démo existants
+  // sont déjà marqués, la découverte ne fait que les mettre à jour).
+  const mockDiscovery = (process.env.GBP_MODE ?? "mock") !== "real";
 
   const { data: agency } = await supabase
     .from("agencies")
@@ -105,6 +110,7 @@ export async function runDiscovery(
           language: agency?.default_language ?? "fr-CA",
           brand_profile: defaultBrandProfile(location),
           status: "paused",
+          is_demo: mockDiscovery,
         });
         created++;
       }

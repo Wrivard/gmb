@@ -7,6 +7,7 @@ import {
   type ActionResult,
 } from "@/lib/actions/member";
 import { logActivity } from "@/lib/activity";
+import { isDemoDataMode } from "@/lib/data-mode";
 import type { BrandProfile } from "@/lib/types/database";
 
 /**
@@ -27,6 +28,18 @@ export async function createClientAction(input: {
   return runAction("La création du projet a échoué.", async () => {
     const name = input.name.trim();
     if (!name) return { ok: false, error: "Le nom du projet est requis." };
+
+    // Un projet naît toujours réel (is_demo = false par défaut). Le créer
+    // depuis le mode démo le ferait donc disparaître aussitôt des listes,
+    // qui filtrent sur le mode courant — piège silencieux au pire moment
+    // (l'ajout d'un vrai client). On refuse plutôt que de le perdre.
+    if (await isDemoDataMode()) {
+      return {
+        ok: false,
+        error:
+          "Tu es en mode démo — bascule en mode réel (Réglages) pour créer un vrai projet.",
+      };
+    }
 
     const { member, supabase } = await getMemberDb();
 
