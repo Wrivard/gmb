@@ -27,6 +27,8 @@ import { ResyncButton } from "./resync-button";
 import { TeamSection } from "./team-section";
 import { DefaultsForm } from "./defaults-form";
 import { DataModeCard } from "./data-mode-card";
+import { HealthCard } from "./health-card";
+import { configChecks, cronCheck } from "@/lib/health/checks";
 
 export const metadata = { title: "Agence" };
 
@@ -125,6 +127,7 @@ export default async function SettingsPage({
     { data: connection },
     { data: members },
     { data: agency },
+    { data: cronTrace },
   ] = await Promise.all([
     supabase
       .from("google_connections")
@@ -141,7 +144,49 @@ export default async function SettingsPage({
       .select("*")
       .eq("id", member.agency_id)
       .single(),
+    // Preuve de vie des tâches planifiées : sans trace, elles ne partent
+    // pas — un secret absent côté GitHub Actions échoue en silence.
+    supabase
+      .from("activity_log")
+      .select("action, created_at")
+      .eq("agency_id", member.agency_id)
+      .in("action", ["sync_completed", "due_computed"])
+      .order("created_at", { ascending: false })
+      .limit(40),
   ]);
+
+  const lastRun = (action: string) =>
+    (cronTrace ?? []).find((row) => row.action === action)?.created_at ?? null;
+  const healthChecks = [
+    ...configChecks({
+      appUrl: process.env.NEXT_PUBLIC_APP_URL,
+      encryptionKey: process.env.ENCRYPTION_KEY,
+      cronSecret: process.env.CRON_SECRET,
+      openaiKey: process.env.OPENAI_API_KEY,
+      dataforseoLogin: process.env.DATAFORSEO_LOGIN,
+      dataforseoPassword: process.env.DATAFORSEO_PASSWORD,
+      gbpMode: process.env.GBP_MODE,
+      publicGbpMode: process.env.NEXT_PUBLIC_GBP_MODE,
+      serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      notifyWebhook: process.env.NOTIFY_WEBHOOK_URL,
+      resendKey: process.env.RESEND_API_KEY,
+      notifyEmailTo: process.env.NOTIFY_EMAIL_TO,
+    }),
+    // sync-reviews : aux 30 min (GitHub Actions).
+    cronCheck(
+      "cron_sync",
+      "Synchronisation des avis",
+      lastRun("sync_completed"),
+      90 * 60_000,
+    ),
+    // compute-due : une fois par jour à 10 h UTC (cron Vercel).
+    cronCheck(
+      "cron_due",
+      "Revue du matin",
+      lastRun("due_computed"),
+      26 * 60 * 60_000,
+    ),
+  ];
 
   const errorMessage = params.error
     ? (ERROR_MESSAGES[params.error] ?? "Une erreur est survenue.")
@@ -279,6 +324,9 @@ export default async function SettingsPage({
 
       {/* Réel ↔ démo */}
       <DataModeCard mode={dataMode} />
+
+      {/* Diagnostic — réservé aux admins : c'est de l'exploitation. */}
+      {isOwner && <HealthCard checks={healthChecks} />}
     </div>
   );
 }
