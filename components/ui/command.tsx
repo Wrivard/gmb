@@ -62,7 +62,8 @@ function CommandDialog({
       >
         {/* Le conteneur cmdk crée le store que consomment Input/List/Item.
             Sans lui, chaque sous-composant appelle subscribe() sur undefined
-            et la palette plante à l'ouverture. */}
+            et la palette plante à l'ouverture (régression couverte par
+            command.test.tsx). */}
         <Command>{children}</Command>
       </DialogContent>
     </Dialog>
