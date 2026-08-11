@@ -60,7 +60,10 @@ function CommandDialog({
         )}
         showCloseButton={showCloseButton}
       >
-        {children}
+        {/* Le conteneur cmdk crée le store que consomment Input/List/Item.
+            Sans lui, chaque sous-composant appelle subscribe() sur undefined
+            et la palette plante à l'ouverture. */}
+        <Command>{children}</Command>
       </DialogContent>
     </Dialog>
   )
