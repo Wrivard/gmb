@@ -135,9 +135,16 @@ export function googleErrorDetail(body?: string): string {
       return ` — ${status ? `${status} : ` : ""}${message}`;
     }
   } catch {
-    // Corps non JSON : on garde un extrait brut.
+    // Corps non JSON.
   }
-  return ` — ${body.trim().slice(0, 300)}`;
+  const trimmed = body.trim();
+  // Google sert une page HTML sur ses 404 : en recracher 300 caractères
+  // noyait le message utile sous du balisage (vu en production).
+  if (/^\s*<(!doctype|html)/i.test(trimmed)) {
+    const title = /<title>([^<]+)<\/title>/i.exec(trimmed)?.[1]?.trim();
+    return ` — réponse HTML de Google${title ? ` : ${title}` : ""} (endpoint inexistant ?)`;
+  }
+  return ` — ${trimmed.slice(0, 300)}`;
 }
 
 export class GbpApiError extends Error {

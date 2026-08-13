@@ -24,9 +24,20 @@ describe("googleErrorDetail", () => {
   });
 
   it("garde un extrait quand le corps n'est pas du JSON", () => {
-    expect(googleErrorDetail("<html>Service Unavailable</html>")).toContain(
+    expect(googleErrorDetail("Service Unavailable")).toContain(
       "Service Unavailable",
     );
+  });
+
+  // Vu en production : v4/accounts répond une page HTML de 404. En
+  // recracher 300 caractères noyait le message sous du balisage.
+  it("résume une page HTML au lieu de vomir le balisage", () => {
+    const html =
+      '<!DOCTYPE html>\n<html lang=en>\n<meta charset=utf-8>\n<title>Error 404 (Not Found)!!1</title>\n<style>*{margin:0;padding:0}</style>';
+    const detail = googleErrorDetail(html);
+    expect(detail).toContain("Error 404 (Not Found)");
+    expect(detail).not.toContain("<style>");
+    expect(detail).not.toContain("charset");
   });
 
   it("tronque un corps trop long", () => {
