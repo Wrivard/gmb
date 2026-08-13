@@ -175,9 +175,12 @@ export async function sendTestSentryAction(): Promise<
 > {
   return runAction("L'envoi vers Sentry a échoué.", async () => {
     const member = await requireOwner("Seul un admin peut tester Sentry.");
+    // Niveau « error » volontairement : le but est de vérifier le chemin
+    // qu'emprunte une VRAIE erreur. En « info », l'événement partait bien
+    // mais n'apparaissait dans aucune des vues où on cherche une erreur.
     const eventId = Sentry.captureException(
       new Error(`Test de diagnostic Küa Locale — déclenché par ${member.email}`),
-      { tags: { source: "diagnostic" }, level: "info" },
+      { tags: { source: "diagnostic" } },
     );
     const flushed = await Sentry.flush(5000);
     if (!flushed) {

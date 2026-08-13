@@ -7,6 +7,8 @@ import {
   getGoogleConnectionStatus,
 } from "@/lib/queries/agency";
 import { supabaseConfigured } from "@/lib/env";
+import { isDemoDataMode } from "@/lib/data-mode";
+import { EmptyState } from "@/components/ui/empty-state";
 import { torontoParts } from "@/lib/due";
 import { isBrandProfileIncomplete } from "@/lib/clients/brand-profile";
 import { RealtimeRefresh } from "@/components/dashboard/realtime-refresh";
@@ -59,6 +61,7 @@ export default async function DashboardPage() {
 
   const supabase = await getDb();
   const now = new Date();
+  const demoDataMode = await isDemoDataMode();
 
   // Loaders partagés avec le layout (React cache) : ces trois requêtes
   // ne partent qu'une fois par navigation, pas deux.
@@ -77,7 +80,9 @@ export default async function DashboardPage() {
       .eq("agency_id", member.agency_id)
       .in("action", AGENCY_FEED_ACTIONS)
       .order("created_at", { ascending: false })
-      .limit(25),
+      // Marge : le filtrage par mode se fait après, sinon une rafale
+      // d'activité de l'autre mode viderait le fil.
+      .limit(80),
   ]);
   // Un échec de requête ne doit jamais se déguiser en tableau vide
   // (« rien à faire ») : on laisse error.tsx afficher l'état d'erreur.
@@ -173,18 +178,25 @@ export default async function DashboardPage() {
 
   // Qui a fait quoi, tous projets confondus — le coup d'œil gestionnaire
   // et la trace d'audit légère, sans ouvrir chaque fiche.
-  const feedEntries: ActivityEntry[] = (activity ?? []).map((entry) => {
-    const client = entry.client_id
-      ? clientMeta.get(entry.client_id)
-      : undefined;
-    return {
-      id: entry.id,
-      label: ACTION_LABELS[entry.action] ?? entry.action,
-      actor: entry.actor,
-      at: entry.created_at,
-      client: client ? { id: client.id, name: client.name } : null,
-    };
-  });
+  // clientMeta ne contient que les projets du mode courant : une activité
+  // rattachée à un projet de l'AUTRE mode s'affichait sans nom de projet
+  // (« Réponse publiée » orpheline). On la retire plutôt que de la
+  // montrer amputée.
+  const feedEntries: ActivityEntry[] = (activity ?? [])
+    .filter((entry) => !entry.client_id || clientMeta.has(entry.client_id))
+    .slice(0, 25)
+    .map((entry) => {
+      const client = entry.client_id
+        ? clientMeta.get(entry.client_id)
+        : undefined;
+      return {
+        id: entry.id,
+        label: ACTION_LABELS[entry.action] ?? entry.action,
+        actor: entry.actor,
+        at: entry.created_at,
+        client: client ? { id: client.id, name: client.name } : null,
+      };
+    });
 
   return (
     <div className="flex flex-col gap-5">
@@ -211,7 +223,41 @@ export default async function DashboardPage() {
           ))}
         </div>
       )}
-      <DashboardKanban clients={boardClients} currentMemberId={member.id} />
+      {boardClients.length === 0 ? (
+        // Zéro projet actif : les quatre colonnes vides du kanban donnent
+        // l'impression d'une app en panne plutôt que d'un compte neuf.
+        <EmptyState
+          title={
+            demoDataMode
+              ? "Aucun projet de démonstration actif"
+              : "Aucun projet actif"
+          }
+          hint={
+            demoDataMode ? (
+              <>
+                Active une fiche fictive depuis{" "}
+                <Link href="/clients" className="underline">
+                  Projets
+                </Link>{" "}
+                pour voir le tableau se remplir.
+              </>
+            ) : (
+              <>
+                <Link href="/clients/new" className="underline">
+                  Crée ton premier projet
+                </Link>{" "}
+                — ou passe en mode démo depuis{" "}
+                <Link href="/settings" className="underline">
+                  Agence
+                </Link>{" "}
+                pour explorer l&apos;app avec des données fictives.
+              </>
+            )
+          }
+        />
+      ) : (
+        <DashboardKanban clients={boardClients} currentMemberId={member.id} />
+      )}
       {feedEntries.length > 0 && (
         <section>
           <h2 className="mb-2 text-sm font-medium text-muted-foreground">
