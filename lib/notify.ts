@@ -54,6 +54,49 @@ async function sendResendEmail(apiKey: string, notification: Notification) {
   }
 }
 
+export interface ChannelResult {
+  channel: "webhook" | "courriel";
+  ok: boolean;
+  /** Message d'erreur du fournisseur — sert au bouton de test. */
+  error?: string;
+}
+
+/**
+ * Tente chaque canal configuré et rapporte le détail. Ne throw jamais.
+ * Utilisé tel quel par le bouton « Tester les alertes » : sans le
+ * message du fournisseur, un envoi refusé (domaine non vérifié chez
+ * Resend, webhook expiré) reste indevinable.
+ */
+export async function deliverNotification(
+  notification: Notification,
+): Promise<ChannelResult[]> {
+  const webhookUrl = process.env.NOTIFY_WEBHOOK_URL;
+  const resendKey = process.env.RESEND_API_KEY;
+  const results: ChannelResult[] = [];
+
+  if (webhookUrl) {
+    try {
+      await sendWebhook(webhookUrl, notification);
+      results.push({ channel: "webhook", ok: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[notify] webhook échoué :", error);
+      results.push({ channel: "webhook", ok: false, error: message });
+    }
+  }
+  if (resendKey) {
+    try {
+      await sendResendEmail(resendKey, notification);
+      results.push({ channel: "courriel", ok: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[notify] courriel échoué :", error);
+      results.push({ channel: "courriel", ok: false, error: message });
+    }
+  }
+  return results;
+}
+
 /**
  * Envoie sur tous les canaux configurés. Retourne true si au moins un
  * canal a accepté. Ne throw jamais.
@@ -61,34 +104,14 @@ async function sendResendEmail(apiKey: string, notification: Notification) {
 export async function sendNotification(
   notification: Notification,
 ): Promise<boolean> {
-  const webhookUrl = process.env.NOTIFY_WEBHOOK_URL;
-  const resendKey = process.env.RESEND_API_KEY;
-
-  if (!webhookUrl && !resendKey) {
+  const results = await deliverNotification(notification);
+  if (!results.length) {
     console.log(
       `[notify] aucun canal configuré — « ${notification.subject} » non envoyé`,
     );
     return false;
   }
-
-  let delivered = false;
-  if (webhookUrl) {
-    try {
-      await sendWebhook(webhookUrl, notification);
-      delivered = true;
-    } catch (error) {
-      console.error("[notify] webhook échoué :", error);
-    }
-  }
-  if (resendKey) {
-    try {
-      await sendResendEmail(resendKey, notification);
-      delivered = true;
-    } catch (error) {
-      console.error("[notify] courriel échoué :", error);
-    }
-  }
-  return delivered;
+  return results.some((result) => result.ok);
 }
 
 export function appLink(path: string): string {

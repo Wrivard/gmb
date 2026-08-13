@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { worstStatus, type HealthCheck } from "@/lib/health/checks";
+import { HealthTests } from "./health-tests";
 
 // Présentation seule — la collecte vit dans page.tsx (serveur) et la
 // logique dans lib/health/checks.ts (pure, testée).
@@ -65,6 +66,7 @@ export function HealthCard({ checks }: { checks: HealthCheck[] }) {
             );
           })}
         </ul>
+        <HealthTests />
       </CardContent>
     </Card>
   );

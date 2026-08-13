@@ -3,6 +3,7 @@ import { Topbar } from "@/components/layout/topbar";
 import { AccessDenied } from "@/components/layout/access-denied";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { GlobalBanners } from "@/components/layout/global-banners";
+import { SentryUser } from "@/components/layout/sentry-user";
 import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import {
@@ -103,6 +104,7 @@ export default async function AppLayout({
         <main className="mx-auto max-w-[1400px] px-6 py-8">{children}</main>
       </div>
       <CommandPalette clients={paletteClients} />
+      <SentryUser email={userEmail} />
     </div>
   );
 }

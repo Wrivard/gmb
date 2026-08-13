@@ -10,7 +10,14 @@ import { defineConfig } from "vitest/config";
 
 const shared = {
   plugins: [react()],
-  resolve: { alias: { "@": path.resolve(__dirname, ".") } },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "."),
+      // Voir test/stubs/server-only.ts : sans cet alias, tout composant
+      // qui tire indirectement un module serveur casse à la collecte.
+      "server-only": path.resolve(__dirname, "test/stubs/server-only.ts"),
+    },
+  },
 };
 
 const exclude = ["node_modules", ".next"];

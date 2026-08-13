@@ -6,12 +6,19 @@ import {
   getMemberDb,
   getOwnerDb,
   requireMember,
+  requireOwner,
   runAction,
   type ActionResult,
 } from "@/lib/actions/member";
+import * as Sentry from "@sentry/nextjs";
 import { DATA_MODE_COOKIE, type DataMode } from "@/lib/data-mode";
 import { runDiscovery } from "@/lib/gbp/discovery";
 import { logActivity } from "@/lib/activity";
+import {
+  appLink,
+  deliverNotification,
+  type ChannelResult,
+} from "@/lib/notify";
 
 /** Bascule réel ↔ démo (cookie par navigateur — voir lib/data-mode.ts). */
 export async function setDataModeAction(mode: DataMode): Promise<ActionResult> {
@@ -112,6 +119,62 @@ export async function removeMemberAction(
     if (error) throw new Error(error.message);
     revalidatePath("/settings");
     return { ok: true };
+  });
+}
+
+/**
+ * Envoie une vraie alerte de test sur les canaux configurés et rapporte
+ * le détail par canal. Sans ça, on découvre qu'un canal est cassé le
+ * jour d'une 1★ — et le piège le plus courant (Resend refuse tout
+ * destinataire hors compte tant qu'aucun domaine n'est vérifié) est
+ * invisible autrement.
+ */
+export async function sendTestAlertAction(): Promise<
+  ActionResult & { results?: ChannelResult[] }
+> {
+  return runAction("L'envoi de test a échoué.", async () => {
+    const member = await requireOwner("Seul un admin peut tester les alertes.");
+    const results = await deliverNotification({
+      subject: "✅ Test des alertes — Küa Locale",
+      text:
+        `Ce message confirme que le canal d'alerte fonctionne.\n\n` +
+        `Déclenché par ${member.email}.\n\n` +
+        `C'est par ici que passeront les avis négatifs et les publications échouées : ${appLink("/")}`,
+    });
+    if (!results.length) {
+      return {
+        ok: false,
+        error:
+          "Aucun canal configuré — ajoute NOTIFY_EMAIL_TO (avec RESEND_API_KEY) ou NOTIFY_WEBHOOK_URL.",
+      };
+    }
+    return { ok: true, results };
+  });
+}
+
+/**
+ * Envoie une exception de test à Sentry et rend son identifiant, pour
+ * vérifier la chaîne complète (DSN, réseau, projet) sans provoquer un
+ * vrai plantage. `flush` est indispensable en serverless : sans lui la
+ * fonction se termine avant l'envoi.
+ */
+export async function sendTestSentryAction(): Promise<
+  ActionResult & { eventId?: string }
+> {
+  return runAction("L'envoi vers Sentry a échoué.", async () => {
+    const member = await requireOwner("Seul un admin peut tester Sentry.");
+    const eventId = Sentry.captureException(
+      new Error(`Test de diagnostic Küa Locale — déclenché par ${member.email}`),
+      { tags: { source: "diagnostic" }, level: "info" },
+    );
+    const flushed = await Sentry.flush(5000);
+    if (!flushed) {
+      return {
+        ok: false,
+        error: "Sentry n'a pas confirmé l'envoi (délai dépassé).",
+      };
+    }
+    return { ok: true, eventId };
   });
 }
 
