@@ -11,6 +11,7 @@ import { logActivity } from "@/lib/activity";
 import { isBrandProfileIncomplete } from "@/lib/clients/brand-profile";
 import { normalizeReviewKit } from "@/lib/reviews/kit";
 import { GEOGRID_MAX_KEYWORDS } from "@/lib/geogrid/grid";
+import { normalizeGbpResourceId } from "@/lib/gbp/resource-id";
 import { runGeogridScan } from "@/lib/geogrid/scan";
 import { getGbpClient } from "@/lib/gbp/client";
 import { GbpAccessPendingError } from "@/lib/gbp/types";
@@ -96,6 +97,79 @@ export async function updateInternalNotesAction(
       .eq("id", clientId);
     if (error) throw new Error(error.message);
 
+    revalidatePath(`/clients/${clientId}`);
+    return { ok: true };
+  });
+}
+
+/**
+ * Lie un projet à sa fiche Google à la main.
+ *
+ * Pont assumé tant que le quota d'Account Management reste à zéro : la
+ * découverte automatique ne peut pas tourner, mais l'API v4 (avis,
+ * publications) a du quota. Connaître les identifiants suffit donc à
+ * faire fonctionner l'essentiel. Redevient inutile — sans rien casser —
+ * le jour où la découverte reprend : elle réécrit ces champs.
+ */
+export async function updateGbpLinkAction(
+  clientId: string,
+  input: { accountId: string; locationId: string },
+): Promise<ActionResult> {
+  return runAction("La liaison a échoué.", async () => {
+    const { member, supabase } = await loadClientForMember(clientId);
+
+    // Champs vidés : on délie. Le projet revient à « pas encore relié »,
+    // et les publications échouent proprement plutôt que de partir vers
+    // un identifiant fantôme.
+    if (!input.accountId.trim() && !input.locationId.trim()) {
+      const { error } = await supabase
+        .from("clients")
+        .update({ gbp_account_id: null, gbp_location_id: null })
+        .eq("id", clientId);
+      if (error) throw new Error(error.message);
+      revalidatePath(`/clients/${clientId}`);
+      return { ok: true };
+    }
+
+    const accountId = normalizeGbpResourceId(input.accountId, "accounts");
+    const locationId = normalizeGbpResourceId(input.locationId, "locations");
+    if (!accountId || !locationId) {
+      return {
+        ok: false,
+        error:
+          "Identifiants illisibles — colle le compte (accounts/…) et la fiche (locations/…), ou simplement leurs numéros.",
+      };
+    }
+
+    // Deux projets sur la même fiche publieraient en double chez le même
+    // commerce, et importeraient ses avis deux fois.
+    const { data: taken } = await supabase
+      .from("clients")
+      .select("id, name")
+      .eq("agency_id", member.agency_id)
+      .eq("gbp_location_id", locationId)
+      .neq("id", clientId)
+      .maybeSingle();
+    if (taken) {
+      return {
+        ok: false,
+        error: `Cette fiche est déjà liée au projet « ${taken.name} ».`,
+      };
+    }
+
+    const { error } = await supabase
+      .from("clients")
+      .update({ gbp_account_id: accountId, gbp_location_id: locationId })
+      .eq("id", clientId);
+    if (error) throw new Error(error.message);
+
+    await logActivity({
+      agencyId: member.agency_id,
+      clientId,
+      actor: member.email,
+      action: "gbp_linked",
+      payload: { account_id: accountId, location_id: locationId },
+    });
     revalidatePath(`/clients/${clientId}`);
     return { ok: true };
   });

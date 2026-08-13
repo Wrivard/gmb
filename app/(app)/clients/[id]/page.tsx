@@ -56,6 +56,10 @@ const ReviewKitCard = dynamic(
   () => import("./review-kit-card").then((m) => m.ReviewKitCard),
   { loading: () => tabFallback },
 );
+const GbpLinkCard = dynamic(
+  () => import("./gbp-link-card").then((m) => m.GbpLinkCard),
+  { loading: () => tabFallback },
+);
 
 export const metadata = { title: "Projet" };
 
@@ -338,6 +342,11 @@ export default async function ClientDetailPage({
       {tab === "posts" && <PostsTab client={client} />}
       {tab === "settings" && (
         <ClientSettings client={client} isOwner={member.role === "owner"}>
+          <GbpLinkCard
+            clientId={client.id}
+            accountId={client.gbp_account_id}
+            locationId={client.gbp_location_id}
+          />
           <ReviewKitCard
             clientId={client.id}
             clientName={client.name}
