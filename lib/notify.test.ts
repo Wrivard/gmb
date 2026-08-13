@@ -70,6 +70,37 @@ describe("deliverNotification", () => {
     expect(result.error).toContain("only send testing emails");
   });
 
+  // Le cas réel du 2026-08-13 : le domaine ÉTAIT vérifié, mais
+  // NOTIFY_EMAIL_FROM manquait — l'app envoyait donc depuis le bac à
+  // sable, qui bride les destinataires. Le message de Resend seul ne
+  // permettait pas de trancher entre les deux causes.
+  it("sans expéditeur, l'échec explique le bac à sable", async () => {
+    process.env.RESEND_API_KEY = "re_x";
+    process.env.NOTIFY_EMAIL_TO = "gberther@kua.quebec";
+    mockFetch([{ ok: false, status: 403, body: "You can only send testing emails" }]);
+    const [result] = await deliverNotification(NOTE);
+    expect(result.error).toContain("NOTIFY_EMAIL_FROM");
+  });
+
+  it("avec un expéditeur de domaine, pas de conseil hors sujet", async () => {
+    process.env.RESEND_API_KEY = "re_x";
+    process.env.NOTIFY_EMAIL_TO = "gberther@kua.quebec";
+    process.env.NOTIFY_EMAIL_FROM = "Küa Locale <bonjour@kua.quebec>";
+    mockFetch([{ ok: false, status: 422, body: "autre erreur" }]);
+    const [result] = await deliverNotification(NOTE);
+    expect(result.error).not.toContain("NOTIFY_EMAIL_FROM");
+  });
+
+  it("l'expéditeur configuré est bien celui envoyé", async () => {
+    process.env.RESEND_API_KEY = "re_x";
+    process.env.NOTIFY_EMAIL_TO = "gberther@kua.quebec";
+    process.env.NOTIFY_EMAIL_FROM = "Küa Locale <bonjour@kua.quebec>";
+    const fetchMock = mockFetch([{ ok: true }]);
+    await deliverNotification(NOTE);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.from).toBe("Küa Locale <bonjour@kua.quebec>");
+  });
+
   it("découpe les destinataires multiples", async () => {
     process.env.RESEND_API_KEY = "re_x";
     process.env.NOTIFY_EMAIL_TO = "a@kua.quebec, b@kua.quebec";

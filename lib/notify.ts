@@ -30,11 +30,14 @@ async function sendWebhook(url: string, notification: Notification) {
   }
 }
 
+/** Expéditeur bac à sable de Resend : il n'accepte QUE le propriétaire
+    du compte comme destinataire, même si ton domaine est vérifié. */
+const RESEND_SANDBOX_FROM = "Küa Locale <onboarding@resend.dev>";
+
 async function sendResendEmail(apiKey: string, notification: Notification) {
   const to = process.env.NOTIFY_EMAIL_TO;
   if (!to) throw new Error("NOTIFY_EMAIL_TO manquant");
-  const from =
-    process.env.NOTIFY_EMAIL_FROM ?? "Küa Locale <onboarding@resend.dev>";
+  const from = process.env.NOTIFY_EMAIL_FROM?.trim() || RESEND_SANDBOX_FROM;
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -50,7 +53,15 @@ async function sendResendEmail(apiKey: string, notification: Notification) {
     }),
   });
   if (!response.ok) {
-    throw new Error(`resend ${response.status}: ${await response.text()}`);
+    const body = await response.text();
+    // Le message de Resend parle de vérifier un domaine ET de changer
+    // l'expéditeur. Quand le domaine est déjà vérifié, seule la seconde
+    // moitié s'applique — et rien ne le dit. On lève l'ambiguïté ici.
+    const hint =
+      from === RESEND_SANDBOX_FROM
+        ? " — expéditeur bac à sable : pose NOTIFY_EMAIL_FROM sur une adresse de ton domaine vérifié."
+        : "";
+    throw new Error(`resend ${response.status}: ${body}${hint}`);
   }
 }
 
