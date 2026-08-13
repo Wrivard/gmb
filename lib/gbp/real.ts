@@ -57,7 +57,7 @@ async function gbpFetch(
   }
 
   if (lastResponse?.status === 429) {
-    throw new GbpAccessPendingError();
+    throw new GbpAccessPendingError(url, await lastResponse.text());
   }
   throw new GbpApiError(
     `Échec GBP après ${MAX_ATTEMPTS} essais (${lastResponse?.status}).`,

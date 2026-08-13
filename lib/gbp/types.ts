@@ -86,12 +86,34 @@ export type LocalPostState = "LIVE" | "PROCESSING" | "REJECTED";
  * Erreur typée : 429 quota 0 = projet GCP pas encore approuvé par Google.
  * L'UI la transforme en banner « Accès API Google en attente d'approbation ».
  */
+/**
+ * Google répond 429 (et non 403) quand le quota d'une API est à zéro —
+ * l'approbation « Basic API Access » peut ne couvrir qu'une partie de la
+ * famille GBP. Nommer l'API en cause est tout l'intérêt du message :
+ * sans elle, on cherche dans quatre consoles à la fois.
+ */
 export class GbpAccessPendingError extends Error {
-  constructor() {
+  constructor(
+    public readonly endpoint?: string,
+    public readonly body?: string,
+  ) {
+    const api = endpoint ? apiHost(endpoint) : null;
     super(
-      "Accès aux APIs Google Business Profile en attente d'approbation (quota 0).",
+      api
+        ? `Quota 0 sur ${api} — cette API n'est pas couverte par l'approbation. Vérifie ses quotas dans la console GCP.${googleErrorDetail(body)}`
+        : `Accès aux APIs Google Business Profile en attente d'approbation (quota 0).${googleErrorDetail(body)}`,
     );
     this.name = "GbpAccessPendingError";
+  }
+}
+
+/** « https://mybusinessaccountmanagement.googleapis.com/v1/accounts »
+    → « mybusinessaccountmanagement.googleapis.com ». */
+function apiHost(url: string): string | null {
+  try {
+    return new URL(url).host;
+  } catch {
+    return null;
   }
 }
 

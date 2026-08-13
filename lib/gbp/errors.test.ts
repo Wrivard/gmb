@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { GbpApiError, googleErrorDetail } from "./types";
+import {
+  GbpAccessPendingError,
+  GbpApiError,
+  googleErrorDetail,
+} from "./types";
 
 // Un échec GBP ne remontait que « accounts.list → 403 » : le code sans
 // la cause. Google met pourtant toujours l'explication dans le corps.
@@ -53,5 +57,34 @@ describe("GbpApiError", () => {
     expect(new GbpApiError("locations.list → 500", 500).message).toBe(
       "locations.list → 500",
     );
+  });
+});
+
+// Cas réel du 2026-08-13 : l'approbation couvrait la v4 (600 req/min)
+// mais pas Account Management. Le message générique envoyait chercher
+// dans quatre consoles à la fois.
+describe("GbpAccessPendingError", () => {
+  it("nomme l'API en quota 0", () => {
+    const error = new GbpAccessPendingError(
+      "https://mybusinessaccountmanagement.googleapis.com/v1/accounts",
+    );
+    expect(error.message).toContain("mybusinessaccountmanagement.googleapis.com");
+    expect(error.message).not.toContain("/v1/accounts");
+  });
+
+  it("garde le message générique sans endpoint", () => {
+    expect(new GbpAccessPendingError().message).toContain(
+      "en attente d'approbation",
+    );
+  });
+
+  it("joint l'explication de Google si elle existe", () => {
+    const error = new GbpAccessPendingError(
+      "https://mybusinessaccountmanagement.googleapis.com/v1/accounts",
+      JSON.stringify({
+        error: { message: "Quota exceeded for quota metric 'Requests'.", status: "RESOURCE_EXHAUSTED" },
+      }),
+    );
+    expect(error.message).toContain("RESOURCE_EXHAUSTED");
   });
 });
