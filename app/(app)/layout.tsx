@@ -92,6 +92,7 @@ export default async function AppLayout({
         userRole={userRole}
         pendingReviews={pendingReviews}
         postsDue={postsDue}
+        demoDataMode={demoDataMode}
       />
       <div className="lg:pl-60 print:pl-0">
         <GlobalBanners

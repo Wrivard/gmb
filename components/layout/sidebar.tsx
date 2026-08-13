@@ -42,14 +42,22 @@ export function Sidebar({
   userRole,
   pendingReviews = 0,
   postsDue = 0,
+  demoDataMode = false,
 }: {
   userEmail: string | null;
   userRole: string | null;
   pendingReviews?: number;
   postsDue?: number;
+  /** Bascule réel ↔ démo de Réglages (cookie), à ne pas confondre
+      avec GBP_MODE qui ne dit que si l'API Google est simulée. */
+  demoDataMode?: boolean;
 }) {
   const pathname = usePathname();
-  const isMock = process.env.NEXT_PUBLIC_GBP_MODE !== "real";
+  // Deux notions distinctes, longtemps confondues ici : GBP_MODE décrit
+  // l'API Google (simulée ou réelle), le cookie décrit les DONNÉES
+  // affichées. Le badge lisait GBP_MODE tout en parlant de « données
+  // simulées » — il restait donc « démo » même après la bascule.
+  const gbpSimulated = process.env.NEXT_PUBLIC_GBP_MODE !== "real";
   const todo = pendingReviews + postsDue;
 
   return (
@@ -95,10 +103,16 @@ export function Sidebar({
       </nav>
 
       <div className="flex flex-col gap-2 border-t border-border px-3 py-3">
-        {isMock && (
+        {demoDataMode && (
+          <p className="flex items-center gap-1.5 px-3 text-xs text-muted-foreground">
+            <span className="size-1.5 rounded-full bg-info" />
+            données de démonstration
+          </p>
+        )}
+        {gbpSimulated && (
           <p className="flex items-center gap-1.5 px-3 text-xs text-muted-foreground">
             <span className="size-1.5 rounded-full bg-warning" />
-            mode démo — données simulées
+            Google simulé — rien n&apos;est publié
           </p>
         )}
         <UserMenu email={userEmail} role={userRole} />

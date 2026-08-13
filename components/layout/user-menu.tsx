@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -60,8 +61,17 @@ export function UserMenu({
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="start" className="w-56">
-        <DropdownMenuLabel className="truncate">{email}</DropdownMenuLabel>
+        {/* Le libellé DOIT vivre dans un Group : Base UI lève sinon
+            « MenuGroupContext is missing » à l'ouverture, et le menu
+            entier ne s'affiche jamais (couvert par user-menu.test.tsx). */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="truncate">{email}</DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => router.push("/settings")}>
+          <Settings className="size-4" />
+          Agence et réglages
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={signOut}>
           <LogOut className="size-4" />
           Se déconnecter
