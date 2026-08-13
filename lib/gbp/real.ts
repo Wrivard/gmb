@@ -78,11 +78,29 @@ async function parseOrThrow<T>(response: Response, context: string): Promise<T> 
 }
 
 export class RealGbpClient implements GbpClient {
+  /**
+   * Account Management d'abord ; si son quota est à zéro, on retente sur
+   * la v4 — dépréciée pour cet appel, mais rattachée à un autre quota.
+   *
+   * Ce repli est autant un diagnostic qu'un contournement : s'il échoue
+   * lui aussi, c'est que le projet n'a d'accès à AUCUNE API Business
+   * Profile, et le message nommera alors mybusiness.googleapis.com.
+   * L'information vaut mieux qu'une supposition sur des quotas affichés.
+   */
   async listAccounts(): Promise<GbpAccount[]> {
+    try {
+      return await this.listAccountsFrom(`${ACCOUNT_MGMT}/accounts`);
+    } catch (error) {
+      if (!(error instanceof GbpAccessPendingError)) throw error;
+      return await this.listAccountsFrom(`${GMB_V4}/accounts`);
+    }
+  }
+
+  private async listAccountsFrom(endpoint: string): Promise<GbpAccount[]> {
     const accounts: GbpAccount[] = [];
     let pageToken: string | undefined;
     do {
-      const url = new URL(`${ACCOUNT_MGMT}/accounts`);
+      const url = new URL(endpoint);
       if (pageToken) url.searchParams.set("pageToken", pageToken);
       const json = await parseOrThrow<{
         accounts?: GbpAccount[];
