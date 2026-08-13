@@ -73,6 +73,9 @@ export async function runDiscovery(
         .from("clients")
         .select("id, status")
         .eq("gbp_location_id", location.name)
+        // Une découverte ne rapatrie que les fiches de SON monde : jamais
+        // une fiche réelle ne doit venir écraser une fiche de démo.
+        .eq("is_demo", mockDiscovery)
         .maybeSingle();
 
       if (existing) {
@@ -121,8 +124,13 @@ export async function runDiscovery(
   // Les archivés sont hors jeu : ne pas les basculer disconnected.
   const { data: allClients } = await supabase
     .from("clients")
-    .select("id, gbp_location_id, status")
+    .select("id, gbp_location_id, status, is_demo")
     .eq("agency_id", agencyId)
+    // Le bilan « fiche disparue » ne vaut que dans le monde qu'on vient
+    // d'interroger. Sans ce filtre, la première découverte RÉELLE
+    // basculerait les 8 clients de démo en « déconnecté » : leurs ids de
+    // fixtures n'existent évidemment pas chez Google.
+    .eq("is_demo", mockDiscovery)
     .not("status", "in", "(disconnected,archived)");
 
   let disconnected = 0;
