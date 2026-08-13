@@ -56,8 +56,29 @@ describe("configChecks", () => {
 
   it("Resend compte comme canal d'alerte seulement avec un destinataire", () => {
     const sansDestinataire = { ...HEALTHY, notifyWebhook: undefined, resendKey: "re_x" };
-    expect(check(sansDestinataire, "notify").status).toBe("warn");
-    expect(check({ ...sansDestinataire, notifyEmailTo: "wrivard@kua.quebec" }, "notify").status).toBe("ok");
+    expect(check(sansDestinataire, "notify").detail).toContain("Aucun canal");
+    expect(
+      check({ ...sansDestinataire, notifyEmailTo: "wrivard@kua.quebec" }, "notify").detail,
+    ).not.toContain("Aucun canal");
+  });
+
+  // Le cas réel du 2026-08-13 : clé + destinataire présents, mais Resend
+  // refusait l'envoi (domaine non vérifié). « Configuré » mentait.
+  it("un canal configuré mais jamais testé reste un avertissement", () => {
+    const result = check(HEALTHY, "notify");
+    expect(result.status).toBe("warn");
+    expect(result.detail).toContain("jamais vérifié");
+  });
+
+  it("un envoi réellement abouti fait passer la ligne au vert", () => {
+    const now = new Date("2026-08-13T12:00:00Z");
+    const result = configChecks(
+      HEALTHY,
+      { lastAlertTestAt: "2026-08-13T11:30:00Z" },
+      now,
+    ).find((c) => c.key === "notify")!;
+    expect(result.status).toBe("ok");
+    expect(result.detail).toContain("30 min");
   });
 
   it("la clé service_role est signalée comme contournant la sécurité de la base", () => {

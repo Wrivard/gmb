@@ -150,9 +150,9 @@ export default async function SettingsPage({
       .from("activity_log")
       .select("action, created_at")
       .eq("agency_id", member.agency_id)
-      .in("action", ["sync_completed", "due_computed"])
+      .in("action", ["sync_completed", "due_computed", "alert_test_sent"])
       .order("created_at", { ascending: false })
-      .limit(40),
+      .limit(60),
   ]);
 
   const lastRun = (action: string) =>
@@ -171,7 +171,7 @@ export default async function SettingsPage({
       notifyWebhook: process.env.NOTIFY_WEBHOOK_URL,
       resendKey: process.env.RESEND_API_KEY,
       notifyEmailTo: process.env.NOTIFY_EMAIL_TO,
-    }),
+    }, { lastAlertTestAt: lastRun("alert_test_sent") }),
     // sync-reviews : aux 30 min (GitHub Actions).
     cronCheck(
       "cron_sync",

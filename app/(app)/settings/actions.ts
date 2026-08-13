@@ -148,6 +148,18 @@ export async function sendTestAlertAction(): Promise<
           "Aucun canal configuré — ajoute NOTIFY_EMAIL_TO (avec RESEND_API_KEY) ou NOTIFY_WEBHOOK_URL.",
       };
     }
+    // Trace du dernier envoi ABOUTI : c'est elle qui fait passer la ligne
+    // « Alertes » du diagnostic au vert. Un canal configuré mais refusé
+    // par son fournisseur ne doit pas compter comme fonctionnel.
+    if (results.some((result) => result.ok)) {
+      await logActivity({
+        agencyId: member.agency_id,
+        actor: member.email,
+        action: "alert_test_sent",
+        payload: { channels: results.filter((r) => r.ok).map((r) => r.channel) },
+      });
+      revalidatePath("/settings");
+    }
     return { ok: true, results };
   });
 }

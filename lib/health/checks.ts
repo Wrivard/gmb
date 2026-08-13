@@ -36,7 +36,17 @@ export interface HealthEnv {
 
 const HEX_32_BYTES = /^[0-9a-f]{64}$/i;
 
-export function configChecks(env: HealthEnv): HealthCheck[] {
+/** Ce que l'app a observé, par opposition à ce qu'elle a lu dans l'env. */
+export interface HealthObserved {
+  /** Dernier envoi d'alerte réellement abouti (activity_log). */
+  lastAlertTestAt?: string | null;
+}
+
+export function configChecks(
+  env: HealthEnv,
+  observed: HealthObserved = {},
+  now: Date = new Date(),
+): HealthCheck[] {
   const checks: HealthCheck[] = [];
 
   // — URL publique : sert aux liens des notifications et au kit d'avis.
@@ -108,12 +118,28 @@ export function configChecks(env: HealthEnv): HealthCheck[] {
     env.notifyWebhook?.trim() ||
       (env.resendKey?.trim() && env.notifyEmailTo?.trim()),
   );
+  // « Configuré » ne veut pas dire « fonctionne » : Resend refuse tout
+  // destinataire hors compte tant qu'aucun domaine n'est vérifié, et
+  // l'échec est silencieux côté cron. Tant qu'un envoi réel n'a pas
+  // abouti, la ligne reste un avertissement.
   checks.push({
     key: "notify",
     label: "Alertes",
-    ...(notify
-      ? { status: "ok" as const, detail: "Un canal est configuré." }
-      : { status: "warn" as const, detail: "Aucun canal — avis négatif et publication échouée passeraient inaperçus." }),
+    ...(!notify
+      ? {
+          status: "warn" as const,
+          detail: "Aucun canal — avis négatif et publication échouée passeraient inaperçus.",
+        }
+      : observed.lastAlertTestAt
+        ? {
+            status: "ok" as const,
+            detail: `Envoi réel confirmé ${formatElapsed(now.getTime() - new Date(observed.lastAlertTestAt).getTime())}.`,
+          }
+        : {
+            status: "warn" as const,
+            detail:
+              "Canal configuré mais jamais vérifié — le fournisseur peut refuser l'envoi sans bruit. Utilise « Tester les alertes ».",
+          }),
   });
 
   // — Choix d'architecture à assumer consciemment, pas à subir.
