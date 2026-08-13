@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { getSessionContext } from "@/lib/auth";
 import { encrypt } from "@/lib/crypto";
 import { getDb } from "@/lib/supabase/db";
@@ -96,8 +97,18 @@ export async function GET(request: NextRequest) {
   try {
     await runDiscovery(member.agency_id, member.email);
   } catch (error) {
+    // La connexion reste valide; la découverte est relançable depuis
+    // Réglages. Mais l'échec ne doit plus être muet : avalé en
+    // console.error, il ne laissait aucune trace exploitable — juste une
+    // liste de projets vide, sans explication.
     console.error("Découverte post-connexion:", error);
-    // La connexion reste valide; la découverte est relançable depuis Réglages.
+    Sentry.captureException(error, { tags: { source: "discovery" } });
+    await logActivity({
+      agencyId: member.agency_id,
+      actor: member.email,
+      action: "discovery_failed",
+      payload: { error: error instanceof Error ? error.message : String(error) },
+    });
   }
 
   const response = NextResponse.redirect(

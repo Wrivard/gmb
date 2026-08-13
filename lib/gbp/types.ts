@@ -95,13 +95,36 @@ export class GbpAccessPendingError extends Error {
   }
 }
 
+/**
+ * Google explique toujours ses refus dans le corps de la réponse
+ * (« ... API has not been used in project X before or it is disabled »).
+ * Sans ça, un échec ne remontait que « accounts.list → 403 » : le code
+ * sans la cause, donc rien d'actionnable.
+ */
+export function googleErrorDetail(body?: string): string {
+  if (!body?.trim()) return "";
+  try {
+    const parsed = JSON.parse(body) as {
+      error?: { message?: string; status?: string };
+    };
+    const message = parsed.error?.message?.trim();
+    if (message) {
+      const status = parsed.error?.status;
+      return ` — ${status ? `${status} : ` : ""}${message}`;
+    }
+  } catch {
+    // Corps non JSON : on garde un extrait brut.
+  }
+  return ` — ${body.trim().slice(0, 300)}`;
+}
+
 export class GbpApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
     public readonly body?: string,
   ) {
-    super(message);
+    super(`${message}${googleErrorDetail(body)}`);
     this.name = "GbpApiError";
   }
 }
