@@ -2,6 +2,7 @@ import "server-only";
 
 import { getDb } from "@/lib/supabase/db";
 import { getGbpClient } from "./client";
+import { isSimulatedGbp } from "./mode";
 import type { GbpLocation } from "./types";
 import type { BrandProfile } from "@/lib/types/database";
 import { logActivity } from "@/lib/activity";
@@ -50,7 +51,7 @@ export async function runDiscovery(
   // naissent fictives, sinon une base neuve se remplirait de faux
   // commerces indiscernables des vrais (les 8 clients de démo existants
   // sont déjà marqués, la découverte ne fait que les mettre à jour).
-  const mockDiscovery = (process.env.GBP_MODE ?? "mock") !== "real";
+  const mockDiscovery = isSimulatedGbp();
 
   const { data: agency } = await supabase
     .from("agencies")

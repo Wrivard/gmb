@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, FolderKanban, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserMenu } from "@/components/layout/user-menu";
+import { isSimulatedGbp } from "@/lib/gbp/mode";
 
 // Deux volets : Opérations (quoi faire aujourd'hui) et Long terme
 // (comment va chaque projet). Les files Reviews/Posts vivent en onglets
@@ -57,7 +58,7 @@ export function Sidebar({
   // l'API Google (simulée ou réelle), le cookie décrit les DONNÉES
   // affichées. Le badge lisait GBP_MODE tout en parlant de « données
   // simulées » — il restait donc « démo » même après la bascule.
-  const gbpSimulated = process.env.NEXT_PUBLIC_GBP_MODE !== "real";
+  const gbpSimulated = isSimulatedGbp(process.env.NEXT_PUBLIC_GBP_MODE);
   const todo = pendingReviews + postsDue;
 
   return (

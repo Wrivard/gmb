@@ -7,6 +7,8 @@ import {
   randomBytes,
 } from "node:crypto";
 
+import { isSimulatedGbp } from "@/lib/gbp/mode";
+
 // AES-256-GCM au niveau applicatif pour les refresh tokens Google
 // (specs/01 §Sécurité). Format : base64(iv[12] | authTag[16] | ciphertext).
 
@@ -19,7 +21,7 @@ function getKey(): Buffer {
   if (hex && /^[0-9a-fA-F]{64}$/.test(hex)) {
     return Buffer.from(hex, "hex");
   }
-  if ((process.env.GBP_MODE ?? "mock") === "mock") {
+  if (isSimulatedGbp()) {
     // Mode mock sans clé : clé dérivée fixe, acceptable pour du dev
     // (le token « chiffré » est lui-même factice).
     return createHash("sha256").update("kua-locale-dev-mock-key").digest();

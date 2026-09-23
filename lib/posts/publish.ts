@@ -5,6 +5,7 @@ import { getGbpClient } from "@/lib/gbp/client";
 import { logActivity } from "@/lib/activity";
 import { appLink, sendNotification } from "@/lib/notify";
 import type { LocalPostInput } from "@/lib/gbp/types";
+import { isLiveGbp } from "@/lib/gbp/mode";
 import type { PostStatus } from "@/lib/types/database";
 
 // Un échec pendant le cron (personne devant l'écran) part en alerte —
@@ -69,7 +70,7 @@ export async function publishPost(
     return { ok: false, error };
   }
   // Client fictif (démo) + API réelle : ses ids Google n'existent pas.
-  if (client.is_demo && (process.env.GBP_MODE ?? "mock") === "real") {
+  if (client.is_demo && isLiveGbp()) {
     const error = "Client de démonstration — pas de publication réelle.";
     await supabase
       .from("posts")

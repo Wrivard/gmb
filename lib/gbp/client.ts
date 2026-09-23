@@ -9,6 +9,8 @@ import type {
 } from "./types";
 import { MockGbpClient } from "./mock";
 import { RealGbpClient } from "./real";
+import { ZernioGbpClient } from "./zernio";
+import { gbpMode } from "./mode";
 
 export interface GbpClient {
   listAccounts(): Promise<GbpAccount[]>;
@@ -38,13 +40,21 @@ export interface GbpClient {
 
 let client: GbpClient | null = null;
 
-/** Switch mock/real sur GBP_MODE — zéro changement de code (specs/README §1). */
+/** Switch sur GBP_MODE — zéro changement de code (specs/README §1). */
 export function getGbpClient(): GbpClient {
   if (!client) {
-    client =
-      (process.env.GBP_MODE ?? "mock") === "real"
-        ? new RealGbpClient()
-        : new MockGbpClient();
+    switch (gbpMode()) {
+      case "real":
+        client = new RealGbpClient();
+        break;
+      // Google n'a jamais approuvé l'accès API de Küa ; Zernio possède
+      // l'approbation et relaie les mêmes appels (cf. lib/gbp/zernio.ts).
+      case "zernio":
+        client = new ZernioGbpClient();
+        break;
+      default:
+        client = new MockGbpClient();
+    }
   }
   return client;
 }

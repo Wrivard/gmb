@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getDb } from "@/lib/supabase/db";
 import { getGbpClient } from "@/lib/gbp/client";
 import { GbpAccessPendingError } from "@/lib/gbp/types";
+import { isLiveGbp } from "@/lib/gbp/mode";
 import { importReview } from "@/lib/reviews/import";
 import { logActivity } from "@/lib/activity";
 import { appLink, sendNotification } from "@/lib/notify";
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Clients groupés par compte; le batch v4 veut les resource names complets.
-  const gbpReal = (process.env.GBP_MODE ?? "mock") === "real";
+  const gbpReal = isLiveGbp();
   const byAccount = new Map<string, Client[]>();
   for (const client of clients) {
     // Créé à la main, fiche pas encore liée : rien à synchroniser.
