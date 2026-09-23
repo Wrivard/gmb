@@ -12,7 +12,12 @@ import {
 } from "@/lib/actions/member";
 import * as Sentry from "@sentry/nextjs";
 import { DATA_MODE_COOKIE, type DataMode } from "@/lib/data-mode";
-import { runDiscovery } from "@/lib/gbp/discovery";
+import {
+  importLocation,
+  listImportableLocations,
+  runDiscovery,
+  type ImportableLocation,
+} from "@/lib/gbp/discovery";
 import { logActivity } from "@/lib/activity";
 import {
   appLink,
@@ -37,11 +42,44 @@ export async function setDataModeAction(mode: DataMode): Promise<ActionResult> {
 }
 
 export async function resyncClientsAction(): Promise<
-  ActionResult & { created?: number; discovered?: number }
+  ActionResult & { discovered?: number; refreshed?: number; disconnected?: number }
 > {
   return runAction("La resynchronisation a échoué.", async () => {
     const member = await requireMember();
     const result = await runDiscovery(member.agency_id, member.email);
+    revalidatePath("/settings");
+    revalidatePath("/clients");
+    return { ok: true, ...result };
+  });
+}
+
+/**
+ * Les fiches visibles chez Google, avec celles déjà importées. Remplace
+ * la liste blanche par variable d'environnement : une connexion expose
+ * toutes les fiches du compte, l'équipe choisit lesquelles suivre.
+ */
+export async function listGbpLocationsAction(): Promise<
+  ActionResult & { locations?: ImportableLocation[] }
+> {
+  return runAction("La lecture des fiches Google a échoué.", async () => {
+    const member = await requireMember();
+    const locations = await listImportableLocations(member.agency_id);
+    return { ok: true, locations };
+  });
+}
+
+export async function importGbpLocationAction(
+  accountId: string,
+  locationId: string,
+): Promise<ActionResult & { clientId?: string; name?: string }> {
+  return runAction("L'import de la fiche a échoué.", async () => {
+    const member = await requireMember();
+    const result = await importLocation(
+      member.agency_id,
+      member.email,
+      accountId,
+      locationId,
+    );
     revalidatePath("/settings");
     revalidatePath("/clients");
     return { ok: true, ...result };

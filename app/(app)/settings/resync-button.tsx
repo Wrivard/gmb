@@ -18,11 +18,16 @@ export function ResyncButton() {
         startTransition(async () => {
           const result = await resyncClientsAction();
           if (result.ok) {
-            const created = result.created ?? 0;
+            // La resynchro ne crée plus de projet : l'import se fait
+            // depuis la carte « Fiches Google ».
+            const disconnected = result.disconnected ?? 0;
             toast.success(
-              created > 0
-                ? `${result.discovered ?? 0} fiches trouvées — ${created} nouvelle${created > 1 ? "s" : ""} en pause : active celles sous mandat dans Projets.`
-                : `Fiches resynchronisées — ${result.discovered ?? 0} trouvées, aucune nouvelle.`,
+              `${result.discovered ?? 0} fiches chez Google — ${result.refreshed ?? 0} projet${(result.refreshed ?? 0) > 1 ? "s" : ""} mis à jour.`,
+              disconnected > 0
+                ? {
+                    description: `${disconnected} fiche${disconnected > 1 ? "s" : ""} n'est plus accessible — projet passé en « déconnecté ».`,
+                  }
+                : undefined,
             );
           } else {
             toast.error(result.error);

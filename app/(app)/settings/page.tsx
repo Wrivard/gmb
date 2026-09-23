@@ -24,6 +24,7 @@ import {
 import { DemoBanner } from "@/components/layout/demo-banner";
 import { getDataMode } from "@/lib/data-mode";
 import { ResyncButton } from "./resync-button";
+import { GbpLocationsCard } from "./gbp-locations-card";
 import { TeamSection } from "./team-section";
 import { DefaultsForm } from "./defaults-form";
 import { DataModeCard } from "./data-mode-card";
@@ -286,6 +287,9 @@ export default async function SettingsPage({
           )}
         </CardContent>
       </Card>
+
+      {/* Fiches Google — choisir lesquelles suivre */}
+      <GbpLocationsCard />
 
       {/* Équipe */}
       <Card>

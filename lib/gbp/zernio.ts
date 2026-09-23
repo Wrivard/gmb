@@ -21,22 +21,6 @@ import {
 
 const BASE = "https://api.zernio.com/v1";
 
-/**
- * Une connexion Zernio expose TOUTES les fiches du compte Google
- * (29 chez Küa) et ne compte que pour un seul compte facturé. Cette
- * liste restreint la découverte aux fiches sous mandat, sinon l'app se
- * remplirait de projets qu'on ne gère pas. Vide = toutes.
- */
-function allowedLocationIds(): Set<string> | null {
-  const raw = process.env.ZERNIO_LOCATION_IDS?.trim();
-  if (!raw) return null;
-  const ids = raw
-    .split(",")
-    .map((entry) => entry.trim().split("/").pop() ?? "")
-    .filter(Boolean);
-  return ids.length ? new Set(ids) : null;
-}
-
 /** `accounts/1/locations/2` ou `locations/2` → `2`. */
 function bareLocationId(name: string): string {
   return name.split("/").pop() ?? name;
@@ -235,16 +219,17 @@ export class ZernioGbpClient implements GbpClient {
 
   async listLocations(accountId: string): Promise<GbpLocation[]> {
     const account = await accountFor(accountId);
-    const allowed = allowedLocationIds();
-    const wanted = account.locations.filter(
-      (location) => !allowed || allowed.has(location.id),
-    );
 
+    // Toutes les fiches du compte : le tri entre « sous mandat » et le
+    // reste se fait dans l'app (Réglages → Fiches Google), pas ici. Une
+    // liste blanche par variable d'environnement obligeait à redéployer
+    // à chaque nouveau client.
+    //
     // La liste plate ne porte ni téléphone ni adresse structurée ; le
     // détail, lui, relaie le payload Business Information de Google.
     // C'est ce que `runDiscovery` attend pour remplir un projet.
     return Promise.all(
-      wanted.map(async (location) => {
+      account.locations.map(async (location) => {
         const details = await parseOrThrow<ZernioLocationDetails>(
           await zernioFetch(
             `/accounts/${account.zernioAccountId}/gmb-location-details?locationId=${location.id}`,

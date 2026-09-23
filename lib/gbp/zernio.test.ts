@@ -112,7 +112,6 @@ beforeEach(() => {
   calls = [];
   clearZernioCache();
   vi.stubEnv("ZERNIO_API_KEY", "sk_test");
-  vi.stubEnv("ZERNIO_LOCATION_IDS", "");
   stubFetch();
 });
 
@@ -154,18 +153,14 @@ describe("listLocations", () => {
     expect(locations[0].phoneNumbers?.primaryPhone).toBe("(819) 555-0100");
   });
 
-  // Une connexion expose les 29 fiches du compte Google : sans filtre,
-  // la découverte créerait 29 projets pour 3 mandats.
-  it("ne garde que les fiches de la liste blanche", async () => {
-    vi.stubEnv("ZERNIO_LOCATION_IDS", `locations/${BOBOIS}`);
+  // Le tri « sous mandat » vs le reste appartient à l'app (Réglages →
+  // Fiches Google) : le client rend tout ce que le compte voit.
+  it("rend toutes les fiches du compte, sans filtrer", async () => {
     const locations = await new ZernioGbpClient().listLocations(ACCOUNT);
-    expect(locations.map((l) => l.name)).toEqual([`locations/${BOBOIS}`]);
-  });
-
-  it("accepte des ids nus dans la liste blanche", async () => {
-    vi.stubEnv("ZERNIO_LOCATION_IDS", ` ${GESTION} , ${BOBOIS} `);
-    const locations = await new ZernioGbpClient().listLocations(ACCOUNT);
-    expect(locations).toHaveLength(2);
+    expect(locations.map((l) => l.name)).toEqual([
+      `locations/${GESTION}`,
+      `locations/${BOBOIS}`,
+    ]);
   });
 });
 
