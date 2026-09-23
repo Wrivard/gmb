@@ -25,6 +25,10 @@ import { DemoBanner } from "@/components/layout/demo-banner";
 import { getDataMode } from "@/lib/data-mode";
 import { ResyncButton } from "./resync-button";
 import { GbpLocationsCard } from "./gbp-locations-card";
+import {
+  listZernioConnections,
+  type ZernioConnection,
+} from "@/lib/gbp/zernio";
 import { TeamSection } from "./team-section";
 import { DefaultsForm } from "./defaults-form";
 import { DataModeCard } from "./data-mode-card";
@@ -156,6 +160,29 @@ export default async function SettingsPage({
       .limit(60),
   ]);
 
+  // État réel de l'accès GBP quand il passe par Zernio. Deux appels
+  // légers (comptes + liste plate des fiches), mis en cache 5 min côté
+  // client Zernio. On n'échoue jamais la page pour ça : une clé absente
+  // ou un tiers en panne doit se LIRE dans la carte, pas faire écran
+  // blanc sur des réglages qu'on vient peut-être corriger.
+  let zernio:
+    | { ok: true; connections: ZernioConnection[] }
+    | { ok: false; error: string }
+    | null = null;
+  if (env.gbpMode === "zernio") {
+    try {
+      zernio = { ok: true, connections: await listZernioConnections() };
+    } catch (error) {
+      zernio = {
+        ok: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Connexion Zernio injoignable.",
+      };
+    }
+  }
+
   const lastRun = (action: string) =>
     (cronTrace ?? []).find((row) => row.action === action)?.created_at ?? null;
   const healthChecks = [
@@ -229,10 +256,86 @@ export default async function SettingsPage({
                 simulée, aucune donnée Google réelle.
               </>
             )}
+            {env.gbpMode === "zernio" && (
+              <>
+                {" "}
+                L&apos;accès passe par <strong>Zernio</strong> : Google n&apos;a
+                jamais approuvé l&apos;accès API direct de Küa.
+              </>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-4">
-          {connection ? (
+          {/* En mode zernio, `google_connections` décrit la connexion
+              Google DIRECTE — celle qui ne sert plus. L'afficher faisait
+              croire que tout allait bien alors que rien ne passait par
+              là. */}
+          {env.gbpMode === "zernio" ? (
+            zernio?.ok ? (
+              <>
+                <div className="flex flex-1 items-center gap-3">
+                  <Badge>Connectée</Badge>
+                  <div className="text-sm">
+                    <div className="font-medium">
+                      {zernio.connections
+                        .map((entry) => entry.accountName)
+                        .join(", ")}
+                    </div>
+                    <div className="text-muted-foreground">
+                      via Zernio —{" "}
+                      {zernio.connections.reduce(
+                        (total, entry) => total + entry.locationCount,
+                        0,
+                      )}{" "}
+                      fiches accessibles
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <ResyncButton />
+                  {isOwner && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      render={
+                        <a
+                          href="https://zernio.com/dashboard/connections"
+                          target="_blank"
+                          rel="noreferrer"
+                        />
+                      }
+                    >
+                      Gérer chez Zernio
+                    </Button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex flex-1 items-center gap-3">
+                  <Badge variant="destructive">Indisponible</Badge>
+                  <div className="text-sm text-muted-foreground">
+                    {zernio?.error ?? "Connexion Zernio injoignable."}
+                  </div>
+                </div>
+                {isOwner && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    render={
+                      <a
+                        href="https://zernio.com/dashboard/connections"
+                        target="_blank"
+                        rel="noreferrer"
+                      />
+                    }
+                  >
+                    Gérer chez Zernio
+                  </Button>
+                )}
+              </>
+            )
+          ) : connection ? (
             <>
               <div className="flex flex-1 items-center gap-3">
                 <Badge

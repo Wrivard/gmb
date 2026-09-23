@@ -205,6 +205,32 @@ async function accountFor(resourceName: string): Promise<ResolvedAccount> {
   );
 }
 
+export interface ZernioConnection {
+  /** Resource name du compte Google : `accounts/{id}`. */
+  googleAccount: string;
+  /** Nom du propriétaire du compte Google, tel que Zernio le rapporte. */
+  accountName: string;
+  /** Fiches que ce compte expose — pas celles suivies dans l'app. */
+  locationCount: number;
+}
+
+/**
+ * État réel de la connexion GBP en mode `zernio`, pour Réglages.
+ *
+ * Sans ça, la carte « Connexion Google » lisait `google_connections` —
+ * la connexion Google DIRECTE, inutilisée depuis qu'on passe par
+ * Zernio. Elle affichait « Connectée » alors que ce n'était pas par là
+ * que passaient les données.
+ */
+export async function listZernioConnections(): Promise<ZernioConnection[]> {
+  const accounts = await resolveAccounts();
+  return [...accounts.entries()].map(([googleAccount, account]) => ({
+    googleAccount,
+    accountName: account.accountName,
+    locationCount: account.locations.length,
+  }));
+}
+
 export class ZernioGbpClient implements GbpClient {
   async listAccounts(): Promise<GbpAccount[]> {
     const accounts = await resolveAccounts();

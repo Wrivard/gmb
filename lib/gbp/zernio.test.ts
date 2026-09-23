@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ZernioGbpClient, clearZernioCache } from "./zernio";
+import {
+  ZernioGbpClient,
+  clearZernioCache,
+  listZernioConnections,
+} from "./zernio";
 import type { GbpClient } from "./client";
 
 // Les formes testées ici viennent d'appels RÉELS à l'API Zernio le
@@ -142,6 +146,27 @@ describe("listAccounts", () => {
     await expect(new ZernioGbpClient().listAccounts()).rejects.toThrow(
       /choisir une fiche/,
     );
+  });
+});
+
+// Réglages lisait `google_connections` — la connexion Google DIRECTE,
+// inutilisée en mode zernio — et affichait « Connectée » alors que rien
+// ne passait par là.
+describe("listZernioConnections", () => {
+  it("rend le compte Google et le nombre de fiches qu'il expose", async () => {
+    const connections = await listZernioConnections();
+    expect(connections).toEqual([
+      {
+        googleAccount: ACCOUNT,
+        accountName: "Guillaume Berther",
+        locationCount: 2,
+      },
+    ]);
+  });
+
+  it("propage l'absence de connexion au lieu de rendre une liste vide", async () => {
+    stubFetch({ "/accounts": { accounts: [] } });
+    await expect(listZernioConnections()).rejects.toThrow(/choisir une fiche/);
   });
 });
 

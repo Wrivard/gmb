@@ -52,6 +52,20 @@ describe("configChecks", () => {
 
   it("absents, les modes GBP valent « mock » et restent cohérents", () => {
     expect(check({}, "gbp_mode").status).toBe("ok");
+    expect(check({}, "gbp_mode").detail).toContain("Simulation");
+  });
+
+  // Régression : « zernio » tombait dans la branche « sinon » et la
+  // ligne annonçait « Simulation — en attente de l'approbation Google »
+  // alors que de vraies fiches clientes remontaient.
+  it("« zernio » est annoncé comme un mode réel, pas une simulation", () => {
+    const result = check(
+      { ...HEALTHY, gbpMode: "zernio", publicGbpMode: "zernio" },
+      "gbp_mode",
+    );
+    expect(result.status).toBe("ok");
+    expect(result.detail).toContain("Zernio");
+    expect(result.detail).not.toContain("Simulation");
   });
 
   it("Resend compte comme canal d'alerte seulement avec un destinataire", () => {

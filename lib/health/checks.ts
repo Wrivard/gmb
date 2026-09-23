@@ -109,7 +109,18 @@ export function configChecks(
     key: "gbp_mode",
     label: "Mode Google Business",
     ...(server === client
-      ? { status: "ok" as const, detail: server === "real" ? "Réel des deux côtés." : "Simulation — en attente de l'approbation Google." }
+      ? {
+          status: "ok" as const,
+          // « zernio » est un mode RÉEL : Google n'a jamais approuvé
+          // l'accès direct, l'app passe par un tiers qui l'a. Le ranger
+          // avec « mock » ferait dire à l'interface que rien n'est vrai.
+          detail:
+            server === "real"
+              ? "Réel — API Google en direct."
+              : server === "zernio"
+                ? "Réel — fiches Google via Zernio."
+                : "Simulation — données de fixtures.",
+        }
       : { status: "warn" as const, detail: `Incohérent : serveur « ${server} », interface « ${client} ».` }),
   });
 
