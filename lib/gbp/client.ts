@@ -2,6 +2,8 @@ import "server-only";
 
 import type {
   GbpAccount,
+  GbpAttributeMeta,
+  GbpAttributeValue,
   GbpLocation,
   LocalPostInput,
   LocalPostState,
@@ -24,6 +26,23 @@ export interface GbpClient {
   listLocations(accountId: string): Promise<GbpLocation[]>;
   /** Profil complet d'UNE fiche (un appel), pour l'import et le refresh. */
   getLocation(accountId: string, locationName: string): Promise<GbpLocation>;
+  /** Catalogue des attributs proposés pour une catégorie donnée. */
+  listAttributeMetadata(
+    accountId: string,
+    locationName: string,
+    categoryName: string,
+  ): Promise<GbpAttributeMeta[]>;
+  /** Attributs actuellement posés sur la fiche. */
+  getAttributes(
+    accountId: string,
+    locationName: string,
+  ): Promise<GbpAttributeValue[]>;
+  /** Écrit les attributs listés dans `attributeMask`. */
+  updateAttributes(
+    accountId: string,
+    locationName: string,
+    attributes: GbpAttributeValue[],
+  ): Promise<void>;
   batchGetReviews(
     accountId: string,
     locationNames: string[],

@@ -3,6 +3,8 @@ import {
   GbpAccessPendingError,
   GbpApiError,
   type GbpAccount,
+  type GbpAttributeMeta,
+  type GbpAttributeValue,
   type GbpLocation,
   type LocalPostInput,
   type LocalPostState,
@@ -132,6 +134,58 @@ export class RealGbpClient implements GbpClient {
     return parseOrThrow<GbpLocation>(
       await gbpFetch(url.toString()),
       "locations.get",
+    );
+  }
+
+  /**
+   * ⚠️ Écrit d'après la documentation Google, JAMAIS exercé : l'accès
+   * direct n'a jamais été approuvé pour ce projet. Le mode `zernio`, lui,
+   * est vérifié. À valider si l'approbation finit par arriver.
+   */
+  async listAttributeMetadata(
+    accountId: string,
+    locationName: string,
+    categoryName: string,
+  ): Promise<GbpAttributeMeta[]> {
+    const url = new URL(`${BUSINESS_INFO}/attributes`);
+    url.searchParams.set("categoryName", categoryName);
+    url.searchParams.set("regionCode", "CA");
+    url.searchParams.set("languageCode", "fr");
+    const json = await parseOrThrow<{ attributeMetadata?: GbpAttributeMeta[] }>(
+      await gbpFetch(url.toString()),
+      "attributes.list",
+    );
+    return json.attributeMetadata ?? [];
+  }
+
+  async getAttributes(
+    accountId: string,
+    locationName: string,
+  ): Promise<GbpAttributeValue[]> {
+    const json = await parseOrThrow<{ attributes?: GbpAttributeValue[] }>(
+      await gbpFetch(`${BUSINESS_INFO}/${locationName}/attributes`),
+      "attributes.get",
+    );
+    return json.attributes ?? [];
+  }
+
+  async updateAttributes(
+    accountId: string,
+    locationName: string,
+    attributes: GbpAttributeValue[],
+  ): Promise<void> {
+    if (!attributes.length) return;
+    const url = new URL(`${BUSINESS_INFO}/${locationName}/attributes`);
+    url.searchParams.set(
+      "attributeMask",
+      attributes.map((attribute) => attribute.name).join(","),
+    );
+    await parseOrThrow(
+      await gbpFetch(url.toString(), {
+        method: "PATCH",
+        body: JSON.stringify({ attributes }),
+      }),
+      "attributes.update",
     );
   }
 

@@ -16,6 +16,30 @@ export interface GbpTimePeriod {
   closeTime?: { hours?: number; minutes?: number };
 }
 
+/**
+ * Un attribut de fiche. Google en expose un catalogue PAR CATÉGORIE :
+ * `is_owned_by_women`, accessibilité, stationnement, et les dix liens
+ * sociaux (`url_facebook`, `url_linkedin`…). Les libellés arrivent
+ * traduits — on ne réinvente pas la nomenclature de Google.
+ */
+export interface GbpAttributeMeta {
+  /** `attributes/is_owned_by_women` */
+  name: string;
+  valueType: "BOOL" | "URL" | "ENUM" | "REPEATED_ENUM";
+  displayName: string;
+  /** Regroupement d'affichage, déjà traduit (« Accessibilité »…). */
+  groupDisplayName?: string;
+  valueMetadata?: Array<{ value: string; displayName: string }>;
+}
+
+/** Valeur posée sur une fiche. */
+export interface GbpAttributeValue {
+  name: string;
+  values?: boolean[];
+  uriValues?: Array<{ uri: string }>;
+  repeatedEnumValue?: { setValues?: string[]; unsetValues?: string[] };
+}
+
 export interface GbpLocation {
   /** Resource name : `locations/{locationId}` */
   name: string;
@@ -27,8 +51,10 @@ export interface GbpLocation {
     postalCode?: string;
   };
   categories?: {
-    primaryCategory?: { displayName?: string };
-    additionalCategories?: Array<{ displayName?: string }>;
+    // `name` est le resource name gcid (« categories/gcid:roofing_contractor ») :
+    // c'est la clé qu'exige le catalogue d'attributs, pas le libellé.
+    primaryCategory?: { name?: string; displayName?: string };
+    additionalCategories?: Array<{ name?: string; displayName?: string }>;
   };
   phoneNumbers?: { primaryPhone?: string };
   websiteUri?: string;

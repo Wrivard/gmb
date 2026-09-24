@@ -2,6 +2,8 @@ import type { GbpClient } from "./client";
 import {
   GbpApiError,
   type GbpAccount,
+  type GbpAttributeMeta,
+  type GbpAttributeValue,
   type GbpLocation,
   type LocalPostInput,
   type LocalPostState,
@@ -306,6 +308,70 @@ export class ZernioGbpClient implements GbpClient {
       openInfo: details.openInfo,
       serviceItems: details.serviceItems,
     } satisfies GbpLocation;
+  }
+
+  /**
+   * Catalogue des attributs proposés pour une catégorie.
+   *
+   * Vérifié le 2026-09-24 : 34 entrées pour « Marketing agency », déjà
+   * traduites (`displayName`, `groupDisplayName`). C'est ce qui permet
+   * de cocher « géré par une femme » ou de poser un lien LinkedIn depuis
+   * le wizard, au lieu d'une case à cocher qui renvoie chez Google.
+   */
+  async listAttributeMetadata(
+    accountId: string,
+    locationName: string,
+    categoryName: string,
+  ): Promise<GbpAttributeMeta[]> {
+    const account = await accountFor(accountId || locationName);
+    const url =
+      `/accounts/${account.zernioAccountId}/gmb-attribute-metadata` +
+      `?categoryName=${encodeURIComponent(categoryName)}` +
+      `&regionCode=CA&languageCode=fr`;
+    const json = await parseOrThrow<{
+      attributeMetadata?: Array<GbpAttributeMeta & { parent?: string }>;
+    }>(await zernioFetch(url), "zernio.gmb-attribute-metadata");
+    // Zernio nomme la clé `parent` ; l'app raisonne en `name`.
+    return (json.attributeMetadata ?? []).map((entry) => ({
+      ...entry,
+      name: entry.name ?? entry.parent ?? "",
+    }));
+  }
+
+  async getAttributes(
+    accountId: string,
+    locationName: string,
+  ): Promise<GbpAttributeValue[]> {
+    const account = await accountFor(accountId || locationName);
+    const json = await parseOrThrow<{ attributes?: GbpAttributeValue[] }>(
+      await zernioFetch(
+        `/accounts/${account.zernioAccountId}/gmb-attributes?locationId=${bareLocationId(locationName)}`,
+      ),
+      "zernio.gmb-attributes",
+    );
+    return json.attributes ?? [];
+  }
+
+  async updateAttributes(
+    accountId: string,
+    locationName: string,
+    attributes: GbpAttributeValue[],
+  ): Promise<void> {
+    if (!attributes.length) return;
+    const account = await accountFor(accountId || locationName);
+    // `attributeMask` dit quoi écrire : sans lui, Google efface tout ce
+    // qui n'est pas dans la charge utile.
+    const attributeMask = attributes.map((a) => a.name).join(",");
+    await parseOrThrow(
+      await zernioFetch(
+        `/accounts/${account.zernioAccountId}/gmb-attributes?locationId=${bareLocationId(locationName)}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ attributeMask, attributes }),
+        },
+      ),
+      "zernio.gmb-attributes.update",
+    );
   }
 
   async batchGetReviews(

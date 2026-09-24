@@ -61,6 +61,7 @@ import {
   uploadGbpPhotoAction,
 } from "../actions";
 import { toggleClientActiveAction } from "@/app/(app)/settings/actions";
+import { AttributesEditor } from "./attributes-editor";
 
 /* ── Découpage de gbp_profile en sections sauvegardables ──────────── */
 
@@ -517,7 +518,13 @@ export function OnboardingWizard({
             <ServicesEditor profile={profile} onChange={setProfile} />
           )}
           {step.key === "presentation" && (
-            <PresentationEditor profile={profile} onChange={setProfile} />
+            <>
+              <PresentationEditor profile={profile} onChange={setProfile} />
+              {/* Attributs d'identité, de service et liens sociaux :
+                  trois critères de cette étape qui n'étaient que des
+                  cases à cocher renvoyant chez Google. */}
+              <AttributesEditor clientId={clientId} />
+            </>
           )}
           {step.key === "photos" && (
             <PhotosEditor

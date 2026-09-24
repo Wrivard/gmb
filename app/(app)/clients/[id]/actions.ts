@@ -20,6 +20,10 @@ import {
 } from "@/lib/gbp/profile-import";
 import { GBP_DESCRIPTION_MAX } from "@/lib/gbp/limits";
 import { GbpAccessPendingError } from "@/lib/gbp/types";
+import type {
+  GbpAttributeMeta,
+  GbpAttributeValue,
+} from "@/lib/gbp/types";
 import {
   isKnownOnboardingItem,
   onboardingCtx,
@@ -864,5 +868,73 @@ export async function importGbpProfileAction(
     revalidatePath(`/clients/${clientId}/onboarding`);
     revalidatePath(`/clients/${clientId}`);
     return { ok: true, filled: Object.keys(merged).length };
+  });
+}
+
+/**
+ * Catalogue des attributs proposés pour la catégorie de la fiche, plus
+ * ceux déjà posés. Sans ça, « entreprise gérée par une femme » ou un
+ * lien Instagram n'étaient qu'une case à cocher dans le wizard, à faire
+ * ailleurs — donc jamais faits.
+ */
+export async function loadGbpAttributesAction(clientId: string): Promise<
+  ActionResult & {
+    catalog?: GbpAttributeMeta[];
+    current?: GbpAttributeValue[];
+  }
+> {
+  return runAction("La lecture des attributs a échoué.", async () => {
+    const { client } = await loadClientForMember(clientId);
+    if (!client.gbp_location_id) {
+      return { ok: false, error: "Aucune fiche Google liée à ce projet." };
+    }
+    const accountId = client.gbp_account_id ?? client.gbp_location_id;
+    const gbp = getGbpClient();
+
+    const location = await gbp.getLocation(accountId, client.gbp_location_id);
+    const categoryName = location.categories?.primaryCategory?.name;
+    if (!categoryName) {
+      return {
+        ok: false,
+        error:
+          "La fiche n'a pas de catégorie principale — les attributs en dépendent.",
+      };
+    }
+
+    const [catalog, current] = await Promise.all([
+      gbp.listAttributeMetadata(accountId, client.gbp_location_id, categoryName),
+      gbp.getAttributes(accountId, client.gbp_location_id),
+    ]);
+    return { ok: true, catalog, current };
+  });
+}
+
+/** Écrit les attributs modifiés — directement sur la fiche Google. */
+export async function saveGbpAttributesAction(
+  clientId: string,
+  attributes: GbpAttributeValue[],
+): Promise<ActionResult> {
+  return runAction("L'enregistrement des attributs a échoué.", async () => {
+    const { member, client } = await loadClientForMember(clientId);
+    if (!client.gbp_location_id) {
+      return { ok: false, error: "Aucune fiche Google liée à ce projet." };
+    }
+    if (!attributes.length) return { ok: true };
+
+    await getGbpClient().updateAttributes(
+      client.gbp_account_id ?? client.gbp_location_id,
+      client.gbp_location_id,
+      attributes,
+    );
+
+    await logActivity({
+      agencyId: member.agency_id,
+      clientId,
+      actor: member.email,
+      action: "gbp_attributes_updated",
+      payload: { attributes: attributes.map((a) => a.name) },
+    });
+    revalidatePath(`/clients/${clientId}/onboarding`);
+    return { ok: true };
   });
 }

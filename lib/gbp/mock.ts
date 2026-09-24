@@ -1,6 +1,8 @@
 import type { GbpClient } from "./client";
 import type {
   GbpAccount,
+  GbpAttributeMeta,
+  GbpAttributeValue,
   GbpLocation,
   GbpReview,
   LocalPostInput,
@@ -97,6 +99,39 @@ export class MockGbpClient implements GbpClient {
     );
     if (!location) throw new Error(`Fiche inconnue : ${locationName}`);
     return location;
+  }
+
+  async listAttributeMetadata(): Promise<GbpAttributeMeta[]> {
+    await simulateNetwork();
+    return [
+      {
+        name: "attributes/is_owned_by_women",
+        valueType: "BOOL",
+        displayName: "S'identifie comme géré par une femme",
+        groupDisplayName: "Fournis par l'établissement",
+      },
+      {
+        name: "attributes/has_wheelchair_accessible_entrance",
+        valueType: "BOOL",
+        displayName: "Entrée accessible en fauteuil roulant",
+        groupDisplayName: "Accessibilité",
+      },
+      {
+        name: "attributes/url_facebook",
+        valueType: "URL",
+        displayName: "Facebook",
+        groupDisplayName: "URL des pages Google Adresses",
+      },
+    ];
+  }
+
+  async getAttributes(): Promise<GbpAttributeValue[]> {
+    await simulateNetwork();
+    return [];
+  }
+
+  async updateAttributes(): Promise<void> {
+    await simulateNetwork();
   }
 
   async batchGetReviews(
