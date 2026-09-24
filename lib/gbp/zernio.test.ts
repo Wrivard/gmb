@@ -357,10 +357,29 @@ describe("écritures", () => {
 
   // Zernio ne documente pas la suppression ; échouer bruyamment vaut
   // mieux que faire croire que c'est parti.
-  it("deleteLocalPost refuse au lieu de mentir", async () => {
-    // Via l'interface : c'est par là que l'app l'appellerait.
+  // Vérifié en production : `DELETE /posts/{id}` refuse un post publié.
+  // Le retrait côté Google passe par `unpublish`.
+  it("deleteLocalPost dépublie d'abord, puis fait le ménage", async () => {
     const client: GbpClient = new ZernioGbpClient();
-    await expect(client.deleteLocalPost("x")).rejects.toThrow(/suppression/);
+    await client.deleteLocalPost(
+      `locations/${GESTION}/localPosts/6ab51fecac195a85320f857e`,
+    );
+
+    const unpublish = calls.find((call) => call.url.includes("/unpublish"));
+    expect(unpublish?.method).toBe("POST");
+    expect(unpublish?.url).toContain("/posts/6ab51fecac195a85320f857e/");
+    expect(unpublish?.body).toEqual({
+      platform: "googlebusiness",
+      accountId: "zern1",
+    });
+
+    const cleanup = calls.find((call) => call.method === "DELETE");
+    expect(cleanup?.url).toContain("/posts/6ab51fecac195a85320f857e");
+  });
+
+  it("refuse un nom de publication sans identifiant", async () => {
+    const client: GbpClient = new ZernioGbpClient();
+    await expect(client.deleteLocalPost("")).rejects.toThrow();
   });
 });
 

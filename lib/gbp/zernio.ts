@@ -463,10 +463,51 @@ export class ZernioGbpClient implements GbpClient {
     };
   }
 
-  async deleteLocalPost(): Promise<void> {
-    throw new Error(
-      "Zernio ne documente pas la suppression d'une publication Google — à retirer depuis la fiche.",
+  /**
+   * Retire une publication de la fiche Google.
+   *
+   * Découvert en testant pour de vrai le 2026-09-24 : `DELETE /posts/{id}`
+   * refuse un post publié (« Published posts cannot be deleted ») — il ne
+   * sert qu'aux brouillons et aux planifiés. Le retrait côté Google passe
+   * par `unpublish`, qui répond « Post deleted from googlebusiness
+   * successfully ». On supprime ensuite l'enregistrement, devenu
+   * `cancelled`, pour ne pas laisser de trace chez Zernio.
+   *
+   * Ni la doc ni l'intuition ne donnaient ce chemin : le `DELETE` semblait
+   * évident et se contentait d'échouer.
+   */
+  async deleteLocalPost(postName: string): Promise<void> {
+    // `createLocalPost` renvoie « {location}/localPosts/{id Zernio} » :
+    // la fiche se lit avant `localPosts`, l'identifiant après. Passer le
+    // nom entier à `accountFor` lui faisait chercher une fiche portant
+    // l'id du post.
+    const [locationPart, postId] = postName.split("/localPosts/");
+    if (!postId) {
+      throw new Error(
+        `Nom de publication inattendu : ${postName} — « {fiche}/localPosts/{id} » attendu.`,
+      );
+    }
+    const account = await accountFor(locationPart);
+
+    await parseOrThrow(
+      await zernioFetch(`/posts/${postId}/unpublish`, {
+        method: "POST",
+        body: JSON.stringify({
+          platform: "googlebusiness",
+          accountId: account.zernioAccountId,
+        }),
+      }),
+      "zernio.posts.unpublish",
     );
+
+    // Le post est retiré de Google ; l'enregistrement restant est du
+    // ménage — son échec ne doit pas faire croire que le retrait a raté.
+    const cleanup = await zernioFetch(`/posts/${postId}`, { method: "DELETE" });
+    if (!cleanup.ok) {
+      console.error(
+        `Post retiré de Google mais enregistrement Zernio ${postId} conservé (${cleanup.status}).`,
+      );
+    }
   }
 
   async updateLocation(

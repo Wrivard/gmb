@@ -18,6 +18,7 @@ import {
   locationToProfile,
   mergeProfile,
 } from "@/lib/gbp/profile-import";
+import { GBP_DESCRIPTION_MAX } from "@/lib/gbp/limits";
 import { GbpAccessPendingError } from "@/lib/gbp/types";
 import {
   isKnownOnboardingItem,
@@ -442,6 +443,16 @@ function buildLocationPatch(
     case "presentation": {
       if (!profile.description?.trim() && !profile.opening_date) {
         return { error: "Rien à pousser — remplis la description d'abord." };
+      }
+      // Google plafonne la description à 750 caractères. Découvert en
+      // poussant pour de vrai le 2026-09-24 : au-delà, la réponse est un
+      // 400 « invalid argument » qu'on ne voyait que tronqué, sans
+      // jamais nommer la longueur. Autant le dire ici.
+      const length = profile.description?.trim().length ?? 0;
+      if (length > GBP_DESCRIPTION_MAX) {
+        return {
+          error: `Description trop longue : ${length} caractères, Google en accepte ${GBP_DESCRIPTION_MAX}. Retire ${length - GBP_DESCRIPTION_MAX} caractères.`,
+        };
       }
       const [year, month] = (profile.opening_date ?? "").split("-").map(Number);
       return {
