@@ -14,7 +14,16 @@ import { gbpMode } from "./mode";
 
 export interface GbpClient {
   listAccounts(): Promise<GbpAccount[]>;
+  /**
+   * Énumère les fiches d'un compte. Contrat volontairement modeste :
+   * identité + ce que le fournisseur donne gratuitement. Chez Zernio la
+   * liste plate ne porte pas le téléphone — payer un appel de détail par
+   * fiche pour 29 fiches dont 3 sont suivies était le coût principal de
+   * l'intégration. Pour un profil complet, voir `getLocation`.
+   */
   listLocations(accountId: string): Promise<GbpLocation[]>;
+  /** Profil complet d'UNE fiche (un appel), pour l'import et le refresh. */
+  getLocation(accountId: string, locationName: string): Promise<GbpLocation>;
   batchGetReviews(
     accountId: string,
     locationNames: string[],

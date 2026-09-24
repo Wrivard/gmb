@@ -3,6 +3,7 @@ import { getDb } from "@/lib/supabase/db";
 import { getGbpClient } from "@/lib/gbp/client";
 import { GbpAccessPendingError } from "@/lib/gbp/types";
 import { isLiveGbp } from "@/lib/gbp/mode";
+import { chunkLocationNames } from "@/lib/gbp/batch";
 import { importReview } from "@/lib/reviews/import";
 import { logActivity } from "@/lib/activity";
 import { appLink, sendNotification } from "@/lib/notify";
@@ -32,10 +33,7 @@ export async function GET(request: NextRequest) {
     .select("*")
     .eq("status", "active");
   if (clientsError) {
-    return NextResponse.json(
-      { error: clientsError.message },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: clientsError.message }, { status: 500 });
   }
   if (!clients?.length) {
     return NextResponse.json({ ok: true, synced: 0, message: "aucun client" });
@@ -72,44 +70,42 @@ export async function GET(request: NextRequest) {
     );
 
     try {
-      let pageToken: string | undefined;
-      do {
-        const page = await gbp.batchGetReviews(
-          accountId,
-          [...clientByLocation.keys()],
-          pageToken,
-        );
-        pageToken = page.nextPageToken;
+      for (const batch of chunkLocationNames([...clientByLocation.keys()])) {
+        let pageToken: string | undefined;
+        do {
+          const page = await gbp.batchGetReviews(accountId, batch, pageToken);
+          pageToken = page.nextPageToken;
 
-        for (const bundle of page.locationReviews) {
-          const client = clientByLocation.get(bundle.locationName);
-          if (!client) continue;
+          for (const bundle of page.locationReviews) {
+            const client = clientByLocation.get(bundle.locationName);
+            if (!client) continue;
 
-          for (const gbpReview of bundle.reviews) {
-            try {
-              const outcome = await importReview(client, gbpReview, {
-                supabase,
-                gbp,
-              });
-              if (outcome.imported) counters.imported++;
-              if (outcome.updated) counters.updated++;
-              if (outcome.draftCreated) counters.drafts++;
-              if (outcome.autoPublished) counters.autoPublished++;
-              if (outcome.imported && outcome.starRating <= 2) {
-                lowRatingAlerts.push(
-                  `${outcome.starRating}★ chez ${client.name}${outcome.reviewerName ? ` (${outcome.reviewerName})` : ""}`,
+            for (const gbpReview of bundle.reviews) {
+              try {
+                const outcome = await importReview(client, gbpReview, {
+                  supabase,
+                  gbp,
+                });
+                if (outcome.imported) counters.imported++;
+                if (outcome.updated) counters.updated++;
+                if (outcome.draftCreated) counters.drafts++;
+                if (outcome.autoPublished) counters.autoPublished++;
+                if (outcome.imported && outcome.starRating <= 2) {
+                  lowRatingAlerts.push(
+                    `${outcome.starRating}★ chez ${client.name}${outcome.reviewerName ? ` (${outcome.reviewerName})` : ""}`,
+                  );
+                }
+              } catch (error) {
+                counters.errors++;
+                console.error(
+                  `sync review ${gbpReview.reviewId} (${client.name}):`,
+                  error,
                 );
               }
-            } catch (error) {
-              counters.errors++;
-              console.error(
-                `sync review ${gbpReview.reviewId} (${client.name}):`,
-                error,
-              );
             }
           }
-        }
-      } while (pageToken);
+        } while (pageToken);
+      }
 
       const now = new Date().toISOString();
       for (const client of accountClients) {

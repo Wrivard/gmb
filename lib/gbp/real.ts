@@ -119,6 +119,18 @@ export class RealGbpClient implements GbpClient {
     return locations;
   }
 
+  async getLocation(
+    accountId: string,
+    locationName: string,
+  ): Promise<GbpLocation> {
+    const url = new URL(`${BUSINESS_INFO}/${locationName}`);
+    url.searchParams.set("readMask", LOCATION_READ_MASK);
+    return parseOrThrow<GbpLocation>(
+      await gbpFetch(url.toString()),
+      "locations.get",
+    );
+  }
+
   async batchGetReviews(
     accountId: string,
     locationNames: string[],

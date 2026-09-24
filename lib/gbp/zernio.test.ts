@@ -171,11 +171,25 @@ describe("listZernioConnections", () => {
 });
 
 describe("listLocations", () => {
-  it("enrichit chaque fiche avec le détail Business Information", async () => {
+  // Mesuré le 2026-09-23 : détailler les 29 fiches coûtait 30 appels et
+  // 2,6 s, soit la moitié du budget d'une minute, pour 3 mandats suivis.
+  it("énumère sans payer un appel de détail par fiche", async () => {
     const locations = await new ZernioGbpClient().listLocations(ACCOUNT);
     expect(locations).toHaveLength(2);
     expect(locations[0].name).toBe(`locations/${GESTION}`);
-    expect(locations[0].phoneNumbers?.primaryPhone).toBe("(819) 555-0100");
+    expect(
+      calls.filter((call) => call.url.includes("gmb-location-details")),
+    ).toHaveLength(0);
+  });
+
+  it("rend ce que la liste plate donne gratuitement", async () => {
+    const locations = await new ZernioGbpClient().listLocations(ACCOUNT);
+    const bobois = locations[1];
+    expect(bobois.title).toBe("Bobois Design");
+    expect(bobois.storefrontAddress?.addressLines).toEqual([
+      "1383 rue main, Ayer's Cliff, QC",
+    ]);
+    expect(bobois.categories?.primaryCategory?.displayName).toBe("Ébéniste");
   });
 
   // Le tri « sous mandat » vs le reste appartient à l'app (Réglages →
@@ -186,6 +200,48 @@ describe("listLocations", () => {
       `locations/${GESTION}`,
       `locations/${BOBOIS}`,
     ]);
+  });
+});
+
+describe("getLocation", () => {
+  it("ne détaille QUE la fiche demandée", async () => {
+    const location = await new ZernioGbpClient().getLocation(
+      ACCOUNT,
+      `locations/${BOBOIS}`,
+    );
+    expect(location.phoneNumbers?.primaryPhone).toBe("(819) 555-0100");
+    const details = calls.filter((call) =>
+      call.url.includes("gmb-location-details"),
+    );
+    expect(details).toHaveLength(1);
+    expect(details[0].url).toContain(`locationId=${BOBOIS}`);
+  });
+
+  it("accepte un nom complet comme un id nu", async () => {
+    await new ZernioGbpClient().getLocation(
+      ACCOUNT,
+      `${ACCOUNT}/locations/${BOBOIS}`,
+    );
+    const details = calls.filter((call) =>
+      call.url.includes("gmb-location-details"),
+    );
+    expect(details[0].url).toContain(`locationId=${BOBOIS}`);
+  });
+
+  // Le détail peut taire un champ que la liste plate porte : ne pas
+  // écraser une adresse connue par `undefined`.
+  it("retombe sur la liste plate quand le détail est muet", async () => {
+    stubFetch({
+      "gmb-location-details": { title: "Bobois Design" },
+    });
+    const location = await new ZernioGbpClient().getLocation(
+      ACCOUNT,
+      `locations/${BOBOIS}`,
+    );
+    expect(location.storefrontAddress?.addressLines).toEqual([
+      "1383 rue main, Ayer's Cliff, QC",
+    ]);
+    expect(location.categories?.primaryCategory?.displayName).toBe("Ébéniste");
   });
 });
 

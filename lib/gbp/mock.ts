@@ -87,6 +87,18 @@ export class MockGbpClient implements GbpClient {
     return locationsFixture as GbpLocation[];
   }
 
+  async getLocation(
+    _accountId: string,
+    locationName: string,
+  ): Promise<GbpLocation> {
+    await simulateNetwork();
+    const location = (locationsFixture as GbpLocation[]).find(
+      (entry) => entry.name === locationName,
+    );
+    if (!location) throw new Error(`Fiche inconnue : ${locationName}`);
+    return location;
+  }
+
   async batchGetReviews(
     accountId: string,
     locationNames: string[],

@@ -70,80 +70,75 @@ export async function runDiscovery(
   // des vrais.
   const mockDiscovery = isSimulatedGbp();
 
-  const accounts = await gbp.listAccounts();
+  // Énumération seule : on ne paie le profil complet que pour les fiches
+  // effectivement suivies. Détailler les 29 fiches du compte pour en
+  // rafraîchir 3 coûtait 29 appels par exécution.
   const seenLocationIds = new Set<string>();
-  let discovered = 0;
-  let refreshed = 0;
-
-  for (const account of accounts) {
-    const locations = await gbp.listLocations(account.name);
-    for (const location of locations) {
-      discovered++;
+  for (const account of await gbp.listAccounts()) {
+    for (const location of await gbp.listLocations(account.name)) {
       seenLocationIds.add(location.name);
-
-      const { data: existing } = await supabase
-        .from("clients")
-        .select("id, status")
-        .eq("gbp_location_id", location.name)
-        // Une découverte ne rapatrie que les fiches de SON monde : jamais
-        // une fiche réelle ne doit venir écraser une fiche de démo.
-        .eq("is_demo", mockDiscovery)
-        .maybeSingle();
-
-      // Pas encore importée : elle apparaîtra dans Réglages → Fiches
-      // Google, pas ici.
-      if (!existing) continue;
-
-      // Snapshot rafraîchi; on ne touche pas aux réglages. Un projet
-      // archivé (offboardé) reste archivé même si la fiche est toujours
-      // accessible côté Google.
-      await supabase
-        .from("clients")
-        .update({
-          ...locationSnapshot(location),
-          ...(existing.status === "disconnected"
-            ? { status: "active" as const }
-            : {}),
-        })
-        .eq("id", existing.id);
-      refreshed++;
     }
   }
 
-  // Locations disparues (accès retiré) → disconnected, jamais supprimées.
-  // Les archivés sont hors jeu : ne pas les basculer disconnected.
-  const { data: allClients } = await supabase
+  // Une seule requête : la version précédente interrogeait Supabase une
+  // fois par fiche vue.
+  const { data: tracked } = await supabase
     .from("clients")
-    .select("id, gbp_location_id, status, is_demo")
+    .select("id, gbp_account_id, gbp_location_id, status")
     .eq("agency_id", agencyId)
-    // Le bilan « fiche disparue » ne vaut que dans le monde qu'on vient
-    // d'interroger. Sans ce filtre, la première découverte RÉELLE
-    // basculerait les clients de démo en « déconnecté » : leurs ids de
-    // fixtures n'existent évidemment pas chez Google.
+    // Une découverte ne touche que les fiches de SON monde : jamais une
+    // fiche réelle ne doit venir écraser une fiche de démo.
     .eq("is_demo", mockDiscovery)
-    .not("status", "in", "(disconnected,archived)");
+    // Un projet archivé (offboardé) reste archivé, même si la fiche est
+    // toujours accessible côté Google.
+    .neq("status", "archived");
 
+  let refreshed = 0;
   let disconnected = 0;
-  for (const client of allClients ?? []) {
-    // Créé à la main, pas encore de fiche liée : rien à « perdre ».
+
+  for (const client of tracked ?? []) {
+    // Créé à la main, pas encore de fiche liée : rien à rafraîchir ni à
+    // « perdre ».
     if (!client.gbp_location_id) continue;
+
     if (!seenLocationIds.has(client.gbp_location_id)) {
-      await supabase
-        .from("clients")
-        .update({ status: "disconnected" })
-        .eq("id", client.id);
-      disconnected++;
+      // Accès retiré → disconnected, jamais supprimé.
+      if (client.status !== "disconnected") {
+        await supabase
+          .from("clients")
+          .update({ status: "disconnected" })
+          .eq("id", client.id);
+        disconnected++;
+      }
+      continue;
     }
+
+    // `accountFor` sait aussi retrouver le compte depuis la fiche seule :
+    // un projet lié à la main n'a pas toujours son `gbp_account_id`.
+    const location = await gbp.getLocation(
+      client.gbp_account_id ?? client.gbp_location_id,
+      client.gbp_location_id,
+    );
+    await supabase
+      .from("clients")
+      .update({
+        ...locationSnapshot(location),
+        ...(client.status === "disconnected"
+          ? { status: "active" as const }
+          : {}),
+      })
+      .eq("id", client.id);
+    refreshed++;
   }
 
   await logActivity({
     agencyId,
     actor,
     action: "discovery_completed",
-    payload: { discovered, refreshed, disconnected },
+    payload: { discovered: seenLocationIds.size, refreshed, disconnected },
   });
 
-  return { discovered, refreshed, disconnected };
+  return { discovered: seenLocationIds.size, refreshed, disconnected };
 }
 
 export interface ImportableLocation {
@@ -226,13 +221,9 @@ export async function importLocation(
   const supabase = await getDb();
   const mockDiscovery = isSimulatedGbp();
 
-  const locations = await gbp.listLocations(accountId);
-  const location = locations.find((entry) => entry.name === locationId);
-  if (!location) {
-    throw new Error(
-      `Fiche introuvable chez Google : ${locationId} — resynchronise puis réessaie.`,
-    );
-  }
+  // Un seul appel pour la fiche choisie — lister les 29 fiches avec
+  // leurs détails pour en trouver une était le gaspillage le plus net.
+  const location = await gbp.getLocation(accountId, locationId);
 
   // Deux membres qui cliquent en même temps, ou un import relancé après
   // un aller-retour : on ne veut pas deux projets pour une fiche.

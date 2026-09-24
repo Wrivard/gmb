@@ -205,6 +205,21 @@ async function accountFor(resourceName: string): Promise<ResolvedAccount> {
   );
 }
 
+/** Liste plate → `GbpLocation` : identité et ce qui vient gratuitement. */
+function summaryToLocation(location: ZernioLocation): GbpLocation {
+  return {
+    name: `locations/${location.id}`,
+    title: location.name,
+    storefrontAddress: location.address
+      ? { addressLines: [location.address] }
+      : undefined,
+    categories: location.category
+      ? { primaryCategory: { displayName: location.category } }
+      : undefined,
+    websiteUri: location.websiteUrl,
+  };
+}
+
 export interface ZernioConnection {
   /** Resource name du compte Google : `accounts/{id}`. */
   googleAccount: string;
@@ -245,38 +260,43 @@ export class ZernioGbpClient implements GbpClient {
 
   async listLocations(accountId: string): Promise<GbpLocation[]> {
     const account = await accountFor(accountId);
+    // Énumération pure : la liste plate est déjà chargée par
+    // `resolveAccounts` (1 appel, mis en cache). Aucun appel par fiche
+    // ici — c'est ce qui coûtait 29 requêtes pour 3 mandats.
+    return account.locations.map(summaryToLocation);
+  }
 
-    // Toutes les fiches du compte : le tri entre « sous mandat » et le
-    // reste se fait dans l'app (Réglages → Fiches Google), pas ici. Une
-    // liste blanche par variable d'environnement obligeait à redéployer
-    // à chaque nouveau client.
-    //
-    // La liste plate ne porte ni téléphone ni adresse structurée ; le
-    // détail, lui, relaie le payload Business Information de Google.
-    // C'est ce que `runDiscovery` attend pour remplir un projet.
-    return Promise.all(
-      account.locations.map(async (location) => {
-        const details = await parseOrThrow<ZernioLocationDetails>(
-          await zernioFetch(
-            `/accounts/${account.zernioAccountId}/gmb-location-details?locationId=${location.id}`,
-          ),
-          "zernio.gmb-location-details",
-        );
-        return {
-          name: `locations/${location.id}`,
-          title: details.title ?? location.name,
-          storefrontAddress:
-            details.storefrontAddress ??
-            (location.address ? { addressLines: [location.address] } : undefined),
-          categories: details.categories ??
-            (location.category
-              ? { primaryCategory: { displayName: location.category } }
-              : undefined),
-          phoneNumbers: details.phoneNumbers,
-          websiteUri: details.websiteUri ?? location.websiteUrl,
-        } satisfies GbpLocation;
-      }),
+  async getLocation(
+    accountId: string,
+    locationName: string,
+  ): Promise<GbpLocation> {
+    const account = await accountFor(accountId);
+    const id = bareLocationId(locationName);
+    const summary = account.locations.find((entry) => entry.id === id);
+
+    const details = await parseOrThrow<ZernioLocationDetails>(
+      await zernioFetch(
+        `/accounts/${account.zernioAccountId}/gmb-location-details?locationId=${id}`,
+      ),
+      "zernio.gmb-location-details",
     );
+
+    // Le détail relaie le payload Business Information de Google ; la
+    // liste plate sert de filet quand un champ manque.
+    return {
+      name: `locations/${id}`,
+      title: details.title ?? summary?.name ?? id,
+      storefrontAddress:
+        details.storefrontAddress ??
+        (summary?.address ? { addressLines: [summary.address] } : undefined),
+      categories:
+        details.categories ??
+        (summary?.category
+          ? { primaryCategory: { displayName: summary.category } }
+          : undefined),
+      phoneNumbers: details.phoneNumbers,
+      websiteUri: details.websiteUri ?? summary?.websiteUrl,
+    } satisfies GbpLocation;
   }
 
   async batchGetReviews(
