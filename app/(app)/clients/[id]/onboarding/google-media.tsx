@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { ImageIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -28,29 +28,47 @@ const LABEL: Record<string, string> = {
 
 export function GoogleMediaGallery({ clientId }: { clientId: string }) {
   const [media, setMedia] = useState<GbpMediaItem[] | null>(null);
+  const [failed, setFailed] = useState(false);
   const [loading, startLoad] = useTransition();
+  const requested = useRef(false);
 
   const load = () =>
     startLoad(async () => {
+      setFailed(false);
       const result = await loadGbpMediaAction(clientId);
       if (!result.ok) {
+        setFailed(true);
         toast.error(result.error);
         return;
       }
       setMedia(result.media ?? []);
     });
 
+  // Ce composant n'est monté que sur l'étape Photos : charger ici, c'est
+  // charger quand l'équipe en a besoin, et jamais sur les autres étapes.
+  // Le garde-fou évite le double appel du mode strict de React.
+  useEffect(() => {
+    if (requested.current) return;
+    requested.current = true;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (media === null) {
     return (
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed p-3">
-        <p className="text-sm text-muted-foreground">
-          La fiche a peut-être déjà des photos en ligne — inutile de les
-          redemander au client.
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          {loading && <Loader2 className="size-4 animate-spin" />}
+          {loading
+            ? "Lecture des photos de la fiche…"
+            : "Photos de la fiche non chargées."}
         </p>
-        <Button variant="outline" size="sm" disabled={loading} onClick={load}>
-          {loading ? <Loader2 className="animate-spin" /> : <ImageIcon />}
-          Voir les photos de la fiche
-        </Button>
+        {failed && (
+          <Button variant="outline" size="sm" onClick={load}>
+            <ImageIcon />
+            Réessayer
+          </Button>
+        )}
       </div>
     );
   }

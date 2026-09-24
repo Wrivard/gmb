@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Loader2, Save, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -21,8 +21,10 @@ import {
 // change rien à la fiche ; ici, on écrit vraiment.
 //
 // Le catalogue dépend de la CATÉGORIE : un couvreur et une agence
-// marketing n'ont pas les mêmes attributs. On le charge donc à la
-// demande, et on affiche les libellés de Google plutôt que les nôtres.
+// marketing n'ont pas les mêmes attributs. On affiche les libellés de
+// Google plutôt que les nôtres. Le chargement se fait à l'ouverture de
+// l'étape — ce composant n'est monté que là, donc les autres étapes ne
+// paient rien.
 
 type BoolState = Record<string, boolean>;
 type UrlState = Record<string, string>;
@@ -38,14 +40,18 @@ export function AttributesEditor({ clientId }: { clientId: string }) {
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const [loading, startLoad] = useTransition();
   const [saving, startSave] = useTransition();
+  const [failed, setFailed] = useState(false);
+  const requested = useRef(false);
 
   const touch = (name: string) =>
     setDirty((current) => new Set(current).add(name));
 
   const load = () =>
     startLoad(async () => {
+      setFailed(false);
       const result = await loadGbpAttributesAction(clientId);
       if (!result.ok) {
+        setFailed(true);
         toast.error(result.error);
         return;
       }
@@ -99,21 +105,30 @@ export function AttributesEditor({ clientId }: { clientId: string }) {
       );
     });
 
+  // Monté uniquement sur l'étape Présentation : on charge à l'ouverture
+  // plutôt que d'exiger un clic pour voir ce qui est déjà posé.
+  useEffect(() => {
+    if (requested.current) return;
+    requested.current = true;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (catalog === null) {
     return (
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed p-3">
-        <p className="text-sm text-muted-foreground">
-          Attributs de la fiche — accessibilité, stationnement, identité de
-          l&apos;entreprise, liens sociaux. La liste dépend de la catégorie.
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          {loading && <Loader2 className="size-4 animate-spin" />}
+          {loading
+            ? "Lecture des attributs de la fiche…"
+            : "Attributs non chargés — accessibilité, identité, liens sociaux."}
         </p>
-        <Button variant="outline" size="sm" disabled={loading} onClick={load}>
-          {loading ? (
-            <Loader2 className="animate-spin" />
-          ) : (
+        {failed && (
+          <Button variant="outline" size="sm" onClick={load}>
             <SlidersHorizontal />
-          )}
-          Charger les attributs
-        </Button>
+            Réessayer
+          </Button>
+        )}
       </div>
     );
   }
