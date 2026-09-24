@@ -20,6 +20,9 @@ import { Button } from "@/components/ui/button";
 import { GoldStar } from "@/components/reviews/star-rating";
 import { isBrandProfileIncomplete } from "@/lib/clients/brand-profile";
 import { onboardingCtx, onboardingProgress } from "@/lib/onboarding/steps";
+import { aggregate } from "@/lib/onboarding/review-stats";
+import { clientHealth, type ClientHealth } from "@/lib/clients/health";
+import { cn } from "@/lib/utils";
 import { Plus } from "lucide-react";
 import { AssigneeSelect } from "./assignee-select";
 import { CadenceSelect } from "./cadence-select";
@@ -45,6 +48,8 @@ interface ProjectRow {
   profileIncomplete: boolean;
   /** Score d'optimisation de la fiche (null = 100 %, rien à afficher). */
   onboardingPct: number | null;
+  /** Fiche + avis + publications — null en mode démo. */
+  health: ClientHealth | null;
   status: "active" | "paused" | "disconnected";
   cadence: {
     id: string;
@@ -87,6 +92,7 @@ export default async function ClientsPage() {
         assigneeMemberId: null,
         profileIncomplete: false,
         onboardingPct: null,
+        health: null,
         status: client.status,
         cadence: {
           id: client.id,
@@ -112,7 +118,12 @@ export default async function ClientsPage() {
     // reviews n'a pas d'agency_id : on scope par client_id, sinon la
     // requête balaie la table entière (toutes agences confondues).
     const clientIds = (clients ?? []).map((c) => c.id);
-    const [{ data: board }, { data: reviews }, { data: agencyMembers }] =
+    const [
+      { data: board },
+      { data: reviews },
+      { data: posts },
+      { data: agencyMembers },
+    ] =
       await Promise.all([
         supabase
           .from("client_board_state")
@@ -121,10 +132,33 @@ export default async function ClientsPage() {
         clientIds.length
           ? supabase
               .from("reviews")
-              .select("client_id, star_rating")
+              // `comment`, `review_created_at` et `status` alimentent le
+              // pilier « avis » de l'état de santé — élargir cette
+              // requête évite d'en ajouter une seconde.
+              .select(
+                "client_id, star_rating, comment, review_created_at, status",
+              )
               .in("client_id", clientIds)
           : Promise.resolve({
-              data: [] as { client_id: string; star_rating: number }[],
+              data: [] as Array<{
+                client_id: string;
+                star_rating: number;
+                comment: string | null;
+                review_created_at: string | null;
+                status: string;
+              }>,
+            }),
+        clientIds.length
+          ? supabase
+              .from("posts")
+              .select("client_id, status, published_at")
+              .in("client_id", clientIds)
+          : Promise.resolve({
+              data: [] as Array<{
+                client_id: string;
+                status: string;
+                published_at: string | null;
+              }>,
             }),
         supabase
           .from("agency_members")
@@ -133,6 +167,31 @@ export default async function ClientsPage() {
           .order("email"),
       ]);
     members = agencyMembers ?? [];
+
+    const now = Date.now();
+    const since30 = now - 30 * 24 * 60 * 60 * 1000;
+    const reviewsByClient = new Map<string, typeof reviews>();
+    for (const review of reviews ?? []) {
+      const list = reviewsByClient.get(review.client_id) ?? [];
+      list.push(review);
+      reviewsByClient.set(review.client_id, list);
+    }
+    const postsByClient = new Map<string, { published30: number; failed: number }>();
+    for (const post of posts ?? []) {
+      const entry = postsByClient.get(post.client_id) ?? {
+        published30: 0,
+        failed: 0,
+      };
+      if (post.status === "failed") entry.failed++;
+      if (
+        post.status === "published" &&
+        post.published_at &&
+        new Date(post.published_at).getTime() >= since30
+      ) {
+        entry.published30++;
+      }
+      postsByClient.set(post.client_id, entry);
+    }
 
     const boardById = new Map((board ?? []).map((b) => [b.client_id, b]));
     const ratingByClient = new Map<string, { sum: number; count: number }>();
@@ -187,6 +246,23 @@ export default async function ClientsPage() {
           );
           return progress.complete ? null : progress.pct;
         })(),
+        health: clientHealth({
+          onboardingPct: onboardingProgress(
+            onboardingCtx({
+              gbp_profile: client.gbp_profile,
+              onboarding: client.onboarding,
+              brandProfileComplete: !isBrandProfileIncomplete(
+                client.brand_profile,
+              ),
+            }),
+          ).pct,
+          reviews: aggregate(reviewsByClient.get(client.id) ?? [], now),
+          posts: {
+            publishedLast30: postsByClient.get(client.id)?.published30 ?? 0,
+            failed: postsByClient.get(client.id)?.failed ?? 0,
+            monthlyTarget: client.posts_per_month ?? 0,
+          },
+        }),
         status: client.status as ProjectRow["status"],
         cadence: {
           id: client.id,
@@ -230,6 +306,7 @@ export default async function ClientsPage() {
           <TableHeader className="bg-muted/40">
             <TableRow>
               <TableHead>Projet</TableHead>
+              <TableHead>Santé</TableHead>
               <TableHead>Note</TableHead>
               <TableHead>Mandat</TableHead>
               <TableHead>Responsable</TableHead>
@@ -270,6 +347,33 @@ export default async function ClientsPage() {
                     >
                       Profil incomplet — les drafts AI seront génériques
                     </Link>
+                  )}
+                </TableCell>
+                {/* Santé : fiche + avis + publications, d'un coup d'œil.
+                    Le détail du pilier le plus faible est au survol —
+                    scanner vingt clients ne doit pas demander vingt
+                    clics. */}
+                <TableCell>
+                  {row.health ? (
+                    <Link
+                      href={`/clients/${row.id}`}
+                      className="flex items-center gap-1.5"
+                      title={`${row.health.worst.label} — ${row.health.worst.detail}`}
+                    >
+                      <span
+                        className={cn(
+                          "size-2 shrink-0 rounded-full",
+                          row.health.status === "ok" && "bg-success",
+                          row.health.status === "warn" && "bg-warning",
+                          row.health.status === "critical" && "bg-destructive",
+                        )}
+                      />
+                      <span className="text-sm tabular-nums">
+                        {row.health.pct} %
+                      </span>
+                    </Link>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">—</span>
                   )}
                 </TableCell>
                 <TableCell>
