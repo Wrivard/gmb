@@ -8,6 +8,14 @@ export interface GbpAccount {
   type: "PERSONAL" | "LOCATION_GROUP" | "USER_GROUP" | "ORGANIZATION";
 }
 
+/** Une plage d'ouverture Google : `{ openDay, openTime, closeDay, closeTime }`. */
+export interface GbpTimePeriod {
+  openDay?: string;
+  closeDay?: string;
+  openTime?: { hours?: number; minutes?: number };
+  closeTime?: { hours?: number; minutes?: number };
+}
+
 export interface GbpLocation {
   /** Resource name : `locations/{locationId}` */
   name: string;
@@ -20,9 +28,23 @@ export interface GbpLocation {
   };
   categories?: {
     primaryCategory?: { displayName?: string };
+    additionalCategories?: Array<{ displayName?: string }>;
   };
   phoneNumbers?: { primaryPhone?: string };
   websiteUri?: string;
+  // — Ce qui suit n'est rendu que par `getLocation` (profil complet).
+  //   Le wizard d'onboarding en a besoin : sans ça il annonce 0 % sur
+  //   une fiche déjà remplie, et demande de ressaisir ce que Google
+  //   sait déjà.
+  profile?: { description?: string };
+  regularHours?: { periods?: GbpTimePeriod[] };
+  openInfo?: { openingDate?: { year?: number; month?: number } };
+  serviceItems?: Array<{
+    freeFormServiceItem?: {
+      label?: { displayName?: string; description?: string };
+    };
+    structuredServiceItem?: { serviceTypeId?: string; description?: string };
+  }>;
 }
 
 /** Enum Google → int (specs/04) */

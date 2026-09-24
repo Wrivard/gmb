@@ -14,8 +14,12 @@ const ACCOUNT_MGMT = "https://mybusinessaccountmanagement.googleapis.com/v1";
 const BUSINESS_INFO = "https://mybusinessbusinessinformation.googleapis.com/v1";
 const GMB_V4 = "https://mybusiness.googleapis.com/v4";
 
+// `profile`, `regularHours`, `openInfo` et `serviceItems` servent au
+// préremplissage du wizard : sans eux il annonce 0 % sur une fiche déjà
+// optimisée.
 const LOCATION_READ_MASK =
-  "name,title,storefrontAddress,categories,phoneNumbers,websiteUri";
+  "name,title,storefrontAddress,categories,phoneNumbers,websiteUri," +
+  "profile,regularHours,openInfo,serviceItems";
 
 const MAX_ATTEMPTS = 5;
 

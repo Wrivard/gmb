@@ -46,9 +46,13 @@ interface ZernioLocation {
 interface ZernioLocationDetails {
   title?: string;
   phoneNumbers?: { primaryPhone?: string };
-  categories?: { primaryCategory?: { displayName?: string } };
+  categories?: GbpLocation["categories"];
   websiteUri?: string;
   storefrontAddress?: GbpLocation["storefrontAddress"];
+  profile?: GbpLocation["profile"];
+  regularHours?: GbpLocation["regularHours"];
+  openInfo?: GbpLocation["openInfo"];
+  serviceItems?: GbpLocation["serviceItems"];
 }
 
 interface ResolvedAccount {
@@ -296,6 +300,11 @@ export class ZernioGbpClient implements GbpClient {
           : undefined),
       phoneNumbers: details.phoneNumbers,
       websiteUri: details.websiteUri ?? summary?.websiteUrl,
+      // Relayé tel quel : c'est la matière du préremplissage du wizard.
+      profile: details.profile,
+      regularHours: details.regularHours,
+      openInfo: details.openInfo,
+      serviceItems: details.serviceItems,
     } satisfies GbpLocation;
   }
 

@@ -3,6 +3,7 @@ import "server-only";
 import { getDb } from "@/lib/supabase/db";
 import { getGbpClient } from "./client";
 import { isSimulatedGbp } from "./mode";
+import { locationToProfile } from "./profile-import";
 import type { GbpLocation } from "./types";
 import type { BrandProfile } from "@/lib/types/database";
 import { logActivity } from "@/lib/activity";
@@ -252,6 +253,9 @@ export async function importLocation(
       posts_per_month: agency?.default_posts_per_month ?? 2,
       language: agency?.default_language ?? "fr-CA",
       brand_profile: defaultBrandProfile(location),
+      // Le wizard part de la fiche RÉELLE : sans ça il annonce 0 % sur
+      // un commerce déjà optimisé et fait ressaisir ce que Google sait.
+      gbp_profile: locationToProfile(location),
       status: "paused",
       is_demo: mockDiscovery,
     })
