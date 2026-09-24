@@ -3,6 +3,10 @@ import "server-only";
 import type { getDb } from "@/lib/supabase/db";
 import type { ReviewStats } from "./steps";
 
+// Réexporté : l'état de santé (lib/clients/health.ts) consomme ces
+// mesures, et n'a rien à faire dans le module du wizard.
+export type { ReviewStats };
+
 // Mesures d'avis pour le score d'optimisation.
 //
 // Trois des critères les plus lourds du référentiel portent sur les

@@ -10,6 +10,8 @@ import { loadClientQueue } from "@/lib/posts/queue";
 import { loadClientGrowth } from "@/lib/clients/growth";
 import { onboardingCtx, onboardingProgress } from "@/lib/onboarding/steps";
 import { reviewStatsByClient } from "@/lib/onboarding/review-stats";
+import { clientHealth } from "@/lib/clients/health";
+import { ClientHealthCard } from "./health-card";
 import { isBrandProfileIncomplete } from "@/lib/clients/brand-profile";
 import { GrowthView } from "@/components/clients/growth-view";
 import { GeogridCard } from "@/components/clients/geogrid-card";
@@ -227,9 +229,39 @@ export default async function ClientDetailPage({
   if (error) throw new Error(error.message);
   if (!client) notFound();
 
-  // Volume d'avis avec texte, récence et flux : trois des critères les
-  // plus lourds du score se mesurent, ils ne se cochent pas.
-  const reviewStats = await reviewStatsByClient(supabase, [client.id]);
+  // État de santé : fiche + avis + publications. Mesuré, jamais coché.
+  const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const [reviewStats, { count: publishedLast30 }, { count: failedPosts }] =
+    await Promise.all([
+      reviewStatsByClient(supabase, [client.id]),
+      supabase
+        .from("posts")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", client.id)
+        .eq("status", "published")
+        .gte("published_at", since30),
+      supabase
+        .from("posts")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", client.id)
+        .eq("status", "failed"),
+    ]);
+
+  const health = clientHealth({
+    onboardingPct: onboardingProgress(
+      onboardingCtx({
+        gbp_profile: client.gbp_profile,
+        onboarding: client.onboarding,
+        brandProfileComplete: !isBrandProfileIncomplete(client.brand_profile),
+      }),
+    ).pct,
+    reviews: reviewStats.get(client.id),
+    posts: {
+      publishedLast30: publishedLast30 ?? 0,
+      failed: failedPosts ?? 0,
+      monthlyTarget: client.posts_per_month ?? 0,
+    },
+  });
 
   return (
     <div className="flex flex-col gap-5">
@@ -284,6 +316,12 @@ export default async function ClientDetailPage({
         </span>
       </div>
 
+      {/* Santé : fiche + avis + publications. Le wizard, lui, ne parle
+          que de la fiche — et se termine. */}
+      {client.status !== "archived" && client.status !== "disconnected" && (
+        <ClientHealthCard health={health} clientId={client.id} />
+      )}
+
       {/* Onboarding inachevé : le rappel vit sur le projet lui-même,
           pas seulement dans la liste — personne ne « passe à côté ». */}
       {(() => {
@@ -297,7 +335,6 @@ export default async function ClientDetailPage({
             brandProfileComplete: !isBrandProfileIncomplete(
               client.brand_profile,
             ),
-            reviews: reviewStats.get(client.id),
           }),
         );
         if (progress.complete) return null;

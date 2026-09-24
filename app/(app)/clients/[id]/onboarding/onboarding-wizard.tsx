@@ -38,7 +38,6 @@ import {
   isRequirementMet,
   ONBOARDING_STEPS,
   onboardingProgress,
-  type ReviewStats,
   PUSHABLE_SECTIONS,
   WEEKDAYS,
   type OnboardingCtx,
@@ -166,7 +165,6 @@ export function OnboardingWizard({
   initialProfile,
   initialChecks,
   brandProfileComplete,
-  reviewStats,
 }: {
   clientId: string;
   clientName: string;
@@ -174,8 +172,6 @@ export function OnboardingWizard({
   initialProfile: GbpProfileData;
   initialChecks: Record<string, OnboardingItemState>;
   brandProfileComplete: boolean;
-  /** Mesuré au rendu serveur : volume avec texte, récence, flux, réponses. */
-  reviewStats?: ReviewStats;
 }) {
   const router = useRouter();
   const [profile, setProfile] = useState<GbpProfileData>(initialProfile);
@@ -190,8 +186,8 @@ export function OnboardingWizard({
   const [activating, startActivate] = useTransition();
 
   const ctx: OnboardingCtx = useMemo(
-    () => ({ profile: saved, checks, brandProfileComplete, reviews: reviewStats }),
-    [saved, checks, brandProfileComplete, reviewStats],
+    () => ({ profile: saved, checks, brandProfileComplete }),
+    [saved, checks, brandProfileComplete],
   );
   const progress = useMemo(() => onboardingProgress(ctx), [ctx]);
 
@@ -279,7 +275,6 @@ export function OnboardingWizard({
       profile: initialProfile,
       checks: initialChecks,
       brandProfileComplete,
-      reviews: reviewStats,
     });
     const index = ONBOARDING_STEPS.findIndex(
       (step) => !initial.doneSteps.has(step.key),

@@ -6,7 +6,6 @@ import { isBrandProfileIncomplete } from "@/lib/clients/brand-profile";
 import { EmptyState } from "@/components/ui/empty-state";
 import { OnboardingWizard } from "./onboarding-wizard";
 import { ImportProfileButton } from "./import-profile-button";
-import { reviewStatsByClient } from "@/lib/onboarding/review-stats";
 
 export const metadata = { title: "Optimisation de la fiche" };
 
@@ -67,9 +66,6 @@ export default async function OnboardingPage({
   // Google les a probablement, et le score serait faux sans elles.
   const looksEmpty = !profile.description && !profile.hours;
 
-  // Volume d'avis avec texte, récence et flux : mesurés, pas cochés.
-  const reviewStats = await reviewStatsByClient(supabase, [client.id]);
-
   return (
     <div className="flex flex-col gap-4">
       {looksEmpty && (
@@ -89,7 +85,6 @@ export default async function OnboardingPage({
         initialProfile={profile}
         initialChecks={client.onboarding?.items ?? {}}
         brandProfileComplete={!isBrandProfileIncomplete(client.brand_profile)}
-        reviewStats={reviewStats.get(client.id)}
       />
     </div>
   );

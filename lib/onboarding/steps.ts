@@ -1,4 +1,11 @@
-// Optimisation d'une fiche GBP à l'onboarding — v2 : les données se
+// Optimisation INITIALE d'une fiche GBP, à l'arrivée d'un client.
+//
+// Périmètre : les informations de la FICHE. Pas les avis, pas les
+// publications — ce sont des flux continus, mesurés par l'état de santé
+// (lib/clients/health.ts). Le wizard décrit une tâche qui se termine :
+// il doit pouvoir atteindre 100 %.
+//
+// v2 : les données se
 // SAISISSENT dans l'app (clients.gbp_profile) et se poussent vers
 // Google via GbpClient; le score se calcule sur les données réelles,
 // plus sur des cases cochées. Quelques critères restent manuels par
@@ -28,9 +35,13 @@ export const WEEKDAYS: Array<{ key: GbpWeekday; label: string }> = [
 
 /**
  * Mesures d'avis calculées en base (lib/onboarding/review-stats.ts).
- * Trois des critères les plus lourds du référentiel Whitespark portent
- * sur les avis : les laisser en cases à cocher revenait à demander à
- * l'équipe de compter à la main ce que l'app sait déjà.
+ *
+ * Elles ne comptent PLUS dans le score du wizard : celui-ci mesure
+ * l'optimisation de la FICHE, une tâche qui se termine. Un nouveau
+ * client n'a par construction ni volume d'avis ni flux sur trois mois —
+ * les y inclure plafonnait le wizard à 84 % le jour 1 et empêchait
+ * l'onboarding d'être jamais « terminé ». Le flux d'avis vit désormais
+ * dans l'état de santé (lib/clients/health.ts).
  */
 export interface ReviewStats {
   total: number;
@@ -50,8 +61,6 @@ export interface OnboardingCtx {
   checks: NonNullable<OnboardingState["items"]>;
   /** Profil de marque (IA) complet — dérivé de brand_profile. */
   brandProfileComplete: boolean;
-  /** Absent = pas encore mesuré : les critères d'avis restent à faire. */
-  reviews?: ReviewStats;
 }
 
 /**
@@ -374,81 +383,6 @@ export const ONBOARDING_STEPS: OnboardingStepDef[] = [
     ],
   },
   {
-    key: "avis",
-    title: "Avis",
-    why: "Les avis pèsent environ 16 à 20 % du classement, et trois mesures distinctes comptent : le nombre d'avis AVEC TEXTE (#9), leur RÉCENCE (#11) et un flux SOUTENU dans le temps (#14). Sterling Sky observe des reculs mesurables après environ 3 semaines sans nouvel avis. Ça ne se rattrape pas après coup.",
-    requirements: [
-      {
-        key: "avis.volume-texte",
-        label: "Au moins 10 avis AVEC TEXTE",
-        hint: "Les étoiles seules pèsent moins. Le palier des 10 premiers avis est mesurable, ensuite ça plafonne — compté par l'app.",
-        test: (ctx) => (ctx.reviews?.withText ?? 0) >= 10,
-        weight: 5,
-        evidence: "prouvé",
-        source: "Whitespark 2026 (#9, 170) ; Sterling Sky",
-      },
-      {
-        key: "avis.recence",
-        label: "Un avis reçu dans les 21 derniers jours",
-        hint: "Au-delà d'environ 3 semaines sans nouvel avis, Sterling Sky mesure des reculs. Calculé par l'app : si ce critère tombe, c'est un signal, pas une case à cocher.",
-        test: (ctx) => {
-          const days = ctx.reviews?.daysSinceLastReview;
-          return days !== null && days !== undefined && days <= 21;
-        },
-        weight: 5,
-        evidence: "prouvé",
-        source: "Whitespark 2026 (#11, 164) ; Sterling Sky 2025",
-      },
-      {
-        key: "avis.flux",
-        label: "Au moins un avis par mois sur les 3 derniers mois",
-        hint: "Le flux soutenu est un facteur distinct du volume (#14, 154) : trente avis d'un coup puis plus rien vaut moins qu'un filet régulier.",
-        test: (ctx) => (ctx.reviews?.monthsWithReview ?? 0) >= 3,
-        weight: 4,
-        evidence: "prouvé",
-        source: "Whitespark 2026 (#14, 154)",
-      },
-      {
-        key: "avis.reponses",
-        label: "100 % des avis ont une réponse",
-        hint: "Compté par l'app. Pas d'effet de classement démontré, mais c'est lu par le prochain client — et les résumés IA de Maps lisent aussi les réponses.",
-        test: (ctx) =>
-          ctx.reviews !== undefined &&
-          ctx.reviews.total > 0 &&
-          ctx.reviews.unanswered === 0,
-        weight: 2,
-        evidence: "pratique",
-      },
-      {
-        key: "avis.lien",
-        label: "Kit d'avis configuré et remis au client",
-        hint: "Réglages → Kit d'avis : colle le lien d'avis de la fiche, envoie la page « Demander un avis » au client (favori sur son téléphone) et imprime le QR.",
-        manual: true,
-        appTab: "settings",
-        weight: 3,
-        evidence: "pratique",
-      },
-      {
-        key: "avis.processus",
-        label: "Processus de collecte CONTINU convenu avec le client",
-        hint: "Le réflexe : fin de chantier, page « Demander un avis », deux taps. Et demander du TEXTE (« écrivez deux phrases »), pas juste des étoiles.",
-        manual: true,
-        weight: 3,
-        evidence: "prouvé",
-        source: "Whitespark 2026 (#14, 154)",
-      },
-      {
-        key: "avis.conformite",
-        label: "Client averti : JAMAIS d'avis achetés, incités ou filtrés",
-        hint: "La politique Fake Engagement gèle les nouveaux avis et peut dépublier les existants. Depuis 2026, les quotas d'avis imposés aux employés et les demandes de citer un employé par son nom sont explicitement des infractions.",
-        manual: true,
-        weight: 2,
-        evidence: "pratique",
-        source: "Règles Google, mise à jour 2026",
-      },
-    ],
-  },
-  {
     key: "lancement",
     title: "Lancement",
     why: "Une étude contrôlée de Sterling Sky sur 441 mots-clés et 9 semaines n'a mesuré AUCUN mouvement de classement dû aux posts. On publie pour la conversion et pour nourrir les résumés IA de Maps, pas pour ranker.",
@@ -567,14 +501,11 @@ export function onboardingCtx(client: {
   onboarding?: OnboardingState | null;
   /** true si le profil de marque est complet (isBrandProfileIncomplete inversé). */
   brandProfileComplete: boolean;
-  /** Mesures d'avis — omises, les critères d'avis restent « à faire ». */
-  reviews?: ReviewStats;
 }): OnboardingCtx {
   return {
     profile: client.gbp_profile ?? {},
     checks: client.onboarding?.items ?? {},
     brandProfileComplete: client.brandProfileComplete,
-    reviews: client.reviews,
   };
 }
 

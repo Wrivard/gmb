@@ -20,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { GoldStar } from "@/components/reviews/star-rating";
 import { isBrandProfileIncomplete } from "@/lib/clients/brand-profile";
 import { onboardingCtx, onboardingProgress } from "@/lib/onboarding/steps";
-import { aggregate } from "@/lib/onboarding/review-stats";
 import { Plus } from "lucide-react";
 import { AssigneeSelect } from "./assignee-select";
 import { CadenceSelect } from "./cadence-select";
@@ -122,21 +121,10 @@ export default async function ClientsPage() {
         clientIds.length
           ? supabase
               .from("reviews")
-              // `comment`, `review_created_at` et `status` servent au
-              // score d'optimisation (volume avec texte, récence, flux,
-              // réponses) — élargir cette requête évite d'en ajouter une.
-              .select(
-                "client_id, star_rating, comment, review_created_at, status",
-              )
+              .select("client_id, star_rating")
               .in("client_id", clientIds)
           : Promise.resolve({
-              data: [] as Array<{
-                client_id: string;
-                star_rating: number;
-                comment: string | null;
-                review_created_at: string | null;
-                status: string;
-              }>,
+              data: [] as { client_id: string; star_rating: number }[],
             }),
         supabase
           .from("agency_members")
@@ -145,20 +133,6 @@ export default async function ClientsPage() {
           .order("email"),
       ]);
     members = agencyMembers ?? [];
-
-    const now = Date.now();
-    const reviewsByClient = new Map<string, typeof reviews>();
-    for (const review of reviews ?? []) {
-      const list = reviewsByClient.get(review.client_id) ?? [];
-      list.push(review);
-      reviewsByClient.set(review.client_id, list);
-    }
-    const reviewStats = new Map(
-      clientIds.map((clientId) => [
-        clientId,
-        aggregate(reviewsByClient.get(clientId) ?? [], now),
-      ]),
-    );
 
     const boardById = new Map((board ?? []).map((b) => [b.client_id, b]));
     const ratingByClient = new Map<string, { sum: number; count: number }>();
@@ -209,7 +183,6 @@ export default async function ClientsPage() {
               brandProfileComplete: !isBrandProfileIncomplete(
                 client.brand_profile,
               ),
-              reviews: reviewStats.get(client.id),
             }),
           );
           return progress.complete ? null : progress.pct;
