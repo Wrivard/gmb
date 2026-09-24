@@ -47,6 +47,7 @@ import {
 import type {
   ClientStatus,
   GbpDayHours,
+  GbpMediaSnapshot,
   GbpPhoto,
   GbpPhotoRole,
   GbpProfileData,
@@ -61,8 +62,8 @@ import {
   uploadGbpPhotoAction,
 } from "../actions";
 import { toggleClientActiveAction } from "@/app/(app)/settings/actions";
+import { syncGbpMediaAction } from "../actions";
 import { AttributesEditor } from "./attributes-editor";
-import { GoogleMediaGallery } from "./google-media";
 
 /* ── Découpage de gbp_profile en sections sauvegardables ──────────── */
 
@@ -527,10 +528,22 @@ export function OnboardingWizard({
               <AttributesEditor clientId={clientId} />
             </>
           )}
-          {step.key === "photos" && <GoogleMediaGallery clientId={clientId} />}
           {step.key === "photos" && (
             <PhotosEditor
               clientId={clientId}
+              googleMedia={saved.google_media?.items ?? []}
+              onGoogleMedia={(items) => {
+                const google_media = {
+                  items,
+                  synced_at: new Date().toISOString(),
+                };
+                // Deux états : `saved` nourrit le score, `profile`
+                // l'affichage. `google_media` n'appartient à aucune
+                // section, donc l'enregistrement automatique ne le
+                // renvoie pas au serveur.
+                setSaved((prev) => ({ ...prev, google_media }));
+                setProfile((prev) => ({ ...prev, google_media }));
+              }}
               profile={profile}
               onPhotos={applyPhotos}
             />
@@ -1119,16 +1132,51 @@ function PhotosEditor({
   clientId,
   profile,
   onPhotos,
+  googleMedia,
+  onGoogleMedia,
 }: {
   clientId: string;
   profile: GbpProfileData;
   onPhotos: (photos: GbpPhoto[]) => void;
+  /** Photos déjà en ligne, servies depuis le cache du projet. */
+  googleMedia: GbpMediaSnapshot[];
+  onGoogleMedia: (items: GbpMediaSnapshot[]) => void;
 }) {
   const photos = profile.photos ?? [];
+  // Ce qui est déjà sur Google occupe l'emplacement : un logo en ligne
+  // n'est pas un emplacement vide. Un téléversement local prime — c'est
+  // le remplacement en préparation.
+  const googleLogo = googleMedia.find((m) => m.category === "PROFILE");
+  const googleCover = googleMedia.find((m) => m.category === "COVER");
+  const googleGallery = googleMedia.filter(
+    (m) => m.category !== "PROFILE" && m.category !== "COVER",
+  );
   const logo = photos.find((p) => p.role === "logo");
   const cover = photos.find((p) => p.role === "cover");
   const gallery = photos.filter((p) => p.role === "photo");
+  const total = gallery.length + googleGallery.length;
   const [busy, setBusy] = useState<string | null>(null);
+  const [syncing, startSync] = useTransition();
+  const synced = useRef(false);
+
+  // Le cache s'affiche immédiatement ; cet appel ne sert qu'à repérer
+  // ce qui a été ajouté ou retiré sur la fiche depuis la dernière fois.
+  useEffect(() => {
+    if (synced.current) return;
+    synced.current = true;
+    startSync(async () => {
+      const result = await syncGbpMediaAction(clientId);
+      if (!result.ok) return; // silencieux : le cache reste affiché
+      onGoogleMedia(result.items ?? []);
+      if (result.added || result.removed) {
+        const parts = [];
+        if (result.added) parts.push(result.added + " ajoutée(s)");
+        if (result.removed) parts.push(result.removed + " retirée(s)");
+        toast.info(parts.join(" · ") + " sur la fiche Google.");
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function upload(role: GbpPhotoRole, files: FileList | null) {
     if (!files?.length || busy) return;
@@ -1165,6 +1213,7 @@ function PhotosEditor({
           label="Logo"
           hint="carré, fond propre"
           photo={logo}
+          googleUrl={googleLogo?.thumbnailUrl ?? googleLogo?.url}
           disabled={Boolean(busy)}
           onFile={(files) => upload("logo", files)}
         />
@@ -1172,6 +1221,7 @@ function PhotosEditor({
           label="Photo de couverture"
           hint="la meilleure photo réelle"
           photo={cover}
+          googleUrl={googleCover?.thumbnailUrl ?? googleCover?.url}
           disabled={Boolean(busy)}
           onFile={(files) => upload("cover", files)}
           wide
@@ -1181,6 +1231,28 @@ function PhotosEditor({
       <div className="flex flex-col gap-2">
         <p className="text-sm font-medium">Galerie</p>
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+          {googleGallery.map((item) => (
+            <a
+              key={item.name}
+              href={item.url}
+              target="_blank"
+              rel="noreferrer"
+              className="relative aspect-[4/3] overflow-hidden rounded-md border border-border"
+              title="Déjà publiée sur la fiche Google"
+            >
+              <Image
+                src={item.thumbnailUrl ?? item.url}
+                alt="Photo déjà sur la fiche"
+                fill
+                sizes="200px"
+                className="object-cover"
+                unoptimized
+              />
+              <span className="absolute inset-x-0 bottom-0 bg-black/55 px-1 py-0.5 text-[10px] text-white">
+                Sur Google
+              </span>
+            </a>
+          ))}
           {gallery.map((photo) => (
             <div
               key={photo.path}
@@ -1225,9 +1297,13 @@ function PhotosEditor({
         </div>
         <p className="text-xs tabular-nums text-muted-foreground">
           {busy ??
-            `${gallery.length}/10 photos${
-              gallery.length < 10 ? " — vise le lot initial complet" : ""
-            }`}
+            (syncing
+              ? "Lecture des photos de la fiche…"
+              : `${total}/10 photos${
+                  googleGallery.length
+                    ? ` (dont ${googleGallery.length} déjà sur Google)`
+                    : ""
+                }${total < 10 ? " — vise le lot initial complet" : ""}`)}
         </p>
       </div>
     </div>
@@ -1238,6 +1314,7 @@ function PhotoSlot({
   label,
   hint,
   photo,
+  googleUrl,
   disabled,
   onFile,
   wide,
@@ -1245,10 +1322,13 @@ function PhotoSlot({
   label: string;
   hint: string;
   photo: GbpPhoto | undefined;
+  /** Image déjà en ligne — l'emplacement n'est pas vide pour autant. */
+  googleUrl?: string;
   disabled: boolean;
   onFile: (files: FileList | null) => void;
   wide?: boolean;
 }) {
+  const shown = photo?.url ?? googleUrl;
   return (
     <label
       className={cn(
@@ -1266,17 +1346,18 @@ function PhotoSlot({
           e.target.value = "";
         }}
       />
-      {photo ? (
+      {shown ? (
         <>
           <Image
-            src={photo.url}
+            src={shown}
             alt={label}
             fill
             sizes="400px"
             className="object-cover"
+            unoptimized={!photo}
           />
           <span className="absolute inset-x-0 bottom-0 bg-black/55 px-2 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
-            Remplacer
+            {photo ? "Remplacer" : "Sur Google — remplacer"}
           </span>
         </>
       ) : (

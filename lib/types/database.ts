@@ -112,6 +112,17 @@ export interface GbpPhoto {
   at: string;
 }
 
+/** Une photo de la fiche Google, telle que mise en cache. */
+export interface GbpMediaSnapshot {
+  /** Resource name — identifiant stable pour diffusion et diff. */
+  name: string;
+  /** `PROFILE` (logo), `COVER`, `ADDITIONAL`… */
+  category: string;
+  url: string;
+  thumbnailUrl?: string;
+  createTime?: string;
+}
+
 /** État de push d'une section de la fiche vers Google. */
 export interface GbpSectionSync {
   pushed_at: string;
@@ -139,6 +150,18 @@ export interface GbpProfileData {
   services?: Array<{ name: string; description?: string }>;
   qna?: Array<{ question: string; answer: string }>;
   photos?: GbpPhoto[];
+  /**
+   * Photos DÉJÀ publiées sur la fiche Google, mises en cache ici.
+   *
+   * Sans ce cache, chaque ouverture de l'étape Photos rappelait Google
+   * pour réafficher les mêmes images. On garde l'instantané, on le
+   * rafraîchit en arrière-plan et on ne signale que les ajouts et les
+   * retraits.
+   */
+  google_media?: {
+    items: GbpMediaSnapshot[];
+    synced_at: string;
+  };
   sync?: Record<string, GbpSectionSync>;
 }
 

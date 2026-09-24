@@ -7,6 +7,7 @@ import {
   onboardingCtx,
   onboardingProgress,
   ONBOARDING_WEIGHT_TOTAL,
+  galleryCount,
 } from "./steps";
 
 const emptyCtx = onboardingCtx({
@@ -236,5 +237,67 @@ describe("score pondéré", () => {
     const progress = onboardingProgress(emptyCtx);
     expect(progress.nextBest).toHaveLength(3);
     expect(progress.nextBest[0].weight).toBe(5);
+  });
+});
+
+describe("photos : ce qui est déjà sur Google compte", () => {
+  const req = (key: string) =>
+    ONBOARDING_STEPS.flatMap((s) => s.requirements).find((r) => r.key === key)!;
+
+  const ctxWith = (profile: GbpProfileData) =>
+    onboardingCtx({
+      gbp_profile: profile,
+      onboarding: {},
+      brandProfileComplete: false,
+    });
+
+  const googlePhotos = (count: number, category = "ADDITIONAL") =>
+    Array.from({ length: count }, (_, i) => ({
+      name: `media/${category}-${i}`,
+      category,
+      url: `https://lh3.googleusercontent.com/${category}-${i}`,
+    }));
+
+  // Une fiche avec logo, couverture et galerie affichait « 0/10 photos »
+  // et réclamait des images déjà en ligne.
+  it("le logo et la couverture publiés remplissent le critère", () => {
+    const ctx = ctxWith({
+      google_media: {
+        items: [...googlePhotos(1, "PROFILE"), ...googlePhotos(1, "COVER")],
+        synced_at: "2026-09-24T00:00:00Z",
+      },
+    });
+    expect(req("photos.logo-couverture").test!(ctx)).toBe(true);
+  });
+
+  it("la galerie additionne les photos de Google et celles de l'app", () => {
+    const ctx = ctxWith({
+      photos: Array.from({ length: 4 }, (_, i) => ({
+        path: `p${i}`,
+        url: `https://x/${i}`,
+        role: "photo" as const,
+        at: "2026-09-24",
+      })),
+      google_media: {
+        items: googlePhotos(6),
+        synced_at: "2026-09-24T00:00:00Z",
+      },
+    });
+    expect(galleryCount(ctx)).toBe(10);
+    expect(req("photos.lot-initial").test!(ctx)).toBe(true);
+  });
+
+  it("logo et couverture ne gonflent pas le compte de la galerie", () => {
+    const ctx = ctxWith({
+      google_media: {
+        items: [
+          ...googlePhotos(1, "PROFILE"),
+          ...googlePhotos(1, "COVER"),
+          ...googlePhotos(2),
+        ],
+        synced_at: "2026-09-24T00:00:00Z",
+      },
+    });
+    expect(galleryCount(ctx)).toBe(2);
   });
 });

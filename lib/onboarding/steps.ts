@@ -125,6 +125,33 @@ export const PUSHABLE_SECTIONS: PushSection[] = [
 const filled = (value: string | undefined | null): boolean =>
   Boolean(value && value.trim());
 
+/**
+ * Une photo compte, qu'elle vienne de Google ou de l'app.
+ *
+ * Le wizard ne comptait que les téléversements faits ici : une fiche
+ * avec logo, couverture et galerie affichait « 0/10 photos » et
+ * réclamait des images déjà en ligne.
+ */
+function hasRole(ctx: OnboardingCtx, role: "logo" | "cover"): boolean {
+  if ((ctx.profile.photos ?? []).some((photo) => photo.role === role)) {
+    return true;
+  }
+  const wanted = role === "logo" ? "PROFILE" : "COVER";
+  return (ctx.profile.google_media?.items ?? []).some(
+    (item) => item.category === wanted,
+  );
+}
+
+export function galleryCount(ctx: OnboardingCtx): number {
+  const local = (ctx.profile.photos ?? []).filter(
+    (photo) => photo.role === "photo",
+  ).length;
+  const onGoogle = (ctx.profile.google_media?.items ?? []).filter(
+    (item) => item.category !== "PROFILE" && item.category !== "COVER",
+  ).length;
+  return local + onGoogle;
+}
+
 export const ONBOARDING_STEPS: OnboardingStepDef[] = [
   {
     key: "categories",
@@ -352,13 +379,7 @@ export const ONBOARDING_STEPS: OnboardingStepDef[] = [
         key: "photos.logo-couverture",
         label: "Logo + photo de couverture téléversés",
         hint: "La couverture est la première impression dans Maps. La meilleure photo réelle, pas le logo étiré.",
-        test: (ctx) => {
-          const photos = ctx.profile.photos ?? [];
-          return (
-            photos.some((p) => p.role === "logo") &&
-            photos.some((p) => p.role === "cover")
-          );
-        },
+        test: (ctx) => hasRole(ctx, "logo") && hasRole(ctx, "cover"),
         weight: 2,
         evidence: "pratique",
       },
@@ -366,9 +387,7 @@ export const ONBOARDING_STEPS: OnboardingStepDef[] = [
         key: "photos.lot-initial",
         label: "Minimum 10 vraies photos : extérieur, intérieur, équipe, réalisations",
         hint: "Prises par le client ou l'agence — jamais de stock. Avant/après pour les métiers de la construction.",
-        test: (ctx) =>
-          (ctx.profile.photos ?? []).filter((p) => p.role === "photo").length >=
-          10,
+        test: (ctx) => galleryCount(ctx) >= 10,
         weight: 2,
         evidence: "pratique",
       },

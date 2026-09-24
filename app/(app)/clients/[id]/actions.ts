@@ -23,7 +23,6 @@ import { GbpAccessPendingError } from "@/lib/gbp/types";
 import type {
   GbpAttributeMeta,
   GbpAttributeValue,
-  GbpMediaItem,
 } from "@/lib/gbp/types";
 import {
   isKnownOnboardingItem,
@@ -40,6 +39,7 @@ import type {
   GbpProfileData,
   OnboardingState,
   ReviewKitData,
+  GbpMediaSnapshot,
 } from "@/lib/types/database";
 
 export async function updateClientSettingsAction(
@@ -941,24 +941,63 @@ export async function saveGbpAttributesAction(
 }
 
 /**
- * Photos déjà publiées sur la fiche Google.
+ * Photos déjà publiées sur la fiche Google, avec cache.
  *
  * Le wizard ne montrait que les photos téléversées DANS l'app : une
  * fiche avec logo, couverture et galerie paraissait vide, et on
  * redemandait au client des images déjà en ligne.
+ *
+ * L'instantané est gardé dans `gbp_profile.google_media`. La page le
+ * sert immédiatement ; cet appel ne sert qu'à détecter ce qui a été
+ * ajouté ou retiré depuis, sans refaire l'aller-retour à chaque
+ * ouverture de l'étape.
  */
-export async function loadGbpMediaAction(
-  clientId: string,
-): Promise<ActionResult & { media?: GbpMediaItem[] }> {
+export async function syncGbpMediaAction(clientId: string): Promise<
+  ActionResult & {
+    items?: GbpMediaSnapshot[];
+    added?: number;
+    removed?: number;
+  }
+> {
   return runAction("La lecture des photos a échoué.", async () => {
-    const { client } = await loadClientForMember(clientId);
+    const { supabase, client } = await loadClientForMember(clientId);
     if (!client.gbp_location_id) {
       return { ok: false, error: "Aucune fiche Google liée à ce projet." };
     }
+
     const media = await getGbpClient().listMedia(
       client.gbp_account_id ?? client.gbp_location_id,
       client.gbp_location_id,
     );
-    return { ok: true, media };
+    const items: GbpMediaSnapshot[] = media.map((item) => ({
+      name: item.name,
+      category: item.category,
+      url: item.googleUrl,
+      thumbnailUrl: item.thumbnailUrl,
+      createTime: item.createTime,
+    }));
+
+    // Diff sur le resource name : c'est l'identifiant stable. Comparer
+    // les URL donnerait de faux mouvements, Google les faisant tourner.
+    const profile: GbpProfileData = client.gbp_profile ?? {};
+    const known = new Set(
+      (profile.google_media?.items ?? []).map((item) => item.name),
+    );
+    const fresh = new Set(items.map((item) => item.name));
+    const added = items.filter((item) => !known.has(item.name)).length;
+    const removed = [...known].filter((name) => !fresh.has(name)).length;
+
+    const { error } = await supabase
+      .from("clients")
+      .update({
+        gbp_profile: {
+          ...profile,
+          google_media: { items, synced_at: new Date().toISOString() },
+        },
+      })
+      .eq("id", clientId);
+    if (error) throw new Error(error.message);
+
+    return { ok: true, items, added, removed };
   });
 }
