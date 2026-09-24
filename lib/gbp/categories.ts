@@ -1,10 +1,14 @@
 // Suggestions de catégories GBP (libellés français) pour les champs
 // catégorie du wizard et de la création de projet — un datalist natif :
 // on suggère, la saisie reste LIBRE. Ce n'est PAS le référentiel officiel
-// de Google (categories.list exige l'accès API, en attente) : liste
-// curatée des catégories courantes pour la clientèle de Küa (métiers de
-// la construction et services locaux QC). À remplacer par un picker
-// branché sur categories.list à l'approbation de l'API.
+// de Google : liste curatée des catégories courantes pour la clientèle de
+// Küa (métiers de la construction et services locaux QC).
+//
+// Vérifié le 2026-09-24 : Zernio n'expose AUCUN endpoint de recherche de
+// catégories (404 sur les trois formes plausibles). Or changer une
+// catégorie exige son identifiant `gcid:`, pas son libellé — d'où une
+// saisie libre ici et un changement à faire sur la fiche. Ce n'est plus
+// une question d'approbation Google.
 
 export const GBP_CATEGORY_SUGGESTIONS: string[] = [
   // Construction & rénovation

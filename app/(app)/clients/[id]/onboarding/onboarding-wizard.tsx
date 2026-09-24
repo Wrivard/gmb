@@ -150,13 +150,21 @@ const STEP_SECTIONS: Record<string, SectionKey[]> = {
 };
 
 /** Note d'étape pour les sections pas encore pushables par API. */
+/**
+ * Ce qui ne part PAS vers Google, et pourquoi.
+ *
+ * Ces notes disaient toutes « en attente d'approbation API ». C'est faux
+ * depuis le passage par Zernio : le blocage n'est plus l'approbation,
+ * c'est une capacité manquante, différente pour chaque section. Une
+ * excuse périmée fait perdre du temps — autant nommer le vrai obstacle.
+ */
 const STEP_API_NOTES: Record<string, string> = {
   categories:
-    "Push des catégories à l'approbation API (il exige le référentiel officiel de Google) — applique-les sur la fiche en attendant.",
+    "Changer une catégorie exige l'identifiant officiel de Google, que notre accès n'expose pas — applique-la sur la fiche, le reste de l'étape se pousse normalement.",
   lancement:
-    "Push des Q&R à venir (API dédiée) — copie-colle sur la fiche en attendant.",
+    "Google a fermé son API Questions/Réponses — celles-ci se posent à la main sur la fiche.",
   photos:
-    "Push des photos à l'approbation API (API média) — pose-les sur la fiche en attendant, elles restent archivées ici.",
+    "L'envoi des photos vers la fiche n'est pas encore branché : dépose-les ici, elles restent archivées, puis pose-les sur la fiche.",
 };
 
 const AUTOSAVE_DELAY_MS = 900;
