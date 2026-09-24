@@ -26,6 +26,9 @@ const nextConfig: NextConfig = {
             },
           ]
         : []),
+      // Photos déjà présentes sur les fiches Google (lues via Zernio) :
+      // on les affiche telles quelles, on ne les recopie pas chez nous.
+      { protocol: "https" as const, hostname: "lh3.googleusercontent.com" },
       // Fixtures du mode démo (lib/demo.ts).
       { protocol: "https" as const, hostname: "picsum.photos" },
       { protocol: "https" as const, hostname: "fastly.picsum.photos" },

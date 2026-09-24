@@ -6,6 +6,7 @@ import {
   type GbpAttributeMeta,
   type GbpAttributeValue,
   type GbpLocation,
+  type GbpMediaItem,
   type LocalPostInput,
   type LocalPostState,
   type ReviewsPage,
@@ -156,6 +157,34 @@ export class RealGbpClient implements GbpClient {
       "attributes.list",
     );
     return json.attributeMetadata ?? [];
+  }
+
+  /** ⚠️ Doc Google, jamais exercé — voir `listAttributeMetadata`. */
+  async listMedia(
+    accountId: string,
+    locationName: string,
+  ): Promise<GbpMediaItem[]> {
+    const json = await parseOrThrow<{
+      mediaItems?: Array<{
+        name: string;
+        googleUrl?: string;
+        thumbnailUrl?: string;
+        createTime?: string;
+        locationAssociation?: { category?: string };
+      }>;
+    }>(
+      await gbpFetch(`${GMB_V4}/${accountId}/${locationName}/media`),
+      "media.list",
+    );
+    return (json.mediaItems ?? [])
+      .filter((item) => item.googleUrl)
+      .map((item) => ({
+        name: item.name,
+        category: item.locationAssociation?.category ?? "ADDITIONAL",
+        googleUrl: item.googleUrl!,
+        thumbnailUrl: item.thumbnailUrl,
+        createTime: item.createTime,
+      }));
   }
 
   async getAttributes(

@@ -62,6 +62,7 @@ import {
 } from "../actions";
 import { toggleClientActiveAction } from "@/app/(app)/settings/actions";
 import { AttributesEditor } from "./attributes-editor";
+import { GoogleMediaGallery } from "./google-media";
 
 /* ── Découpage de gbp_profile en sections sauvegardables ──────────── */
 
@@ -526,6 +527,7 @@ export function OnboardingWizard({
               <AttributesEditor clientId={clientId} />
             </>
           )}
+          {step.key === "photos" && <GoogleMediaGallery clientId={clientId} />}
           {step.key === "photos" && (
             <PhotosEditor
               clientId={clientId}
@@ -551,8 +553,17 @@ export function OnboardingWizard({
             <p className="mb-2 text-xs font-medium text-muted-foreground">
               Critères pour compléter l&apos;étape
             </p>
-            <ul className="flex flex-col gap-2">
-              {step.requirements.map((req) => (
+            {/* À faire d'abord, fait ensuite : la liste sert à agir, pas
+                à contempler ce qui est déjà réglé. */}
+            <ul className="flex flex-col gap-1.5">
+              {[...step.requirements]
+                .sort(
+                  (a, b) =>
+                    Number(isRequirementMet(a, ctx)) -
+                      Number(isRequirementMet(b, ctx)) ||
+                    b.weight - a.weight,
+                )
+                .map((req) => (
                 <RequirementRow
                   key={req.key}
                   requirement={req}
@@ -618,56 +629,74 @@ function RequirementRow({
   clientId: string;
   onToggle: () => void;
 }) {
+  // Un critère rempli se lit en une ligne : plus d'explication, plus de
+  // badge. Vingt-six critères affichant chacun libellé + indice + poids +
+  // niveau de preuve rendaient la liste illisible — or l'essentiel est
+  // ce qui RESTE à faire.
+  if (met) {
+    return (
+      <li className="flex items-center gap-2.5">
+        {requirement.manual ? (
+          <Checkbox
+            checked
+            onCheckedChange={onToggle}
+            aria-label={requirement.label}
+          />
+        ) : (
+          <Check className="size-4 shrink-0 text-success" />
+        )}
+        <span className="text-sm text-muted-foreground line-through">
+          {requirement.label}
+        </span>
+      </li>
+    );
+  }
+
   return (
-    <li className="flex items-start gap-2.5">
+    <li
+      className={cn(
+        "flex items-start gap-2.5 rounded-md px-2 py-1.5",
+        // Seuls les critères lourds attirent l'œil : un fond ténu vaut
+        // mieux qu'un badge sur chaque ligne.
+        requirement.weight >= 4 && "bg-warning/8",
+      )}
+    >
       {requirement.manual ? (
         <Checkbox
-          checked={met}
+          checked={false}
           onCheckedChange={onToggle}
           className="mt-0.5"
           aria-label={requirement.label}
         />
-      ) : met ? (
-        <Check className="mt-0.5 size-4 shrink-0 text-success" />
       ) : (
         <CircleDashed className="mt-0.5 size-4 shrink-0 text-muted-foreground/60" />
       )}
-      <span className="min-w-0">
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+
+      <span className="min-w-0 flex-1">
+        <span className="flex items-baseline gap-2">
+          <span className="text-sm">{requirement.label}</span>
+          {/* Impact en points, pas en adjectif : « 5 » se compare, pas
+              « fort ». Le détail des sources est au survol. */}
           <span
-            className={cn(
-              "text-sm",
-              met && "text-muted-foreground line-through",
-            )}
+            className="shrink-0 text-[11px] tabular-nums text-muted-foreground/70"
+            title={`Impact ${requirement.weight}/5 — ${requirement.evidence}${
+              requirement.source ? ` · ${requirement.source}` : ""
+            }`}
           >
-            {requirement.label}
-          </span>
-          {/* Le poids rend visible ce qui compte vraiment : tous les
-              critères ne se valent pas, et un score plat le cachait. */}
-          {requirement.weight >= 4 && !met && (
-            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-              Fort impact
-            </span>
-          )}
-          {/* Dire d'où vient l'affirmation : une checklist de SEO local
-              mélange tests contrôlés et croyances de blogue. */}
-          <span
-            className="text-[10px] uppercase tracking-wide text-muted-foreground/70"
-            title={requirement.source ?? undefined}
-          >
-            {requirement.evidence}
+            {requirement.weight}/5
           </span>
         </span>
         {requirement.hint && (
-          <span className="mt-0.5 block text-xs text-muted-foreground">
+          <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
             {requirement.hint}
           </span>
         )}
       </span>
+
       {requirement.appTab && (
         <Link
           href={`/clients/${clientId}?tab=${requirement.appTab}`}
-          className="ml-auto shrink-0 self-center text-xs font-medium text-primary underline-offset-2 hover:underline"
+          className="shrink-0 self-center text-xs font-medium text-primary underline-offset-2 hover:underline"
         >
           Ouvrir →
         </Link>

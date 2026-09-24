@@ -5,6 +5,7 @@ import type {
   GbpAttributeMeta,
   GbpAttributeValue,
   GbpLocation,
+  GbpMediaItem,
   LocalPostInput,
   LocalPostState,
   ReviewsPage,
@@ -32,6 +33,8 @@ export interface GbpClient {
     locationName: string,
     categoryName: string,
   ): Promise<GbpAttributeMeta[]>;
+  /** Photos déjà publiées sur la fiche — lecture seule. */
+  listMedia(accountId: string, locationName: string): Promise<GbpMediaItem[]>;
   /** Attributs actuellement posés sur la fiche. */
   getAttributes(
     accountId: string,

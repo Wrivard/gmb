@@ -5,6 +5,7 @@ import {
   type GbpAttributeMeta,
   type GbpAttributeValue,
   type GbpLocation,
+  type GbpMediaItem,
   type LocalPostInput,
   type LocalPostState,
   type ReviewsPage,
@@ -336,6 +337,41 @@ export class ZernioGbpClient implements GbpClient {
       ...entry,
       name: entry.name ?? entry.parent ?? "",
     }));
+  }
+
+  /**
+   * Vérifié le 2026-09-24 sur la fiche de Küa : 4 médias rendus, avec
+   * `googleUrl` et `thumbnailUrl` directement affichables. L'app ne les
+   * recopie pas — elle pointe vers les originaux de Google.
+   */
+  async listMedia(
+    accountId: string,
+    locationName: string,
+  ): Promise<GbpMediaItem[]> {
+    const account = await accountFor(accountId || locationName);
+    const json = await parseOrThrow<{
+      mediaItems?: Array<{
+        name: string;
+        googleUrl?: string;
+        thumbnailUrl?: string;
+        createTime?: string;
+        locationAssociation?: { category?: string };
+      }>;
+    }>(
+      await zernioFetch(
+        `/accounts/${account.zernioAccountId}/gmb-media?locationId=${bareLocationId(locationName)}`,
+      ),
+      "zernio.gmb-media",
+    );
+    return (json.mediaItems ?? [])
+      .filter((item) => item.googleUrl)
+      .map((item) => ({
+        name: item.name,
+        category: item.locationAssociation?.category ?? "ADDITIONAL",
+        googleUrl: item.googleUrl!,
+        thumbnailUrl: item.thumbnailUrl,
+        createTime: item.createTime,
+      }));
   }
 
   async getAttributes(

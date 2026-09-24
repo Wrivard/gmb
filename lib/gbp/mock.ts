@@ -4,6 +4,7 @@ import type {
   GbpAttributeMeta,
   GbpAttributeValue,
   GbpLocation,
+  GbpMediaItem,
   GbpReview,
   LocalPostInput,
   LocalPostState,
@@ -123,6 +124,11 @@ export class MockGbpClient implements GbpClient {
         groupDisplayName: "URL des pages Google Adresses",
       },
     ];
+  }
+
+  async listMedia(): Promise<GbpMediaItem[]> {
+    await simulateNetwork();
+    return [];
   }
 
   async getAttributes(): Promise<GbpAttributeValue[]> {

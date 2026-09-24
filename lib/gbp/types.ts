@@ -32,6 +32,18 @@ export interface GbpAttributeMeta {
   valueMetadata?: Array<{ value: string; displayName: string }>;
 }
 
+/** Une photo déjà publiée sur la fiche Google. */
+export interface GbpMediaItem {
+  /** Resource name complet. */
+  name: string;
+  /** `PROFILE` (logo), `COVER`, `ADDITIONAL`, `EXTERIOR`… */
+  category: string;
+  /** Pleine résolution. */
+  googleUrl: string;
+  thumbnailUrl?: string;
+  createTime?: string;
+}
+
 /** Valeur posée sur une fiche. */
 export interface GbpAttributeValue {
   name: string;

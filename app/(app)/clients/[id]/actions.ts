@@ -23,6 +23,7 @@ import { GbpAccessPendingError } from "@/lib/gbp/types";
 import type {
   GbpAttributeMeta,
   GbpAttributeValue,
+  GbpMediaItem,
 } from "@/lib/gbp/types";
 import {
   isKnownOnboardingItem,
@@ -936,5 +937,28 @@ export async function saveGbpAttributesAction(
     });
     revalidatePath(`/clients/${clientId}/onboarding`);
     return { ok: true };
+  });
+}
+
+/**
+ * Photos déjà publiées sur la fiche Google.
+ *
+ * Le wizard ne montrait que les photos téléversées DANS l'app : une
+ * fiche avec logo, couverture et galerie paraissait vide, et on
+ * redemandait au client des images déjà en ligne.
+ */
+export async function loadGbpMediaAction(
+  clientId: string,
+): Promise<ActionResult & { media?: GbpMediaItem[] }> {
+  return runAction("La lecture des photos a échoué.", async () => {
+    const { client } = await loadClientForMember(clientId);
+    if (!client.gbp_location_id) {
+      return { ok: false, error: "Aucune fiche Google liée à ce projet." };
+    }
+    const media = await getGbpClient().listMedia(
+      client.gbp_account_id ?? client.gbp_location_id,
+      client.gbp_location_id,
+    );
+    return { ok: true, media };
   });
 }
