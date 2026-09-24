@@ -154,7 +154,17 @@ export interface GbpProfileData {
   description?: string;
   /** "YYYY-MM" — date d'ouverture de l'entreprise. */
   opening_date?: string;
-  services?: Array<{ name: string; description?: string }>;
+  services?: Array<{
+    name: string;
+    description?: string;
+    /**
+     * Identifiant du service PRÉDÉFINI de Google, quand il en vient un.
+     * Sa présence change la façon de le pousser : service structuré
+     * plutôt que texte libre — et c'est le structuré que Sterling Sky a
+     * mesuré comme déplaçant le classement.
+     */
+    service_type_id?: string;
+  }>;
   qna?: Array<{ question: string; answer: string }>;
   photos?: GbpPhoto[];
   /**

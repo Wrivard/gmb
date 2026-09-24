@@ -480,16 +480,30 @@ function buildLocationPatch(
       }
       return {
         patch: {
-          serviceItems: services.map((service) => ({
-            freeFormServiceItem: {
-              label: {
-                displayName: service.name.trim(),
-                ...(service.description?.trim()
-                  ? { description: service.description.trim() }
-                  : {}),
-              },
-            },
-          })),
+          // Un service prédéfini se pousse STRUCTURÉ : c'est cette forme
+          // que Google rattache à la catégorie, et celle que Sterling Sky
+          // a mesurée. Le texte libre reste pour le reste.
+          serviceItems: services.map((service) =>
+            service.service_type_id
+              ? {
+                  structuredServiceItem: {
+                    serviceTypeId: service.service_type_id,
+                    ...(service.description?.trim()
+                      ? { description: service.description.trim() }
+                      : {}),
+                  },
+                }
+              : {
+                  freeFormServiceItem: {
+                    label: {
+                      displayName: service.name.trim(),
+                      ...(service.description?.trim()
+                        ? { description: service.description.trim() }
+                        : {}),
+                    },
+                  },
+                },
+          ),
         },
         mask: "serviceItems",
       };
@@ -1090,5 +1104,55 @@ export async function pushGbpPhotosAction(
 
     revalidatePath(`/clients/${clientId}/onboarding`);
     return { ok: true, pushed: byPath.size, failed };
+  });
+}
+
+/**
+ * Services PRÉDÉFINIS proposés par Google pour les catégories de la
+ * fiche.
+ *
+ * Le wizard demandait de les cocher « sur Google » : une case à cocher
+ * pour un critère pesant 4 points, le plus lourd des non modifiables.
+ * Le catalogue voyage pourtant avec la catégorie dans le profil de la
+ * fiche — il n'y avait qu'à le lire.
+ */
+export async function loadGbpServiceTypesAction(clientId: string): Promise<
+  ActionResult & {
+    serviceTypes?: Array<{ id: string; label: string; category: string }>;
+  }
+> {
+  return runAction("La lecture des services a échoué.", async () => {
+    const { client } = await loadClientForMember(clientId);
+    if (!client.gbp_location_id) {
+      return { ok: false, error: "Aucune fiche Google liée à ce projet." };
+    }
+
+    const location = await getGbpClient().getLocation(
+      client.gbp_account_id ?? client.gbp_location_id,
+      client.gbp_location_id,
+    );
+    const categories = [
+      location.categories?.primaryCategory,
+      ...(location.categories?.additionalCategories ?? []),
+    ].filter(Boolean);
+
+    const seen = new Set<string>();
+    const serviceTypes: Array<{ id: string; label: string; category: string }> =
+      [];
+    for (const category of categories) {
+      for (const type of category?.serviceTypes ?? []) {
+        if (!type.serviceTypeId || !type.displayName) continue;
+        // Les catégories partagent des services : ne pas les doubler.
+        if (seen.has(type.serviceTypeId)) continue;
+        seen.add(type.serviceTypeId);
+        serviceTypes.push({
+          id: type.serviceTypeId,
+          label: type.displayName,
+          category: category?.displayName ?? "",
+        });
+      }
+    }
+
+    return { ok: true, serviceTypes };
   });
 }

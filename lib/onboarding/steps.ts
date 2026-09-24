@@ -286,9 +286,12 @@ export const ONBOARDING_STEPS: OnboardingStepDef[] = [
       },
       {
         key: "services.predefinis",
-        label: "Les services PRÉDÉFINIS de Google sont cochés en priorité",
-        hint: "Le test de Sterling Sky portait sur les services prédéfinis, pas sur les services libres. Prends d'abord ceux que Google propose pour la catégorie, puis complète en texte libre.",
-        manual: true,
+        label: "Au moins un service PRÉDÉFINI de Google est retenu",
+        hint: "Le test de Sterling Sky portait sur les services prédéfinis, pas sur le texte libre. Coche d'abord ceux que Google propose pour la catégorie, puis complète librement.",
+        test: (ctx) =>
+          (ctx.profile.services ?? []).some((service) =>
+            Boolean(service.service_type_id),
+          ),
         weight: 4,
         evidence: "prouvé",
         source: "Sterling Sky, retest 2022",

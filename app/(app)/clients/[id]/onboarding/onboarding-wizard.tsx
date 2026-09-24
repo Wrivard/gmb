@@ -66,6 +66,7 @@ import {
 import { toggleClientActiveAction } from "@/app/(app)/settings/actions";
 import { syncGbpMediaAction, pushGbpPhotosAction } from "../actions";
 import { AttributesEditor } from "./attributes-editor";
+import { PredefinedServices } from "./predefined-services";
 
 /* ── Découpage de gbp_profile en sections sauvegardables ──────────── */
 
@@ -527,7 +528,16 @@ export function OnboardingWizard({
             <IdentityEditor profile={profile} onChange={setProfile} />
           )}
           {step.key === "services" && (
-            <ServicesEditor profile={profile} onChange={setProfile} />
+            <>
+              {/* Les prédéfinis d'abord : c'est eux qui bougent le
+                  classement, le texte libre complète. */}
+              <PredefinedServices
+                clientId={clientId}
+                profile={profile}
+                onChange={setProfile}
+              />
+              <ServicesEditor profile={profile} onChange={setProfile} />
+            </>
           )}
           {step.key === "presentation" && (
             <>

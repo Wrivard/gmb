@@ -37,7 +37,12 @@ const fullProfile: GbpProfileData = {
   description: "x".repeat(300),
   opening_date: "2008-04",
   services: [
-    { name: "Réfection de toiture", description: "On refait au complet." },
+    {
+      name: "Réfection de toiture",
+      description: "On refait au complet.",
+      // Un service PRÉDÉFINI : c'est lui qui remplit services.predefinis.
+      service_type_id: "job_type_id:roof_replacement",
+    },
     { name: "Réparation d'urgence", description: "Infiltrations, 24 h." },
     { name: "Inspection", description: "Par drone, rapport photo." },
   ],
@@ -299,5 +304,51 @@ describe("photos : ce qui est déjà sur Google compte", () => {
       },
     });
     expect(galleryCount(ctx)).toBe(2);
+  });
+});
+
+describe("services prédéfinis", () => {
+  const req = ONBOARDING_STEPS.flatMap((s) => s.requirements).find(
+    (r) => r.key === "services.predefinis",
+  )!;
+  const ctxWith = (services: GbpProfileData["services"]) =>
+    onboardingCtx({
+      gbp_profile: { services },
+      onboarding: {},
+      brandProfileComplete: false,
+    });
+
+  // Le test de Sterling Sky portait sur les services PRÉDÉFINIS : du
+  // texte libre, même abondant, ne remplit pas ce critère.
+  it("du texte libre seul ne suffit pas", () => {
+    expect(
+      req.test!(
+        ctxWith([
+          { name: "Réfection de toiture" },
+          { name: "Inspection par drone" },
+        ]),
+      ),
+    ).toBe(false);
+  });
+
+  it("un seul service structuré suffit", () => {
+    expect(
+      req.test!(
+        ctxWith([
+          { name: "Réfection de toiture" },
+          { name: "Rénovation de salle de bain", service_type_id: "job_type_id:bathroom_remodeling" },
+        ]),
+      ),
+    ).toBe(true);
+  });
+
+  it("sans service, le critère reste à faire", () => {
+    expect(req.test!(ctxWith(undefined))).toBe(false);
+    expect(req.test!(ctxWith([]))).toBe(false);
+  });
+
+  it("ce critère ne se coche plus à la main", () => {
+    expect(req.manual).toBeUndefined();
+    expect(isKnownOnboardingItem("services.predefinis")).toBe(false);
   });
 });

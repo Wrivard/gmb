@@ -32,6 +32,20 @@ export interface GbpAttributeMeta {
   valueMetadata?: Array<{ value: string; displayName: string }>;
 }
 
+/**
+ * Une catégorie Google, avec les services qu'elle propose.
+ *
+ * `serviceTypes` est le catalogue des services PRÉDÉFINIS — ceux sur
+ * lesquels portait le test de Sterling Sky (mouvement de classement en
+ * 24-72 h), par opposition aux services en texte libre.
+ */
+export interface GbpCategory {
+  /** `categories/gcid:roofing_contractor` */
+  name?: string;
+  displayName?: string;
+  serviceTypes?: Array<{ serviceTypeId?: string; displayName?: string }>;
+}
+
 /** Une photo déjà publiée sur la fiche Google. */
 export interface GbpMediaItem {
   /** Resource name complet. */
@@ -65,8 +79,8 @@ export interface GbpLocation {
   categories?: {
     // `name` est le resource name gcid (« categories/gcid:roofing_contractor ») :
     // c'est la clé qu'exige le catalogue d'attributs, pas le libellé.
-    primaryCategory?: { name?: string; displayName?: string };
-    additionalCategories?: Array<{ name?: string; displayName?: string }>;
+    primaryCategory?: GbpCategory;
+    additionalCategories?: GbpCategory[];
   };
   phoneNumbers?: { primaryPhone?: string };
   websiteUri?: string;
