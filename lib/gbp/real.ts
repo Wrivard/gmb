@@ -187,6 +187,49 @@ export class RealGbpClient implements GbpClient {
       }));
   }
 
+  /** ⚠️ Doc Google, jamais exercé — voir `listAttributeMetadata`. */
+  async uploadMedia(
+    accountId: string,
+    locationName: string,
+    sourceUrl: string,
+    category: string,
+  ): Promise<GbpMediaItem> {
+    const json = await parseOrThrow<{
+      name?: string;
+      googleUrl?: string;
+      thumbnailUrl?: string;
+    }>(
+      await gbpFetch(`${GMB_V4}/${accountId}/${locationName}/media`, {
+        method: "POST",
+        body: JSON.stringify({
+          mediaFormat: "PHOTO",
+          locationAssociation: { category },
+          sourceUrl,
+        }),
+      }),
+      "media.create",
+    );
+    return {
+      name: json.name ?? "",
+      category,
+      googleUrl: json.googleUrl ?? sourceUrl,
+      thumbnailUrl: json.thumbnailUrl,
+    };
+  }
+
+  async deleteMedia(
+    accountId: string,
+    locationName: string,
+    mediaId: string,
+  ): Promise<void> {
+    await parseOrThrow(
+      await gbpFetch(`${GMB_V4}/${accountId}/${locationName}/media/${mediaId}`, {
+        method: "DELETE",
+      }),
+      "media.delete",
+    );
+  }
+
   async getAttributes(
     accountId: string,
     locationName: string,

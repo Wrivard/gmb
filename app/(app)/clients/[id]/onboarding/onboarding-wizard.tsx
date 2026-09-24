@@ -20,9 +20,11 @@ import {
   CloudUpload,
   ExternalLink,
   ImagePlus,
+  Loader2,
   PartyPopper,
   Plus,
   Trash2,
+  UploadCloud,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -62,7 +64,7 @@ import {
   uploadGbpPhotoAction,
 } from "../actions";
 import { toggleClientActiveAction } from "@/app/(app)/settings/actions";
-import { syncGbpMediaAction } from "../actions";
+import { syncGbpMediaAction, pushGbpPhotosAction } from "../actions";
 import { AttributesEditor } from "./attributes-editor";
 
 /* ── Découpage de gbp_profile en sections sauvegardables ──────────── */
@@ -1165,7 +1167,10 @@ function PhotosEditor({
   const total = gallery.length + googleGallery.length;
   const [busy, setBusy] = useState<string | null>(null);
   const [syncing, startSync] = useTransition();
+  const [pushing, startPushPhotos] = useTransition();
   const synced = useRef(false);
+  // Déposée ici mais pas encore en ligne : c'est ce que l'envoi traite.
+  const pending = photos.filter((photo) => !photo.google_name);
 
   // Le cache s'affiche immédiatement ; cet appel ne sert qu'à repérer
   // ce qui a été ajouté ou retiré sur la fiche depuis la dernière fois.
@@ -1235,6 +1240,42 @@ function PhotosEditor({
           wide
         />
       </div>
+
+      {pending.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed p-3">
+          <p className="text-sm text-muted-foreground">
+            {pending.length} photo{pending.length > 1 ? "s" : ""} déposée
+            {pending.length > 1 ? "s" : ""} ici, pas encore sur la fiche.
+          </p>
+          <Button
+            size="sm"
+            disabled={pushing}
+            onClick={() =>
+              startPushPhotos(async () => {
+                const result = await pushGbpPhotosAction(clientId);
+                if (!result.ok) {
+                  toast.error(result.error);
+                  return;
+                }
+                if (result.failed) {
+                  toast.warning(
+                    `${result.pushed} envoyée(s), ${result.failed} en échec.`,
+                  );
+                } else {
+                  toast.success(
+                    `${result.pushed} photo(s) publiée(s) sur la fiche.`,
+                  );
+                }
+                const fresh = await syncGbpMediaAction(clientId);
+                if (fresh.ok) onGoogleMedia(fresh.items ?? []);
+              })
+            }
+          >
+            {pushing ? <Loader2 className="animate-spin" /> : <UploadCloud />}
+            Envoyer vers la fiche
+          </Button>
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         <p className="text-sm font-medium">Galerie</p>

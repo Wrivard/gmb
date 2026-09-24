@@ -106,6 +106,13 @@ export type GbpPhotoRole = "logo" | "cover" | "photo";
 /** Photo de la fiche, stockée dans le bucket public gbp-photos. */
 export interface GbpPhoto {
   path: string;
+  /**
+   * Resource name rendu par Google une fois la photo publiée. Sa
+   * présence est ce qui distingue « déposée ici » de « en ligne » —
+   * sans elle, chaque envoi republierait toute la galerie.
+   */
+  google_name?: string;
+  pushed_at?: string;
   /** URL publique — affichage dans l'app et sourceUrl du futur push média. */
   url: string;
   role: GbpPhotoRole;

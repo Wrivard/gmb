@@ -35,6 +35,23 @@ export interface GbpClient {
   ): Promise<GbpAttributeMeta[]>;
   /** Photos déjà publiées sur la fiche — lecture seule. */
   listMedia(accountId: string, locationName: string): Promise<GbpMediaItem[]>;
+  /**
+   * Publie une photo sur la fiche depuis une URL publique. Google va
+   * chercher l'image lui-même : elle doit être joignable sans
+   * authentification (le bucket de l'app l'est).
+   */
+  uploadMedia(
+    accountId: string,
+    locationName: string,
+    sourceUrl: string,
+    category: string,
+  ): Promise<GbpMediaItem>;
+  /** Retire une photo de la fiche. */
+  deleteMedia(
+    accountId: string,
+    locationName: string,
+    mediaId: string,
+  ): Promise<void>;
   /** Attributs actuellement posés sur la fiche. */
   getAttributes(
     accountId: string,

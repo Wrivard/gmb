@@ -374,6 +374,65 @@ export class ZernioGbpClient implements GbpClient {
       }));
   }
 
+  /**
+   * Vérifié le 2026-09-24 : `POST /gmb-media` attend un `sourceUrl` que
+   * Google va lui-même télécharger, et la suppression passe par
+   * `DELETE /gmb-media?locationId=…&mediaId=…` — l'envoi est donc
+   * réversible, ce qui a conditionné la décision de le brancher.
+   */
+  async uploadMedia(
+    accountId: string,
+    locationName: string,
+    sourceUrl: string,
+    category: string,
+  ): Promise<GbpMediaItem> {
+    const account = await accountFor(accountId || locationName);
+    const json = await parseOrThrow<{
+      name?: string;
+      googleUrl?: string;
+      thumbnailUrl?: string;
+      createTime?: string;
+      locationAssociation?: { category?: string };
+    }>(
+      await zernioFetch(
+        `/accounts/${account.zernioAccountId}/gmb-media?locationId=${bareLocationId(locationName)}`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            sourceUrl,
+            mediaFormat: "PHOTO",
+            category,
+          }),
+        },
+      ),
+      "zernio.gmb-media.upload",
+    );
+    return {
+      name: json.name ?? "",
+      category: json.locationAssociation?.category ?? category,
+      googleUrl: json.googleUrl ?? sourceUrl,
+      thumbnailUrl: json.thumbnailUrl,
+      createTime: json.createTime,
+    };
+  }
+
+  async deleteMedia(
+    accountId: string,
+    locationName: string,
+    mediaId: string,
+  ): Promise<void> {
+    const account = await accountFor(accountId || locationName);
+    await parseOrThrow(
+      await zernioFetch(
+        `/accounts/${account.zernioAccountId}/gmb-media` +
+          `?locationId=${bareLocationId(locationName)}` +
+          `&mediaId=${encodeURIComponent(mediaId)}`,
+        { method: "DELETE" },
+      ),
+      "zernio.gmb-media.delete",
+    );
+  }
+
   async getAttributes(
     accountId: string,
     locationName: string,

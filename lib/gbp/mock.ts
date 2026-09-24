@@ -131,6 +131,24 @@ export class MockGbpClient implements GbpClient {
     return [];
   }
 
+  async uploadMedia(
+    _accountId: string,
+    locationName: string,
+    sourceUrl: string,
+    category: string,
+  ): Promise<GbpMediaItem> {
+    await simulateNetwork();
+    return {
+      name: `${locationName}/media/mock-${Date.now().toString(36)}`,
+      category,
+      googleUrl: sourceUrl,
+    };
+  }
+
+  async deleteMedia(): Promise<void> {
+    await simulateNetwork();
+  }
+
   async getAttributes(): Promise<GbpAttributeValue[]> {
     await simulateNetwork();
     return [];

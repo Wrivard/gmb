@@ -1001,3 +1001,94 @@ export async function syncGbpMediaAction(clientId: string): Promise<
     return { ok: true, items, added, removed };
   });
 }
+
+/** Rôle dans l'app → catégorie Google. */
+const MEDIA_CATEGORY: Record<string, string> = {
+  logo: "PROFILE",
+  cover: "COVER",
+  photo: "ADDITIONAL",
+};
+
+/**
+ * Publie sur la fiche les photos déposées dans l'app qui n'y sont pas
+ * encore.
+ *
+ * Elles restaient archivées chez nous et quelqu'un devait les reposer à
+ * la main sur Google — un double travail pour chaque projet. Google va
+ * chercher l'image lui-même à partir de son URL publique : le bucket de
+ * l'app en est une.
+ *
+ * Vérifié en aller-retour sur la fiche de Küa le 2026-09-24 : envoi puis
+ * retrait, 4 → 5 → 4 photos.
+ */
+export async function pushGbpPhotosAction(
+  clientId: string,
+): Promise<ActionResult & { pushed?: number; failed?: number }> {
+  return runAction("L'envoi des photos a échoué.", async () => {
+    const { member, supabase, client } = await loadClientForMember(clientId);
+    if (!client.gbp_location_id) {
+      return { ok: false, error: "Aucune fiche Google liée à ce projet." };
+    }
+
+    const profile: GbpProfileData = client.gbp_profile ?? {};
+    const photos = profile.photos ?? [];
+    const pending = photos.filter((photo) => !photo.google_name);
+    if (!pending.length) {
+      return { ok: true, pushed: 0, failed: 0 };
+    }
+
+    const gbp = getGbpClient();
+    const accountId = client.gbp_account_id ?? client.gbp_location_id;
+    const byPath = new Map<string, { name: string; at: string }>();
+    let failed = 0;
+
+    // En série : Google refuse les rafales, et un échec au milieu ne doit
+    // pas faire perdre les envois déjà réussis.
+    for (const photo of pending) {
+      try {
+        const created = await gbp.uploadMedia(
+          accountId,
+          client.gbp_location_id,
+          photo.url,
+          MEDIA_CATEGORY[photo.role] ?? "ADDITIONAL",
+        );
+        byPath.set(photo.path, {
+          name: created.name,
+          at: new Date().toISOString(),
+        });
+      } catch (error) {
+        failed++;
+        console.error(`push photo ${photo.path} (${client.name}):`, error);
+      }
+    }
+
+    if (byPath.size) {
+      const { error } = await supabase
+        .from("clients")
+        .update({
+          gbp_profile: {
+            ...profile,
+            photos: photos.map((photo) => {
+              const done = byPath.get(photo.path);
+              return done
+                ? { ...photo, google_name: done.name, pushed_at: done.at }
+                : photo;
+            }),
+          },
+        })
+        .eq("id", clientId);
+      if (error) throw new Error(error.message);
+
+      await logActivity({
+        agencyId: member.agency_id,
+        clientId,
+        actor: member.email,
+        action: "gbp_photos_pushed",
+        payload: { pushed: byPath.size, failed },
+      });
+    }
+
+    revalidatePath(`/clients/${clientId}/onboarding`);
+    return { ok: true, pushed: byPath.size, failed };
+  });
+}
