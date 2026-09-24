@@ -372,8 +372,16 @@ export class ZernioGbpClient implements GbpClient {
   async deleteReviewReply(reviewName: string): Promise<void> {
     const account = await accountFor(reviewName);
     const response = await zernioFetch(
-      `/inbox/reviews/${encodeURIComponent(reviewName)}/reply?accountId=${account.zernioAccountId}`,
-      { method: "DELETE" },
+      `/inbox/reviews/${encodeURIComponent(reviewName)}/reply`,
+      {
+        method: "DELETE",
+        // `accountId` va dans le CORPS, même en DELETE. En query, Zernio
+        // répond 400 « missing_required_field ». Vérifié en production
+        // le 2026-09-24 : une réponse de test est restée en ligne parce
+        // que le retrait échouait — le seul moyen de le savoir était
+        // d'écrire pour de vrai, puis d'essayer de défaire.
+        body: JSON.stringify({ accountId: account.zernioAccountId }),
+      },
     );
     await parseOrThrow(response, "zernio.reviews.deleteReply");
   }

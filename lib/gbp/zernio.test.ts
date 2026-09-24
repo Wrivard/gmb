@@ -281,6 +281,17 @@ describe("écritures", () => {
     expect(reply?.body).toEqual({ accountId: "zern1", message: "Merci !" });
   });
 
+  // Régression vécue : `accountId` partait en query, Zernio répondait
+  // 400, et une réponse de test est restée en ligne sur la fiche de Küa.
+  it("deleteReviewReply met accountId dans le CORPS, pas en query", async () => {
+    const reviewName = `${ACCOUNT}/locations/${GESTION}/reviews/r1`;
+    await new ZernioGbpClient().deleteReviewReply(reviewName);
+    const del = calls.find((call) => call.method === "DELETE");
+    expect(del?.url).toContain(encodeURIComponent(reviewName));
+    expect(del?.url).not.toContain("accountId=");
+    expect(del?.body).toEqual({ accountId: "zern1" });
+  });
+
   it("updateLocation met updateMask dans le CORPS, pas en query", async () => {
     await new ZernioGbpClient().updateLocation(
       `locations/${GESTION}`,
