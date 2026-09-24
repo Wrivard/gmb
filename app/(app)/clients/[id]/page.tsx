@@ -9,6 +9,7 @@ import { HISTORY_PAGE, loadInboxReviews } from "@/lib/reviews/inbox";
 import { loadClientQueue } from "@/lib/posts/queue";
 import { loadClientGrowth } from "@/lib/clients/growth";
 import { onboardingCtx, onboardingProgress } from "@/lib/onboarding/steps";
+import { reviewStatsByClient } from "@/lib/onboarding/review-stats";
 import { isBrandProfileIncomplete } from "@/lib/clients/brand-profile";
 import { GrowthView } from "@/components/clients/growth-view";
 import { GeogridCard } from "@/components/clients/geogrid-card";
@@ -226,6 +227,10 @@ export default async function ClientDetailPage({
   if (error) throw new Error(error.message);
   if (!client) notFound();
 
+  // Volume d'avis avec texte, récence et flux : trois des critères les
+  // plus lourds du score se mesurent, ils ne se cochent pas.
+  const reviewStats = await reviewStatsByClient(supabase, [client.id]);
+
   return (
     <div className="flex flex-col gap-5">
       {/* Même filet temps réel que /posts et /reviews : un cron ou un
@@ -292,6 +297,7 @@ export default async function ClientDetailPage({
             brandProfileComplete: !isBrandProfileIncomplete(
               client.brand_profile,
             ),
+            reviews: reviewStats.get(client.id),
           }),
         );
         if (progress.complete) return null;

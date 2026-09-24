@@ -38,6 +38,7 @@ import {
   isRequirementMet,
   ONBOARDING_STEPS,
   onboardingProgress,
+  type ReviewStats,
   PUSHABLE_SECTIONS,
   WEEKDAYS,
   type OnboardingCtx,
@@ -165,6 +166,7 @@ export function OnboardingWizard({
   initialProfile,
   initialChecks,
   brandProfileComplete,
+  reviewStats,
 }: {
   clientId: string;
   clientName: string;
@@ -172,6 +174,8 @@ export function OnboardingWizard({
   initialProfile: GbpProfileData;
   initialChecks: Record<string, OnboardingItemState>;
   brandProfileComplete: boolean;
+  /** Mesuré au rendu serveur : volume avec texte, récence, flux, réponses. */
+  reviewStats?: ReviewStats;
 }) {
   const router = useRouter();
   const [profile, setProfile] = useState<GbpProfileData>(initialProfile);
@@ -186,8 +190,8 @@ export function OnboardingWizard({
   const [activating, startActivate] = useTransition();
 
   const ctx: OnboardingCtx = useMemo(
-    () => ({ profile: saved, checks, brandProfileComplete }),
-    [saved, checks, brandProfileComplete],
+    () => ({ profile: saved, checks, brandProfileComplete, reviews: reviewStats }),
+    [saved, checks, brandProfileComplete, reviewStats],
   );
   const progress = useMemo(() => onboardingProgress(ctx), [ctx]);
 
@@ -275,6 +279,7 @@ export function OnboardingWizard({
       profile: initialProfile,
       checks: initialChecks,
       brandProfileComplete,
+      reviews: reviewStats,
     });
     const index = ONBOARDING_STEPS.findIndex(
       (step) => !initial.doneSteps.has(step.key),
@@ -626,13 +631,30 @@ function RequirementRow({
         <CircleDashed className="mt-0.5 size-4 shrink-0 text-muted-foreground/60" />
       )}
       <span className="min-w-0">
-        <span
-          className={cn(
-            "block text-sm",
-            met && "text-muted-foreground line-through",
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span
+            className={cn(
+              "text-sm",
+              met && "text-muted-foreground line-through",
+            )}
+          >
+            {requirement.label}
+          </span>
+          {/* Le poids rend visible ce qui compte vraiment : tous les
+              critères ne se valent pas, et un score plat le cachait. */}
+          {requirement.weight >= 4 && !met && (
+            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+              Fort impact
+            </span>
           )}
-        >
-          {requirement.label}
+          {/* Dire d'où vient l'affirmation : une checklist de SEO local
+              mélange tests contrôlés et croyances de blogue. */}
+          <span
+            className="text-[10px] uppercase tracking-wide text-muted-foreground/70"
+            title={requirement.source ?? undefined}
+          >
+            {requirement.evidence}
+          </span>
         </span>
         {requirement.hint && (
           <span className="mt-0.5 block text-xs text-muted-foreground">

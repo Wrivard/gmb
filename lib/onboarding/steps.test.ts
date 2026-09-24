@@ -6,7 +6,18 @@ import {
   ONBOARDING_TOTAL,
   onboardingCtx,
   onboardingProgress,
+  ONBOARDING_WEIGHT_TOTAL,
+  type ReviewStats,
 } from "./steps";
+
+/** Fiche dont les avis remplissent les trois critères mesurés. */
+const fullReviews: ReviewStats = {
+  total: 14,
+  withText: 12,
+  daysSinceLastReview: 4,
+  unanswered: 0,
+  monthsWithReview: 3,
+};
 
 const emptyCtx = onboardingCtx({
   gbp_profile: {},
@@ -79,6 +90,7 @@ describe("onboardingProgress (v2 — données + checks manuels)", () => {
         gbp_profile: fullProfile,
         onboarding: {},
         brandProfileComplete: true,
+        reviews: fullReviews,
       }),
     );
     const autoCount = ONBOARDING_STEPS.flatMap((s) => s.requirements).filter(
@@ -94,6 +106,7 @@ describe("onboardingProgress (v2 — données + checks manuels)", () => {
         gbp_profile: fullProfile,
         onboarding: { items: allManualChecks },
         brandProfileComplete: true,
+        reviews: fullReviews,
       }),
     );
     expect(progress.done).toBe(ONBOARDING_TOTAL);
@@ -111,6 +124,7 @@ describe("onboardingProgress (v2 — données + checks manuels)", () => {
         gbp_profile: partial,
         onboarding: {},
         brandProfileComplete: false,
+        reviews: fullReviews,
       }),
     );
     const full = onboardingProgress(
@@ -118,6 +132,7 @@ describe("onboardingProgress (v2 — données + checks manuels)", () => {
         gbp_profile: fullProfile,
         onboarding: {},
         brandProfileComplete: false,
+        reviews: fullReviews,
       }),
     );
     expect(progress.done).toBe(full.done - 1);
@@ -133,6 +148,7 @@ describe("onboardingProgress (v2 — données + checks manuels)", () => {
         gbp_profile: nineGallery,
         onboarding: {},
         brandProfileComplete: false,
+        reviews: fullReviews,
       }),
     );
     const b = onboardingProgress(
@@ -140,6 +156,7 @@ describe("onboardingProgress (v2 — données + checks manuels)", () => {
         gbp_profile: fullProfile,
         onboarding: {},
         brandProfileComplete: false,
+        reviews: fullReviews,
       }),
     );
     expect(a.done).toBe(b.done - 1);
@@ -152,6 +169,7 @@ describe("onboardingProgress (v2 — données + checks manuels)", () => {
         gbp_profile: short,
         onboarding: {},
         brandProfileComplete: false,
+        reviews: fullReviews,
       }),
     );
     const b = onboardingProgress(
@@ -159,6 +177,7 @@ describe("onboardingProgress (v2 — données + checks manuels)", () => {
         gbp_profile: fullProfile,
         onboarding: {},
         brandProfileComplete: false,
+        reviews: fullReviews,
       }),
     );
     expect(a.done).toBe(b.done - 1);
@@ -182,5 +201,96 @@ describe("onboardingProgress (v2 — données + checks manuels)", () => {
     expect(isKnownOnboardingItem("avis.lien")).toBe(true);
     expect(isKnownOnboardingItem("categories.principale")).toBe(false);
     expect(isKnownOnboardingItem("inventé")).toBe(false);
+  });
+});
+
+describe("score pondéré", () => {
+  // Régression de conception : avec un score plat, « date d'ouverture »
+  // pesait autant que « catégorie principale », premier facteur de
+  // classement. Une fiche à 70 % pouvait rater tout ce qui compte.
+  it("la catégorie principale pèse plus que la date d'ouverture", () => {
+    const requirements = ONBOARDING_STEPS.flatMap((step) => step.requirements);
+    const categorie = requirements.find((r) => r.key === "categories.principale");
+    const ouverture = requirements.find((r) => r.key === "presentation.ouverture");
+    expect(categorie!.weight).toBeGreaterThan(ouverture!.weight);
+  });
+
+  it("deux critères remplis ne donnent pas le même score selon leur poids", () => {
+    const lourd = onboardingProgress(
+      onboardingCtx({
+        gbp_profile: { categories: { primary: "Couvreur" } },
+        onboarding: {},
+        brandProfileComplete: false,
+      }),
+    );
+    const leger = onboardingProgress(
+      onboardingCtx({
+        gbp_profile: { opening_date: "2008-04" },
+        onboarding: {},
+        brandProfileComplete: false,
+      }),
+    );
+    expect(lourd.done).toBe(leger.done);
+    expect(lourd.pct).toBeGreaterThan(leger.pct);
+  });
+
+  it("chaque critère porte un poids et un niveau de preuve", () => {
+    for (const requirement of ONBOARDING_STEPS.flatMap((s) => s.requirements)) {
+      expect(requirement.weight).toBeGreaterThanOrEqual(1);
+      expect(requirement.weight).toBeLessThanOrEqual(5);
+      expect(["prouvé", "corrélé", "pratique"]).toContain(requirement.evidence);
+    }
+  });
+
+  it("le total des poids correspond à la somme des critères", () => {
+    const sum = ONBOARDING_STEPS.flatMap((s) => s.requirements).reduce(
+      (acc, r) => acc + r.weight,
+      0,
+    );
+    expect(ONBOARDING_WEIGHT_TOTAL).toBe(sum);
+  });
+
+  it("nextBest propose d'abord les critères les plus lourds", () => {
+    const progress = onboardingProgress(emptyCtx);
+    expect(progress.nextBest).toHaveLength(3);
+    expect(progress.nextBest[0].weight).toBe(5);
+  });
+});
+
+describe("critères d'avis mesurés", () => {
+  const met = (key: string, reviews?: ReviewStats) => {
+    const requirement = ONBOARDING_STEPS.flatMap((s) => s.requirements).find(
+      (r) => r.key === key,
+    )!;
+    return requirement.test!(
+      onboardingCtx({
+        gbp_profile: {},
+        onboarding: {},
+        brandProfileComplete: false,
+        reviews,
+      }),
+    );
+  };
+
+  it("sans mesure, les critères d'avis restent à faire", () => {
+    expect(met("avis.volume-texte")).toBe(false);
+    expect(met("avis.recence")).toBe(false);
+    expect(met("avis.flux")).toBe(false);
+    expect(met("avis.reponses")).toBe(false);
+  });
+
+  it("ce sont les avis AVEC TEXTE qui comptent, pas le total", () => {
+    expect(met("avis.volume-texte", { ...fullReviews, total: 40, withText: 9 })).toBe(false);
+    expect(met("avis.volume-texte", { ...fullReviews, total: 10, withText: 10 })).toBe(true);
+  });
+
+  it("la récence tombe au-delà de 21 jours", () => {
+    expect(met("avis.recence", { ...fullReviews, daysSinceLastReview: 21 })).toBe(true);
+    expect(met("avis.recence", { ...fullReviews, daysSinceLastReview: 22 })).toBe(false);
+    expect(met("avis.recence", { ...fullReviews, daysSinceLastReview: null })).toBe(false);
+  });
+
+  it("un projet sans aucun avis n'a pas « 100 % répondus »", () => {
+    expect(met("avis.reponses", { ...fullReviews, total: 0, unanswered: 0 })).toBe(false);
   });
 });

@@ -18,6 +18,7 @@ import {
   locationToProfile,
   mergeProfile,
 } from "@/lib/gbp/profile-import";
+import { reviewStatsByClient } from "@/lib/onboarding/review-stats";
 import { GBP_DESCRIPTION_MAX } from "@/lib/gbp/limits";
 import { GbpAccessPendingError } from "@/lib/gbp/types";
 import {
@@ -262,11 +263,15 @@ async function stampIfComplete(
   nextOnboarding: OnboardingState,
 ): Promise<OnboardingState> {
   if (nextOnboarding.completed_at) return nextOnboarding;
+  // Les critères d'avis sont mesurés : sans eux, un projet paraîtrait
+  // « complet » alors que le flux d'avis n'a jamais démarré.
+  const reviewStats = await reviewStatsByClient(supabase, [client.id]);
   const progress = onboardingProgress(
     onboardingCtx({
       gbp_profile: nextProfile,
       onboarding: nextOnboarding,
       brandProfileComplete: !isBrandProfileIncomplete(client.brand_profile),
+      reviews: reviewStats.get(client.id),
     }),
   );
   if (!progress.complete) return nextOnboarding;
