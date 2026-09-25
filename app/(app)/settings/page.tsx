@@ -247,8 +247,7 @@ export default async function SettingsPage({
         <CardHeader>
           <CardTitle>Connexion Google</CardTitle>
           <CardDescription>
-            Le compte manager qui donne accès aux fiches Google Business
-            Profile des clients.
+            Le compte qui donne accès aux fiches des clients.
             {env.gbpMode === "mock" && (
               <>
                 {" "}
@@ -259,8 +258,7 @@ export default async function SettingsPage({
             {env.gbpMode === "zernio" && (
               <>
                 {" "}
-                L&apos;accès passe par <strong>Zernio</strong> : Google n&apos;a
-                jamais approuvé l&apos;accès API direct de Küa.
+                Via Zernio.
               </>
             )}
           </CardDescription>
@@ -399,7 +397,7 @@ export default async function SettingsPage({
         <CardHeader>
           <CardTitle>Équipe</CardTitle>
           <CardDescription>
-            Whitelist des courriels autorisés à se connecter à l&apos;app.
+            Qui peut se connecter.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -416,8 +414,7 @@ export default async function SettingsPage({
         <CardHeader>
           <CardTitle>Défauts de l&apos;agence</CardTitle>
           <CardDescription>
-            Appliqués aux nouveaux projets découverts (modifiables ensuite
-            projet par projet).
+            Appliqués aux nouveaux projets.
           </CardDescription>
         </CardHeader>
         <CardContent>

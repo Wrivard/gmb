@@ -31,9 +31,33 @@ const SUMMARY = {
   critical: { label: "Bloquant", variant: "destructive" as const },
 };
 
+function CheckList({ checks }: { checks: HealthCheck[] }) {
+  return (
+    <ul className="flex flex-col divide-y divide-border">
+      {checks.map((check) => {
+        const Icon = ICONS[check.status];
+        return (
+          <li key={check.key} className="flex gap-3 py-3 first:pt-0 last:pb-0">
+            <Icon
+              className={`mt-0.5 size-4 shrink-0 ${TONES[check.status]}`}
+              aria-hidden
+            />
+            <div className="min-w-0">
+              <p className="text-sm font-medium">{check.label}</p>
+              <p className="text-sm text-muted-foreground">{check.detail}</p>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function HealthCard({ checks }: { checks: HealthCheck[] }) {
   const overall = worstStatus(checks);
   const summary = SUMMARY[overall];
+  const attention = checks.filter((check) => check.status !== "ok");
+  const healthy = checks.filter((check) => check.status === "ok");
 
   return (
     <Card>
@@ -43,29 +67,26 @@ export function HealthCard({ checks }: { checks: HealthCheck[] }) {
           <Badge variant={summary.variant}>{summary.label}</Badge>
         </div>
         <CardDescription>
-          Ce que l&apos;app constate d&apos;elle-même sur son
-          environnement. Aucune valeur secrète n&apos;est affichée — seulement
-          leur présence.
+          Aucune valeur secrète n&apos;est affichée — seulement leur présence.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ul className="flex flex-col divide-y divide-border">
-          {checks.map((check) => {
-            const Icon = ICONS[check.status];
-            return (
-              <li key={check.key} className="flex gap-3 py-3 first:pt-0 last:pb-0">
-                <Icon
-                  className={`mt-0.5 size-4 shrink-0 ${TONES[check.status]}`}
-                  aria-hidden
-                />
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{check.label}</p>
-                  <p className="text-sm text-muted-foreground">{check.detail}</p>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        {/* Ce qui demande une action d'abord, en clair ; le reste replié.
+            Onze lignes dont neuf vertes enterraient les deux qui comptent. */}
+        {attention.length > 0 && <CheckList checks={attention} />}
+        {healthy.length > 0 && (
+          <details className="group mt-3">
+            <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+              <CheckCircle2 className="size-4 text-success" aria-hidden />
+              {healthy.length} vérification{healthy.length > 1 ? "s" : ""} au
+              vert
+              <span className="text-xs group-open:hidden">— afficher</span>
+            </summary>
+            <div className="mt-3">
+              <CheckList checks={healthy} />
+            </div>
+          </details>
+        )}
         <HealthTests />
       </CardContent>
     </Card>

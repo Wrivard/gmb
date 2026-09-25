@@ -45,10 +45,8 @@ export function DataModeCard({ mode }: { mode: DataMode }) {
       <CardHeader>
         <CardTitle>Mode de données</CardTitle>
         <CardDescription>
-          Réel = tes vrais mandats. Démo = les clients fictifs (Clinique
-          Dentaire Sourire Plus, Électricité Dumont…) pour montrer l&apos;app
-          ou tester sans exposer de vraies données. Le choix vaut pour ce
-          navigateur seulement.
+          Démo montre des clients fictifs, pour présenter l&apos;app sans
+          exposer de vraies données. Vaut pour ce navigateur.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex items-center gap-2">

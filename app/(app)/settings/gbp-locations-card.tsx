@@ -13,10 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  importGbpLocationAction,
-  listGbpLocationsAction,
-} from "./actions";
+import { importGbpLocationAction, listGbpLocationsAction } from "./actions";
 
 interface Row {
   accountId: string;
@@ -88,10 +85,7 @@ export function GbpLocationsCard() {
     <Card>
       <CardHeader>
         <CardTitle>Fiches Google</CardTitle>
-        <CardDescription>
-          Les fiches auxquelles le compte connecté a accès. Importe celles
-          sous mandat — les autres restent hors de l&apos;app.
-        </CardDescription>
+        <CardDescription>Importe celles sous mandat.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {rows === null ? (
@@ -111,8 +105,8 @@ export function GbpLocationsCard() {
           </div>
         ) : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Aucune fiche visible. Vérifie que le compte Google connecté est
-            bien gestionnaire des fiches.
+            Aucune fiche visible. Vérifie que le compte Google connecté est bien
+            gestionnaire des fiches.
           </p>
         ) : (
           <>
