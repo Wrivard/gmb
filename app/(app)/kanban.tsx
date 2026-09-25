@@ -6,11 +6,9 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, MessageSquare, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { GoldStar } from "@/components/reviews/star-rating";
-import { cn } from "@/lib/utils";
 import { generatePostAction } from "./posts/actions";
 
 export interface BoardClient {
@@ -112,11 +110,8 @@ export function DashboardKanban({
       )}
       <div className="grid gap-3 md:grid-cols-3">
         {COLUMNS.map((column) => (
-          <section
-            key={column.key}
-            className="flex flex-col gap-2 rounded-lg border border-border bg-card p-2"
-          >
-            <h2 className="flex items-center gap-2 px-1 py-1 text-sm font-medium">
+          <section key={column.key} className="flex flex-col gap-2">
+            <h2 className="flex items-center gap-2 px-1 text-xs font-medium text-muted-foreground">
               {column.title}
               <span className="ml-auto font-normal text-muted-foreground tabular-nums">
                 {byColumn[column.key].length}
@@ -177,103 +172,87 @@ function ClientCard({ client }: { client: BoardClient }) {
   const router = useRouter();
   const [generating, startGenerate] = useTransition();
   const column = columnOf(client);
-  // Urgence réelle : review ≤2★ en attente, retard (>72 h / après le 20),
-  // ou publication en échec chez Google.
-  const urgent =
-    client.late ||
-    client.failedPosts > 0 ||
-    (client.unreplied > 0 &&
-      client.worstPendingRating !== null &&
-      client.worstPendingRating <= 2);
+
+  // Urgence réelle : avis ≤ 2★ en attente, retard, ou publication en
+  // échec chez Google. Elle seule a droit au rouge — quand chaque carte
+  // était encadrée de rouge, plus aucune ne ressortait.
+  const lowRating =
+    client.unreplied > 0 &&
+    client.worstPendingRating !== null &&
+    client.worstPendingRating <= 2;
+  const urgent = client.late || client.failedPosts > 0 || lowRating;
+
+  const drafts = client.draftReplies + client.draftPosts;
+  // Les faits, sur une ligne, sans pastille. Une pastille par fait
+  // transformait chaque carte en tableau de bord miniature.
+  const facts = [
+    client.unreplied > 0 &&
+      `${client.unreplied} avis`,
+    client.postsDue > 0 &&
+      `${client.postsDue} post${client.postsDue > 1 ? "s" : ""} à faire`,
+    drafts > 0 && `${drafts} brouillon${drafts > 1 ? "s" : ""}`,
+  ].filter(Boolean) as string[];
 
   return (
-    <div
-      className={cn(
-        "group relative rounded-lg border bg-elevated p-3 transition-colors hover:border-ring",
-        urgent ? "border-destructive/60" : "border-border",
-      )}
-    >
+    <div className="group rounded-md border border-border bg-elevated p-3 transition-colors hover:border-ring/50">
       <Link
         href={`/clients/${client.id}`}
-        className="block rounded outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="flex items-start gap-2 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       >
-        <div className="text-sm font-medium">{client.name}</div>
-        <div className="text-xs text-muted-foreground">
-          {[client.category, client.city].filter(Boolean).join(" · ") || "—"}
-        </div>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">
+            {client.name}
+          </span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {client.category ?? "—"}
+          </span>
+        </span>
+        {client.avgRating !== null && (
+          <span className="flex shrink-0 items-center gap-1 text-xs tabular-nums text-muted-foreground">
+            <GoldStar />
+            {client.avgRating.toFixed(1)}
+          </span>
+        )}
       </Link>
 
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        {client.failedPosts > 0 && (
-          <Link href={`/clients/${client.id}?tab=posts`}>
-            <Badge variant="destructive">
-              {client.failedPosts} échec{client.failedPosts > 1 ? "s" : ""} de
-              publication
-            </Badge>
-          </Link>
-        )}
-        {client.unreplied > 0 && (
-          <Link href={`/clients/${client.id}?tab=reviews`}>
-            <Badge variant={urgent ? "destructive" : "secondary"}>
-              {client.unreplied} review{client.unreplied > 1 ? "s" : ""}
-              {client.worstPendingRating !== null &&
-                client.worstPendingRating <= 2 &&
-                ` · dont une ${client.worstPendingRating}★`}
-            </Badge>
-          </Link>
-        )}
-        {client.postsDue > 0 && (
-          <Link href={`/clients/${client.id}?tab=posts`}>
-            <Badge variant="secondary">
-              {client.postsDue}/{client.postsPerMonth} post
-              {client.postsPerMonth > 1 ? "s" : ""} ce mois
-            </Badge>
-          </Link>
-        )}
-        {client.draftReplies + client.draftPosts > 0 && (
-          <Badge variant="outline">
-            {client.draftReplies + client.draftPosts} brouillon
-            {client.draftReplies + client.draftPosts > 1 ? "s" : ""}
-          </Badge>
-        )}
-        {client.profileIncomplete && (
-          <Link href={`/clients/${client.id}?tab=settings`}>
-            <Badge
-              variant="outline"
-              className="border-warning/40 text-warning"
-            >
-              Profil incomplet
-            </Badge>
-          </Link>
-        )}
-      </div>
+      {/* L'exception, nommée — seulement quand il y en a une. */}
+      {urgent && (
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-destructive">
+          <span className="size-1.5 shrink-0 rounded-full bg-destructive" />
+          {client.failedPosts > 0
+            ? `${client.failedPosts} publication${client.failedPosts > 1 ? "s" : ""} en échec`
+            : lowRating
+              ? `Un avis ${client.worstPendingRating}★ attend une réponse`
+              : // « En retard » seul ne disait pas QUOI : la colonne le dit.
+                column === "reviews"
+                ? "Avis sans réponse depuis plus de 72 h"
+                : "Posts du mois en retard"}
+        </p>
+      )}
 
-      <div className="mt-2 flex items-center justify-between">
-        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-          {client.avgRating !== null && (
-            <>
-              <GoldStar />
-              {client.avgRating.toFixed(1)} · {client.reviewCount} avis
-            </>
-          )}
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <span className="truncate text-xs text-muted-foreground">
+          {facts.join(" · ")}
         </span>
-
-        {/* Actions rapides — toujours visibles : c'est le geste principal. */}
-        <span className="flex gap-1">
+        <span className="flex shrink-0 gap-1">
           {column === "reviews" && (
             <Button
               size="sm"
-              variant="outline"
+              variant="ghost"
+              className="h-7 px-2"
               render={<Link href={`/clients/${client.id}?tab=reviews`} />}
             >
               <MessageSquare />
               Répondre
             </Button>
           )}
-          {client.postsDue > 0 && (
+          {/* Une action par carte : celle de sa colonne. Deux boutons
+              tronquaient la ligne de faits. */}
+          {column === "posts" && client.postsDue > 0 && (
             <Button
               size="sm"
-              variant="outline"
+              variant="ghost"
+              className="h-7 px-2"
               disabled={generating}
               onClick={() =>
                 startGenerate(async () => {
