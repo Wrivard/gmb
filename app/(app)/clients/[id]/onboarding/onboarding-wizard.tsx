@@ -97,7 +97,9 @@ function sectionPatch(
     case "identity":
       return { identity: profile.identity };
     case "hours":
-      return { hours: profile.hours };
+      // Les heures spéciales font partie de la même section : sans elles
+      // ici, la saisie ne serait jamais enregistrée ni poussée.
+      return { hours: profile.hours, special_hours: profile.special_hours };
     case "presentation":
       return {
         description: profile.description,
@@ -1001,6 +1003,123 @@ function IdentityEditor({ profile, onChange }: EditorProps) {
           })}
         </div>
       </div>
+
+      <SpecialHoursEditor profile={profile} onChange={onChange} />
+    </div>
+  );
+}
+
+/**
+ * Jours fériés et fermetures exceptionnelles.
+ *
+ * Une fiche annoncée « ouverte » un 25 décembre envoie un client devant
+ * une porte close — et vaut un avis 1★ mérité. Ça se saisissait
+ * jusqu'ici sur Google ; c'est le même push que les horaires réguliers.
+ */
+function SpecialHoursEditor({ profile, onChange }: EditorProps) {
+  const entries = profile.special_hours ?? [];
+  const today = new Date().toISOString().slice(0, 10);
+
+  function update(index: number, patch: Partial<(typeof entries)[number]>) {
+    onChange((prev) => {
+      const list = [...(prev.special_hours ?? [])];
+      list[index] = { ...list[index], ...patch };
+      return { ...prev, special_hours: list };
+    });
+  }
+
+  return (
+    <div>
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <p className="text-sm font-medium">Heures spéciales</p>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 px-2 text-xs text-muted-foreground"
+          onClick={() =>
+            onChange((prev) => ({
+              ...prev,
+              special_hours: [
+                ...(prev.special_hours ?? []),
+                { date: "", closed: true },
+              ],
+            }))
+          }
+        >
+          <Plus className="size-3" />
+          Ajouter une date
+        </Button>
+      </div>
+
+      {entries.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Aucune date exceptionnelle. Pense aux congés fériés à venir.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {entries.map((entry, index) => (
+            <div key={index} className="flex flex-wrap items-center gap-2 text-sm">
+              <Input
+                type="date"
+                value={entry.date}
+                onChange={(e) => update(index, { date: e.target.value })}
+                className={cn(
+                  "h-7 w-40 text-xs tabular-nums",
+                  // Une date passée n'informe plus personne : elle se voit
+                  // sans pour autant être effacée d'office.
+                  entry.date && entry.date < today && "opacity-60",
+                )}
+                aria-label="Date"
+              />
+              <select
+                value={entry.closed ? "closed" : "open"}
+                onChange={(e) =>
+                  update(index, { closed: e.target.value === "closed" })
+                }
+                className="h-7 rounded-md border border-input bg-transparent px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50 dark:bg-input/30"
+                aria-label="Ouvert ou fermé"
+              >
+                <option value="closed">Fermé</option>
+                <option value="open">Ouvert</option>
+              </select>
+              {!entry.closed && (
+                <>
+                  <Input
+                    type="time"
+                    value={entry.open ?? "09:00"}
+                    onChange={(e) => update(index, { open: e.target.value })}
+                    className="h-7 w-28 text-xs tabular-nums"
+                    aria-label="Ouverture"
+                  />
+                  <span className="text-muted-foreground">–</span>
+                  <Input
+                    type="time"
+                    value={entry.close ?? "17:00"}
+                    onChange={(e) => update(index, { close: e.target.value })}
+                    className="h-7 w-28 text-xs tabular-nums"
+                    aria-label="Fermeture"
+                  />
+                </>
+              )}
+              <button
+                type="button"
+                aria-label="Retirer cette date"
+                onClick={() =>
+                  onChange((prev) => ({
+                    ...prev,
+                    special_hours: (prev.special_hours ?? []).filter(
+                      (_, i) => i !== index,
+                    ),
+                  }))
+                }
+                className="text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

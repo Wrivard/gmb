@@ -443,7 +443,32 @@ function buildLocationPatch(
           },
         ];
       });
-      return { patch: { regularHours: { periods } }, mask: "regularHours" };
+      // Les heures spéciales voyagent avec les horaires : même section
+      // dans le wizard, même push. Google veut une date éclatée.
+      const special = (profile.special_hours ?? []).filter((entry) =>
+        /^\d{4}-\d{2}-\d{2}$/.test(entry.date),
+      );
+      if (!special.length) {
+        return { patch: { regularHours: { periods } }, mask: "regularHours" };
+      }
+      const specialHourPeriods = special.map((entry) => {
+        const [year, month, day] = entry.date.split("-").map(Number);
+        const startDate = { year, month, day };
+        return entry.closed
+          ? { startDate, closed: true }
+          : {
+              startDate,
+              openTime: timeOfDay(entry.open ?? "09:00"),
+              closeTime: timeOfDay(entry.close ?? "17:00"),
+            };
+      });
+      return {
+        patch: {
+          regularHours: { periods },
+          specialHours: { specialHourPeriods },
+        },
+        mask: "regularHours,specialHours",
+      };
     }
     case "presentation": {
       if (!profile.description?.trim() && !profile.opening_date) {

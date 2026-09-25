@@ -142,6 +142,22 @@ function hasRole(ctx: OnboardingCtx, role: "logo" | "cover"): boolean {
   );
 }
 
+/**
+ * Rempli par les données OU coché à la main.
+ *
+ * Certains critères sont vérifiables quand la donnée est là, mais pas
+ * réfutables quand elle manque : une fiche sans adresse est peut-être
+ * une entreprise à domicile qui a raison de la masquer. On mesure ce
+ * qu'on sait, et on laisse la case pour le reste — plutôt que de
+ * réclamer une confirmation pour une évidence.
+ */
+function autoOrChecked(
+  key: string,
+  auto: (ctx: OnboardingCtx) => boolean,
+): (ctx: OnboardingCtx) => boolean {
+  return (ctx) => auto(ctx) || Boolean(ctx.checks[key]?.done);
+}
+
 export function galleryCount(ctx: OnboardingCtx): number {
   const local = (ctx.profile.photos ?? []).filter(
     (photo) => photo.role === "photo",
@@ -204,9 +220,12 @@ export const ONBOARDING_STEPS: OnboardingStepDef[] = [
       },
       {
         key: "identity.adresse-visible",
-        label: "Adresse AFFICHÉE sur la fiche si l'entreprise a des locaux",
-        hint: "« Adresse affichée » est le 7e facteur (176), et masquer l'adresse corrèle négativement avec les requêtes « près de moi » (Sterling Sky, 8 186 entreprises). Ne la cache que si Google l'exige.",
+        label: "Adresse AFFICHÉE sur la fiche",
+        hint: "7e facteur (176), et masquer l'adresse corrèle négativement avec les requêtes « près de moi » (Sterling Sky, 8 186 entreprises). Rempli d'office dès que la fiche porte une adresse ; coche-le si l'entreprise n'a légitimement pas de local public.",
         manual: true,
+        test: autoOrChecked("identity.adresse-visible", (ctx) =>
+          filled(ctx.profile.identity?.address),
+        ),
         weight: 4,
         evidence: "prouvé",
         source: "Whitespark 2026 (#7, 176) ; Sterling Sky 2025",
@@ -251,9 +270,9 @@ export const ONBOARDING_STEPS: OnboardingStepDef[] = [
       },
       {
         key: "identity.heures-speciales",
-        label: "Heures spéciales posées pour les congés à venir",
-        hint: "Une fiche « ouverte » un 25 décembre alors que c'est fermé, c'est un client devant une porte close — et un avis 1★ mérité.",
-        manual: true,
+        label: "Heures spéciales enregistrées pour les congés",
+        hint: "Une fiche « ouverte » un 25 décembre alors que c'est fermé, c'est un client devant une porte close — et un avis 1★ mérité. Se saisit avec les horaires, juste au-dessus.",
+        test: (ctx) => (ctx.profile.special_hours ?? []).length > 0,
         weight: 2,
         evidence: "pratique",
       },

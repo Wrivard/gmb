@@ -34,6 +34,7 @@ const fullProfile: GbpProfileData = {
     saturday: null,
     sunday: null,
   },
+  special_hours: [{ date: "2026-12-25", closed: true }],
   description: "x".repeat(300),
   opening_date: "2008-04",
   services: [
@@ -179,8 +180,25 @@ describe("onboardingProgress (v2 — données + checks manuels)", () => {
     for (const step of ONBOARDING_STEPS) {
       for (const req of step.requirements) {
         expect(req.key.startsWith(`${step.key}.`)).toBe(true);
-        // Un critère est soit manuel, soit automatique — jamais ambigu.
-        expect(Boolean(req.manual) !== Boolean(req.test)).toBe(true);
+        // Un critère est automatique, manuel, ou hybride. Un hybride
+        // porte les deux : la donnée le remplit quand elle existe, la
+        // case couvre les cas qu'on ne peut pas mesurer (une entreprise
+        // sans local public, par exemple).
+        expect(Boolean(req.manual) || Boolean(req.test)).toBe(true);
+        // Mais un hybride DOIT consulter sa propre case, sinon celle-ci
+        // serait cliquable sans effet : `isRequirementMet` privilégie le
+        // test dès qu'il existe.
+        if (req.manual && req.test) {
+          expect(
+            req.test(
+              onboardingCtx({
+                gbp_profile: {},
+                onboarding: { items: { [req.key]: { done: true } } },
+                brandProfileComplete: false,
+              }),
+            ),
+          ).toBe(true);
+        }
       }
     }
   });
@@ -350,5 +368,51 @@ describe("services prédéfinis", () => {
   it("ce critère ne se coche plus à la main", () => {
     expect(req.manual).toBeUndefined();
     expect(isKnownOnboardingItem("services.predefinis")).toBe(false);
+  });
+});
+
+describe("adresse affichée et heures spéciales", () => {
+  const req = (key: string) =>
+    ONBOARDING_STEPS.flatMap((s) => s.requirements).find((r) => r.key === key)!;
+  const ctxWith = (profile: GbpProfileData, checks = {}) =>
+    onboardingCtx({
+      gbp_profile: profile,
+      onboarding: { items: checks },
+      brandProfileComplete: false,
+    });
+
+  // Une fiche sans adresse est peut-être une entreprise à domicile qui a
+  // raison de la masquer : on mesure ce qu'on sait, la case couvre le reste.
+  it("une adresse renseignée remplit le critère sans rien cocher", () => {
+    expect(
+      req("identity.adresse-visible").test!(
+        ctxWith({ identity: { address: "1 rue Test, Sainte-Thérèse" } }),
+      ),
+    ).toBe(true);
+  });
+
+  it("sans adresse, la case à cocher prend le relais", () => {
+    expect(req("identity.adresse-visible").test!(ctxWith({}))).toBe(false);
+    expect(
+      req("identity.adresse-visible").test!(
+        ctxWith({}, { "identity.adresse-visible": { done: true } }),
+      ),
+    ).toBe(true);
+  });
+
+  it("la case reste proposée pour les entreprises sans local", () => {
+    expect(req("identity.adresse-visible").manual).toBe(true);
+    expect(isKnownOnboardingItem("identity.adresse-visible")).toBe(true);
+  });
+
+  it("les heures spéciales se mesurent, elles ne se cochent plus", () => {
+    const requirement = req("identity.heures-speciales");
+    expect(requirement.manual).toBeUndefined();
+    expect(requirement.test!(ctxWith({}))).toBe(false);
+    expect(
+      requirement.test!(
+        ctxWith({ special_hours: [{ date: "2026-12-25", closed: true }] }),
+      ),
+    ).toBe(true);
   });
 });

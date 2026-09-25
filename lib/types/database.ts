@@ -151,6 +151,17 @@ export interface GbpProfileData {
     address?: string;
   };
   hours?: Partial<Record<GbpWeekday, GbpDayHours | null>>;
+  /**
+   * Jours aux horaires exceptionnels (congés fériés, fermetures).
+   * `closed` prime : une date fermée n'a pas d'heures.
+   */
+  special_hours?: Array<{
+    /** ISO « 2026-12-25 ». */
+    date: string;
+    closed: boolean;
+    open?: string;
+    close?: string;
+  }>;
   description?: string;
   /** "YYYY-MM" — date d'ouverture de l'entreprise. */
   opening_date?: string;
