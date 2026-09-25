@@ -171,8 +171,7 @@ export function ReviewsInbox({
 
   const sorted = useMemo(() => {
     const filtered = merged.filter((review) => {
-      if (statusFilter === "pending" && !isPending(review.status))
-        return false;
+      if (statusFilter === "pending" && !isPending(review.status)) return false;
       if (statusFilter === "replied" && review.status !== "replied")
         return false;
       if (statusFilter === "ignored" && review.status !== "ignored")
@@ -334,9 +333,7 @@ export function ReviewsInbox({
       }
       if (event.key === "e" && selectedId) {
         event.preventDefault();
-        document
-          .getElementById(`draft-${selectedId}`)
-          ?.focus();
+        document.getElementById(`draft-${selectedId}`)?.focus();
       }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -379,79 +376,80 @@ export function ReviewsInbox({
         />
 
         <div className="flex items-center gap-2 pb-1.5">
-        {mySet.size > 0 && (
-          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-            <Switch
-              checked={mineOnly}
-              onCheckedChange={(checked) => {
-                setMineOnly(Boolean(checked));
-                persistFilter("mes", checked ? "1" : "0", "0");
-              }}
-              aria-label="N'afficher que mes projets"
-            />
-            Mes projets
-          </label>
-        )}
-        {/* `items` sur le root : sans lui, Base UI affiche la VALEUR brute
+          {mySet.size > 0 && (
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+              <Switch
+                checked={mineOnly}
+                onCheckedChange={(checked) => {
+                  setMineOnly(Boolean(checked));
+                  persistFilter("mes", checked ? "1" : "0", "0");
+                }}
+                aria-label="N'afficher que mes projets"
+              />
+              Mes projets
+            </label>
+          )}
+          {/* `items` sur le root : sans lui, Base UI affiche la VALEUR brute
             (« all », un UUID…) dans le déclencheur fermé. */}
-        <Select
-          items={[
-            { value: "all", label: "Tous les projets" },
-            ...clients.map(([id, name]) => ({ value: id, label: name })),
-          ]}
-          value={clientFilter}
-          onValueChange={(v) => {
-            if (!v) return;
-            setClientFilter(v);
-            persistFilter("projet", v, "all");
-          }}
-        >
-          <SelectTrigger size="sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tous les projets</SelectItem>
-            {clients.map(([id, name]) => {
-              const pending = pendingByClient.get(id) ?? 0;
-              return (
-                <SelectItem key={id} value={id}>
-                  {pending > 0 ? `${name} · ${pending}` : name}
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
+          <Select
+            items={[
+              { value: "all", label: "Tous les projets" },
+              ...clients.map(([id, name]) => ({ value: id, label: name })),
+            ]}
+            value={clientFilter}
+            onValueChange={(v) => {
+              if (!v) return;
+              setClientFilter(v);
+              persistFilter("projet", v, "all");
+            }}
+          >
+            <SelectTrigger size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les projets</SelectItem>
+              {clients.map(([id, name]) => {
+                const pending = pendingByClient.get(id) ?? 0;
+                return (
+                  <SelectItem key={id} value={id}>
+                    {pending > 0 ? `${name} · ${pending}` : name}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
 
-        <Select
-          items={[
-            { value: "all", label: "Toutes les notes" },
-            { value: "high", label: "4–5 ★" },
-            { value: "low", label: "1–3 ★" },
-          ]}
-          value={ratingFilter}
-          onValueChange={(v) => {
-            if (!v) return;
-            setRatingFilter(v as RatingFilter);
-            persistFilter("note", v, "all");
-          }}
-        >
-          <SelectTrigger size="sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Toutes les notes</SelectItem>
-            <SelectItem value="high">4–5 ★</SelectItem>
-            <SelectItem value="low">1–3 ★</SelectItem>
-          </SelectContent>
-        </Select>
+          <Select
+            items={[
+              { value: "all", label: "Toutes les notes" },
+              { value: "high", label: "4–5 ★" },
+              { value: "low", label: "1–3 ★" },
+            ]}
+            value={ratingFilter}
+            onValueChange={(v) => {
+              if (!v) return;
+              setRatingFilter(v as RatingFilter);
+              persistFilter("note", v, "all");
+            }}
+          >
+            <SelectTrigger size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les notes</SelectItem>
+              <SelectItem value="high">4–5 ★</SelectItem>
+              <SelectItem value="low">1–3 ★</SelectItem>
+            </SelectContent>
+          </Select>
 
-        <button
-          type="button"
-          onClick={() => setShortcutsOpen(true)}
-          className="rounded text-xs text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
-        >
-          Raccourcis <kbd className="rounded border border-border px-1">?</kbd>
-        </button>
+          <button
+            type="button"
+            onClick={() => setShortcutsOpen(true)}
+            className="rounded text-xs text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            Raccourcis{" "}
+            <kbd className="rounded border border-border px-1">?</kbd>
+          </button>
         </div>
       </div>
 
@@ -514,76 +512,76 @@ export function ReviewsInbox({
         )
       ) : (
         <>
-        <div className="flex flex-col gap-7">
-          {groups.map((group) => (
-            <section key={group.clientId}>
-              {groupByClient && (
-                <div className="mb-2.5 flex items-baseline gap-2">
-                  <h2 className="text-sm font-semibold tracking-tight">
-                    {group.clientName}
-                  </h2>
-                  {(pendingByClient.get(group.clientId) ?? 0) > 0 && (
-                    <span className="text-xs tabular-nums text-muted-foreground">
-                      {pendingByClient.get(group.clientId)} en attente
-                    </span>
-                  )}
-                  <a
-                    href={`/clients/${group.clientId}?tab=reviews`}
-                    className="ml-auto text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
-                  >
-                    Voir le projet
-                  </a>
-                </div>
-              )}
-              <ul className="flex flex-col gap-2">
-                <AnimatePresence initial={false}>
-                  {group.reviews.map((review) => (
-                    <motion.li
-                      key={review.id}
-                      // FLIP mesure chaque ligne à chaque changement de
-                      // liste : au-delà de ~60 items le coût dépasse le
-                      // bénéfice visuel.
-                      layout={visible.length <= 60}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.18 }}
+          <div className="flex flex-col gap-7">
+            {groups.map((group) => (
+              <section key={group.clientId}>
+                {groupByClient && (
+                  <div className="mb-2.5 flex items-baseline gap-2">
+                    <h2 className="text-sm font-semibold tracking-tight">
+                      {group.clientName}
+                    </h2>
+                    {(pendingByClient.get(group.clientId) ?? 0) > 0 && (
+                      <span className="text-xs tabular-nums text-muted-foreground">
+                        {pendingByClient.get(group.clientId)} en attente
+                      </span>
+                    )}
+                    <a
+                      href={`/clients/${group.clientId}?tab=reviews`}
+                      className="ml-auto text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
                     >
-                      <ReviewItem
-                        review={review}
-                        showClientName={!groupByClient}
-                        selected={selectedId === review.id}
-                        onSelect={() => {
-                          // Ouvrir/fermer démonte le panneau courant : ne
-                          // pas jeter un brouillon édité sans prévenir.
-                          if (!confirmIfUnsaved()) return;
-                          setSelectedId((current) =>
-                            current === review.id ? null : review.id,
-                          );
-                        }}
-                        onOverride={applyOverride}
-                        onDone={advanceFrom}
-                        onRestore={restoreSelection}
-                      />
-                    </motion.li>
-                  ))}
-                </AnimatePresence>
-              </ul>
-            </section>
-          ))}
-        </div>
-        {loadMoreHref && (
-          <p className="py-2 text-center text-xs text-muted-foreground">
-            Historique limité aux {historyLimit} reviews traitées les plus
-            récentes —{" "}
-            <a
-              href={loadMoreHref}
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              afficher 150 de plus
-            </a>
-          </p>
-        )}
+                      Voir le projet
+                    </a>
+                  </div>
+                )}
+                <ul className="flex flex-col gap-2">
+                  <AnimatePresence initial={false}>
+                    {group.reviews.map((review) => (
+                      <motion.li
+                        key={review.id}
+                        // FLIP mesure chaque ligne à chaque changement de
+                        // liste : au-delà de ~60 items le coût dépasse le
+                        // bénéfice visuel.
+                        layout={visible.length <= 60}
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.18 }}
+                      >
+                        <ReviewItem
+                          review={review}
+                          showClientName={!groupByClient}
+                          selected={selectedId === review.id}
+                          onSelect={() => {
+                            // Ouvrir/fermer démonte le panneau courant : ne
+                            // pas jeter un brouillon édité sans prévenir.
+                            if (!confirmIfUnsaved()) return;
+                            setSelectedId((current) =>
+                              current === review.id ? null : review.id,
+                            );
+                          }}
+                          onOverride={applyOverride}
+                          onDone={advanceFrom}
+                          onRestore={restoreSelection}
+                        />
+                      </motion.li>
+                    ))}
+                  </AnimatePresence>
+                </ul>
+              </section>
+            ))}
+          </div>
+          {loadMoreHref && (
+            <p className="py-2 text-center text-xs text-muted-foreground">
+              Historique limité aux {historyLimit} reviews traitées les plus
+              récentes —{" "}
+              <a
+                href={loadMoreHref}
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                afficher 150 de plus
+              </a>
+            </p>
+          )}
         </>
       )}
     </div>
@@ -634,7 +632,7 @@ function ReviewItem({
       <button
         type="button"
         onClick={onSelect}
-        className="flex w-full items-start gap-3 rounded-lg px-4 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+        className="flex w-full items-start gap-3 rounded-lg px-4 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
       >
         <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
           {initials(review.reviewerName)}
@@ -657,9 +655,12 @@ function ReviewItem({
           </span>
           {originalComment(review.comment) ? (
             <span
+              // `block` et `line-clamp-*` se disputent `display`, et `block`
+              // gagnait : les avis n'étaient jamais tronqués, la file
+              // s'étirait sur des écrans. L'un ou l'autre, jamais les deux.
               className={cn(
-                "mt-1 block text-sm text-muted-foreground",
-                !selected && "line-clamp-2",
+                "mt-1 text-sm text-muted-foreground",
+                selected ? "block" : "line-clamp-1",
               )}
             >
               {originalComment(review.comment)}
@@ -670,7 +671,7 @@ function ReviewItem({
             </span>
           )}
           {!selected && pending && review.draftText && (
-            <span className="mt-1 line-clamp-1 block text-xs text-muted-foreground">
+            <span className="mt-1 line-clamp-1 text-xs text-muted-foreground">
               <span className="text-success">Brouillon :</span> «{" "}
               {review.draftText} »
             </span>
@@ -887,11 +888,7 @@ function ReplyPanel({
         className="text-sm"
       />
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          onClick={publish}
-          disabled={busy || !text.trim()}
-        >
+        <Button size="sm" onClick={publish} disabled={busy || !text.trim()}>
           {publishing ? "Publication…" : "Publier la réponse"}
         </Button>
         <Button
@@ -925,9 +922,20 @@ function ReplyPanel({
         >
           {ignoring ? "…" : "Ignorer"}
         </Button>
-        <span className="text-xs tabular-nums text-muted-foreground">
-          {text.length}/{MAX_REPLY_LENGTH}
-        </span>
+        {/* Un compteur toujours affiché pour une limite qu'on n'atteint
+            jamais : seulement à l'approche. */}
+        {text.length > MAX_REPLY_LENGTH * 0.8 && (
+          <span
+            className={cn(
+              "text-xs tabular-nums",
+              text.length > MAX_REPLY_LENGTH
+                ? "text-destructive"
+                : "text-warning",
+            )}
+          >
+            {text.length}/{MAX_REPLY_LENGTH}
+          </span>
+        )}
       </div>
     </div>
   );

@@ -152,7 +152,10 @@ function FilteredPipeline({
   return (
     <div className="flex max-w-4xl flex-col gap-10">
       <motion.div {...sectionMotion(0)}>
-        <StepHeader title="Nouvelle idée" />
+        <div className="mb-3 flex items-center gap-2">
+          <h2 className="text-sm font-medium">Nouvelle idée</h2>
+          <BatchGenerateButton clients={filteredClients} />
+        </div>
         {!single && (
           <DueStrip
             clients={clients}
@@ -162,7 +165,6 @@ function FilteredPipeline({
         )}
         <IdeaComposer
           clients={clients}
-          batchClients={filteredClients}
           filterId={filterId}
           onFilterChange={changeFilter}
           single={single}
@@ -172,14 +174,11 @@ function FilteredPipeline({
       <motion.div {...sectionMotion(1)}>
         <StepHeader title="À réviser" count={drafts.length + failed.length} />
         {failed.length + drafts.length === 0 ? (
-          <EmptyState
-            size="sm"
-            title={
-              filterName
-                ? `Rien à réviser pour ${filterName}`
-                : "Rien à réviser"
-            }
-          />
+          <p className="text-sm text-muted-foreground">
+            {filterName
+              ? `Rien à réviser pour ${filterName}.`
+              : "Rien à réviser."}
+          </p>
         ) : (
           <div className="flex flex-col gap-2">
             {failed.length > 0 && (
@@ -294,14 +293,11 @@ function DueStrip({
 
 function IdeaComposer({
   clients,
-  batchClients,
   filterId,
   onFilterChange,
   single,
 }: {
   clients: QueueClient[];
-  /** Cible du lot « générer tous les posts dus » — suit le filtre. */
-  batchClients: QueueClient[];
   filterId: string;
   onFilterChange: (id: string) => void;
   single: boolean;
@@ -395,7 +391,7 @@ function IdeaComposer({
   }
 
   return (
-    <div className="rounded-lg border border-border bg-elevated p-5">
+    <div className="rounded-lg border border-border bg-elevated p-4">
       <div className="flex flex-wrap items-end gap-x-4 gap-y-4">
         {!single && (
           <div className="flex w-60 flex-col gap-1.5">
@@ -425,10 +421,7 @@ function IdeaComposer({
         )}
         <div className="flex min-w-48 flex-1 flex-col gap-1.5">
           <Label htmlFor="idea-directive" className="text-xs whitespace-nowrap">
-            Idée / angle{" "}
-            <span className="font-normal text-muted-foreground">
-              (optionnel)
-            </span>
+            Idée
           </Label>
           <Input
             id="idea-directive"
@@ -440,16 +433,14 @@ function IdeaComposer({
                 generate();
               }
             }}
-            placeholder="promo 2 pour 1, fête du chef le 18 juillet, party piscine le 24…"
+            placeholder="promo 2 pour 1, fête du chef le 18… (une virgule = un post)"
+            title="Plusieurs idées séparées par des virgules : un post par idée."
             disabled={pending}
           />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="idea-date" className="text-xs whitespace-nowrap">
-            Publication{" "}
-            <span className="font-normal text-muted-foreground">
-              {multi ? "(auto en mode lot)" : "(auto si vide)"}
-            </span>
+            Publication
           </Label>
           <Input
             id="idea-date"
@@ -509,17 +500,7 @@ function IdeaComposer({
               "Cadence du mois couverte — un post de plus reste possible."
             )}
           </p>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            Choisis un projet pour générer un post — la page se filtre sur lui.
-          </p>
-        )}
-        {!multi && (
-          <p className="text-xs text-muted-foreground/70">
-            Plusieurs idées ? Sépare-les par des virgules — un post par idée.
-          </p>
-        )}
-        <BatchGenerateButton clients={batchClients} />
+        ) : null}
       </div>
     </div>
   );
@@ -617,7 +598,7 @@ function BatchGenerateButton({ clients }: { clients: QueueClient[] }) {
           Arrêter
         </Button>
       )}
-      <Button size="sm" variant="outline" onClick={run} disabled={pending}>
+      <Button size="sm" onClick={run} disabled={pending}>
         <Sparkles />
         {pending
           ? "Génération…"
@@ -820,10 +801,10 @@ function CalendarView({
           </div>
         ))}
         {Array.from({ length: gridStart }).map((_, i) => (
-          <div key={`pad-${i}`} className="min-h-24 bg-background" />
+          <div key={`pad-${i}`} className="min-h-16 bg-background" />
         ))}
         {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => (
-          <div key={day} className="min-h-24 bg-elevated p-2">
+          <div key={day} className="min-h-16 bg-elevated p-1.5">
             <span
               className={cn(
                 "text-xs",
