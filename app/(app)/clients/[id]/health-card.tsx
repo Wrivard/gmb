@@ -47,7 +47,9 @@ export function ClientHealthCard({
   const tone = TONE[health.status];
 
   return (
-    <section className={cn("rounded-md border px-4 py-3", tone.ring)}>
+    // Fond neutre : un encadré rouge de pleine largeur en haut de chaque
+    // projet en difficulté criait plus fort que l'information elle-même.
+    <section className="rounded-md border border-border px-4 py-3">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="flex items-center gap-2">
           <span className={cn("size-2 rounded-full", tone.dot)} />

@@ -4,7 +4,6 @@ import { ArrowLeft, FileText } from "lucide-react";
 import { getSessionContext } from "@/lib/auth";
 import { getDb } from "@/lib/supabase/db";
 import { supabaseConfigured } from "@/lib/env";
-import { isLate, remainingPosts } from "@/lib/due";
 import { HISTORY_PAGE, loadInboxReviews } from "@/lib/reviews/inbox";
 import { loadClientQueue } from "@/lib/posts/queue";
 import { loadClientGrowth } from "@/lib/clients/growth";
@@ -322,41 +321,6 @@ export default async function ClientDetailPage({
         <ClientHealthCard health={health} clientId={client.id} />
       )}
 
-      {/* Onboarding inachevé : le rappel vit sur le projet lui-même,
-          pas seulement dans la liste — personne ne « passe à côté ». */}
-      {(() => {
-        // Un projet offboardé ou déconnecté n'a plus d'onboarding à faire.
-        if (client.status === "archived" || client.status === "disconnected")
-          return null;
-        const progress = onboardingProgress(
-          onboardingCtx({
-            gbp_profile: client.gbp_profile,
-            onboarding: client.onboarding,
-            brandProfileComplete: !isBrandProfileIncomplete(
-              client.brand_profile,
-            ),
-          }),
-        );
-        if (progress.complete) return null;
-        return (
-          <Link
-            href={`/clients/${client.id}/onboarding`}
-            className="group flex items-center gap-3 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm transition-colors hover:bg-warning/15"
-          >
-            <span className="font-medium text-warning">
-              Fiche optimisée à {progress.pct} %
-            </span>
-            <span className="text-muted-foreground">
-              {progress.done}/{progress.total} points de la checklist —
-              l&apos;optimisation initiale est ce qui fait ranker.
-            </span>
-            <span className="ml-auto text-xs font-medium text-warning group-hover:underline">
-              Continuer →
-            </span>
-          </Link>
-        );
-      })()}
-
       {/* Consigne d'équipe : toujours sous les yeux, peu importe l'onglet. */}
       {client.internal_notes && (
         <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
@@ -416,14 +380,11 @@ async function GrowthTab({
   const supabase = await getDb();
   const now = new Date();
 
-  const [growth, { data: board }, { data: activity }, { data: geogridScans }] =
+  // `client_board_state` n'est plus lu ici : ses trois compteurs
+  // doublaient la carte de santé et le tableau du jour.
+  const [growth, { data: activity }, { data: geogridScans }] =
     await Promise.all([
       loadClientGrowth(client, now),
-      supabase
-        .from("client_board_state")
-        .select("*")
-        .eq("client_id", client.id)
-        .maybeSingle(),
       supabase
         .from("activity_log")
         .select("*")
@@ -449,35 +410,9 @@ async function GrowthTab({
     return scan ? [scan] : [];
   });
 
-  const remaining = board
-    ? remainingPosts({
-        postsPerMonth: board.posts_per_month,
-        publishedThisMonth: board.posts_published_this_month,
-        scheduledThisMonth: board.posts_scheduled_this_month,
-      })
-    : 0;
-
-  // Le pouls du moment en 3 chiffres — le reste (note, volume, couverture)
-  // est porté par les tendances de GrowthView.
-  const stats = [
-    { label: "Reviews en attente", value: board?.unreplied_count ?? 0 },
-    {
-      label: "Brouillons à approuver",
-      value: (board?.draft_reply_count ?? 0) + (board?.draft_post_count ?? 0),
-    },
-    {
-      label: "Posts dus ce mois",
-      value: remaining,
-      alert: isLate(now, remaining),
-    },
-  ];
-
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Tendances des 6 derniers mois.
-        </p>
+      <div className="flex items-center justify-end">
         {/* Le livrable du meeting client : le mois précédent, imprimable. */}
         <Button size="sm" variant="outline" render={<Link href={reportHref} />}>
           <FileText />
@@ -491,37 +426,20 @@ async function GrowthTab({
         suggestion={client.primary_category}
         scans={latestScans}
       />
-      <div className="grid gap-2 sm:grid-cols-3">
-        {stats.map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-lg border border-border bg-elevated px-4 py-3"
-          >
-            <div
-              className={cn(
-                "text-lg font-semibold tabular-nums",
-                stat.alert && "text-destructive",
-              )}
-            >
-              {stat.value}
-            </div>
-            <div className="text-xs text-muted-foreground">{stat.label}</div>
-          </div>
-        ))}
-      </div>
-
       <section>
         <h2 className="mb-2 text-sm font-medium text-muted-foreground">
           Activité récente
         </h2>
         {activity?.length ? (
           <ActivityFeed
-            entries={activity.map((entry) => ({
-              id: entry.id,
-              label: ACTION_LABELS[entry.action] ?? entry.action,
-              actor: entry.actor,
-              at: entry.created_at,
-            }))}
+            entries={groupActivity(
+              activity.map((entry) => ({
+                id: entry.id,
+                label: ACTION_LABELS[entry.action] ?? entry.action,
+                actor: entry.actor,
+                at: entry.created_at,
+              })),
+            )}
           />
         ) : (
           <EmptyState size="sm" title="Aucune activité pour l'instant." />
@@ -564,4 +482,25 @@ async function PostsTab({
       backHref={`/clients/${client.id}?tab=posts`}
     />
   );
+}
+
+/**
+ * Regroupe les entrées consécutives identiques (même action, même
+ * auteur) : six lignes « Génération AI par ai » n'en disaient qu'une.
+ * La plus récente du groupe porte le compte.
+ */
+function groupActivity<
+  T extends { id: string; label: string; actor: string; at: string },
+>(entries: T[]): T[] {
+  const grouped: Array<T & { count: number }> = [];
+  for (const entry of entries) {
+    const last = grouped[grouped.length - 1];
+    if (last && last.label.startsWith(entry.label) && last.actor === entry.actor) {
+      last.count++;
+      last.label = `${entry.label} ×${last.count}`;
+      continue;
+    }
+    grouped.push({ ...entry, count: 1 });
+  }
+  return grouped;
 }
