@@ -29,9 +29,6 @@ export default async function PostsPage() {
     <div className="flex flex-col gap-5">
       {demo ? <DemoBanner /> : <RealtimeRefresh />}
       <OpsTabs />
-      <p className="text-sm text-muted-foreground">
-        Génère, révise, planifie — l&apos;app publie à la date prévue.
-      </p>
       <PostsView clients={clients} posts={posts} hasProjects={hasProjects} />
     </div>
   );

@@ -152,11 +152,7 @@ function FilteredPipeline({
   return (
     <div className="flex max-w-4xl flex-col gap-10">
       <motion.div {...sectionMotion(0)}>
-        <StepHeader
-          step={1}
-          title="Nouvelle idée"
-          hint="L'angle et la date se donnent AVANT la génération — le texte et l'image arrivent prêts à réviser."
-        />
+        <StepHeader title="Nouvelle idée" />
         {!single && (
           <DueStrip
             clients={clients}
@@ -174,19 +170,15 @@ function FilteredPipeline({
       </motion.div>
 
       <motion.div {...sectionMotion(1)}>
-        <StepHeader
-          step={2}
-          title="À réviser"
-          count={drafts.length + failed.length}
-          hint="Vérifie le texte et l'image, ajuste la date au besoin, puis approuve."
-        />
+        <StepHeader title="À réviser" count={drafts.length + failed.length} />
         {failed.length + drafts.length === 0 ? (
           <EmptyState
             size="sm"
             title={
-              filterName ? `Rien à réviser pour ${filterName}` : "Rien à réviser"
+              filterName
+                ? `Rien à réviser pour ${filterName}`
+                : "Rien à réviser"
             }
-            hint="Les brouillons générés apparaissent ici, avec leur date suggérée."
           />
         ) : (
           <div className="flex flex-col gap-2">
@@ -206,47 +198,23 @@ function FilteredPipeline({
       </motion.div>
 
       <motion.div {...sectionMotion(2)}>
-        <StepHeader
-          step={3}
-          title="Calendrier"
-          hint={
-            filterName
-              ? `Les posts de ${filterName} seulement — brouillons, planifiés, publiés.`
-              : "Brouillons à leur date suggérée, posts planifiés (publication automatique) et publiés."
-          }
-        />
+        <StepHeader title="Calendrier" />
         <CalendarView posts={filtered} postHref={postHref} />
       </motion.div>
     </div>
   );
 }
 
-function StepHeader({
-  step,
-  title,
-  count,
-  hint,
-}: {
-  step: number;
-  title: string;
-  count?: number;
-  hint?: string;
-}) {
+function StepHeader({ title, count }: { title: string; count?: number }) {
+  // Ni numéro ni phrase d'aide : trois titres courts se lisent d'eux-
+  // mêmes, et les phrases doublaient l'écran.
   return (
     <div className="mb-3 flex items-baseline gap-2">
-      <span className="flex size-5 shrink-0 translate-y-0.5 items-center justify-center rounded-full bg-muted text-xs font-semibold tabular-nums text-muted-foreground">
-        {step}
-      </span>
       <h2 className="text-sm font-medium">{title}</h2>
-      {count !== undefined && (
+      {count !== undefined && count > 0 && (
         <span className="text-sm tabular-nums text-muted-foreground">
           {count}
         </span>
-      )}
-      {hint && (
-        <p className="ml-2 hidden text-xs text-muted-foreground sm:block">
-          {hint}
-        </p>
       )}
     </div>
   );
@@ -303,19 +271,19 @@ function DueStrip({
                 : "border-border bg-elevated text-muted-foreground hover:bg-hover hover:text-foreground",
             )}
           >
-            <span className="max-w-44 truncate font-medium">
-              {client.name}
-            </span>
+            <span className="max-w-44 truncate font-medium">{client.name}</span>
+            {/* Le nombre seul, teinté si en retard : une pastille pleine
+                par projet transformait la rangée en mur d'alertes. */}
             <span
               className={cn(
-                "rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums",
-                client.late
-                  ? "bg-destructive/15 text-destructive"
-                  : "bg-warning/15 text-warning",
+                "tabular-nums",
+                client.late ? "text-warning" : "text-muted-foreground",
               )}
+              title={
+                client.late ? "En retard sur la cadence du mois" : undefined
+              }
             >
-              {client.remaining} dû{client.remaining > 1 ? "s" : ""}
-              {client.late && " · retard"}
+              {client.remaining}
             </span>
           </button>
         );
@@ -456,10 +424,7 @@ function IdeaComposer({
           </div>
         )}
         <div className="flex min-w-48 flex-1 flex-col gap-1.5">
-          <Label
-            htmlFor="idea-directive"
-            className="text-xs whitespace-nowrap"
-          >
+          <Label htmlFor="idea-directive" className="text-xs whitespace-nowrap">
             Idée / angle{" "}
             <span className="font-normal text-muted-foreground">
               (optionnel)
