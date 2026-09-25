@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
+import { originalComment } from "@/lib/reviews/text";
 import { frCA } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, SearchX, Sparkles, Unplug } from "lucide-react";
@@ -654,14 +655,14 @@ function ReviewItem({
             )}
             <StatusBadge status={review.status} />
           </span>
-          {review.comment ? (
+          {originalComment(review.comment) ? (
             <span
               className={cn(
                 "mt-1 block text-sm text-muted-foreground",
                 !selected && "line-clamp-2",
               )}
             >
-              {review.comment}
+              {originalComment(review.comment)}
             </span>
           ) : (
             <span className="mt-1 block text-sm italic text-muted-foreground">
@@ -676,18 +677,21 @@ function ReviewItem({
           )}
         </span>
         <span className="flex shrink-0 flex-col items-end gap-1">
+          {/* Le rouge sur chaque horodatage disait « urgent » pour une
+              file entière : le dépassement des 72 h reste signalé, sans
+              crier. */}
           <span
             className={cn(
-              "text-xs",
-              late ? "font-medium text-destructive" : "text-muted-foreground",
+              "text-xs tabular-nums",
+              late ? "text-warning" : "text-muted-foreground",
             )}
+            title={late ? "En attente depuis plus de 72 h" : undefined}
           >
             {formatDistanceToNow(new Date(review.createdAt), {
               addSuffix: true,
               locale: frCA,
             })}
           </span>
-          {late && <Badge variant="destructive">&gt; 72 h</Badge>}
         </span>
       </button>
 
@@ -721,7 +725,9 @@ function StatusBadge({ status }: { status: ReviewStatus }) {
     case "needs_reply":
       return <Badge variant="destructive">Sans brouillon</Badge>;
     case "draft_ready":
-      return <Badge variant="outline">Brouillon prêt</Badge>;
+      // L'état normal d'un avis en file : l'aperçu du brouillon le dit
+      // déjà. Un badge par ligne ne faisait qu'ajouter du bruit.
+      return null;
     case "approved":
       return <Badge variant="default">À publier</Badge>;
     case "replied":

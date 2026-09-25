@@ -45,9 +45,6 @@ export default async function ReviewsPage({
     <div className="flex flex-col gap-5">
       {demo ? <DemoBanner /> : <RealtimeRefresh />}
       <OpsTabs />
-      <p className="text-sm text-muted-foreground">
-        Lis le brouillon, ajuste au besoin, publie. 10 secondes par review.
-      </p>
       <ReviewsInbox
         reviews={inboxReviews}
         hasProjects={hasProjects}
