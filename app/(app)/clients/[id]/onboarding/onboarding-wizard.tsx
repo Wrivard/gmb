@@ -35,6 +35,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { formatDistanceToNow } from "date-fns";
+import { frCA } from "date-fns/locale";
 import { GBP_CATEGORY_SUGGESTIONS } from "@/lib/gbp/categories";
 import {
   isRequirementMet,
@@ -64,7 +66,11 @@ import {
   uploadGbpPhotoAction,
 } from "../actions";
 import { toggleClientActiveAction } from "@/app/(app)/settings/actions";
-import { syncGbpMediaAction, pushGbpPhotosAction } from "../actions";
+import {
+  syncGbpMediaAction,
+  pushGbpPhotosAction,
+  refreshGbpProfileAction,
+} from "../actions";
 import { AttributesEditor } from "./attributes-editor";
 import { PredefinedServices } from "./predefined-services";
 
@@ -202,6 +208,7 @@ export function OnboardingWizard({
   );
   const saveInFlight = useRef(false);
   const [pushing, startPush] = useTransition();
+  const [refreshing, startRefresh] = useTransition();
   const [activating, startActivate] = useTransition();
 
   const ctx: OnboardingCtx = useMemo(
@@ -433,13 +440,40 @@ export function OnboardingWizard({
                 : "Pousser sur Google"}
           </Button>
         </div>
-        {/* D'où viennent les valeurs affichées. Sans ça, impossible de
-            savoir si « ce qui manque » décrit la fiche d'aujourd'hui ou
-            une copie d'il y a trois semaines. */}
-        <p className="text-xs text-muted-foreground">
-          {syncedAt
-            ? "Fiche Google relue à l'ouverture — ce que tu vois est ce qui est en ligne."
-            : "Fiche Google injoignable : affichage de la dernière copie connue."}
+        {/* D'où viennent les valeurs affichées, et depuis quand. Sans
+            ça, impossible de savoir si « ce qui manque » décrit la fiche
+            d'aujourd'hui ou une copie d'il y a trois semaines. */}
+        <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          {syncedAt ? (
+            <>
+              Fiche Google lue{" "}
+              {formatDistanceToNow(new Date(syncedAt), {
+                addSuffix: true,
+                locale: frCA,
+              })}
+            </>
+          ) : (
+            "Fiche Google jamais lue — vérifie la connexion."
+          )}
+          <button
+            type="button"
+            disabled={refreshing}
+            onClick={() =>
+              startRefresh(async () => {
+                const result = await refreshGbpProfileAction(clientId);
+                if (!result.ok) {
+                  toast.error(result.error);
+                  return;
+                }
+                router.refresh();
+                toast.success("Fiche relue.");
+              })
+            }
+            className="font-medium text-primary underline-offset-2 hover:underline disabled:opacity-60"
+            title="Récupère les changements faits sur la fiche. Ta saisie en cours est conservée."
+          >
+            {refreshing ? "Lecture…" : "Relire"}
+          </button>
         </p>
       </div>
 

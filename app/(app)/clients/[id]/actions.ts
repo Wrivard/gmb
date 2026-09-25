@@ -14,6 +14,10 @@ import { GEOGRID_MAX_KEYWORDS } from "@/lib/geogrid/grid";
 import { normalizeGbpResourceId } from "@/lib/gbp/resource-id";
 import { runGeogridScan } from "@/lib/geogrid/scan";
 import { getGbpClient } from "@/lib/gbp/client";
+import {
+  locationToProfile,
+  mergeProfile,
+} from "@/lib/gbp/profile-import";
 import { GBP_DESCRIPTION_MAX } from "@/lib/gbp/limits";
 import { GbpAccessPendingError } from "@/lib/gbp/types";
 import type {
@@ -1130,5 +1134,47 @@ export async function loadGbpServiceTypesAction(clientId: string): Promise<
     }
 
     return { ok: true, serviceTypes };
+  });
+}
+
+/**
+ * Relit la fiche Google à la demande.
+ *
+ * La lecture automatique n'a lieu qu'à la première ouverture du wizard :
+ * une fiche ne bouge pas entre deux visites du même écran, et rappeler
+ * Google à chaque fois coûtait un appel pour rien. Ce bouton couvre le
+ * cas où quelqu'un a modifié la fiche entre-temps.
+ *
+ * La fusion garde la saisie locale : une description retravaillée ici
+ * mais pas encore poussée ne doit pas disparaître parce qu'on a voulu
+ * rafraîchir.
+ */
+export async function refreshGbpProfileAction(
+  clientId: string,
+): Promise<ActionResult> {
+  return runAction("La relecture de la fiche a échoué.", async () => {
+    const { supabase, client } = await loadClientForMember(clientId);
+    if (!client.gbp_location_id) {
+      return { ok: false, error: "Aucune fiche Google liée à ce projet." };
+    }
+
+    const location = await getGbpClient().getLocation(
+      client.gbp_account_id ?? client.gbp_location_id,
+      client.gbp_location_id,
+    );
+    const current: GbpProfileData = client.gbp_profile ?? {};
+    const merged: GbpProfileData = {
+      ...mergeProfile(current, locationToProfile(location)),
+      synced_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("clients")
+      .update({ gbp_profile: merged })
+      .eq("id", clientId);
+    if (error) throw new Error(error.message);
+
+    revalidatePath(`/clients/${clientId}/onboarding`);
+    return { ok: true };
   });
 }

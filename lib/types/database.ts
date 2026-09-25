@@ -190,6 +190,12 @@ export interface GbpProfileData {
     items: GbpMediaSnapshot[];
     synced_at: string;
   };
+  /**
+   * Dernière lecture de la fiche Google. Sa présence est ce qui évite de
+   * rappeler Google à chaque ouverture du wizard : on lit une fois, puis
+   * à la demande.
+   */
+  synced_at?: string;
   sync?: Record<string, GbpSectionSync>;
 }
 

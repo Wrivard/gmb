@@ -41,25 +41,28 @@ export default async function OnboardingPage({
   if (error) throw new Error(error.message);
   if (!client) notFound();
 
-  // Relire la fiche à CHAQUE ouverture.
+  // Première ouverture : lire la fiche. Ensuite, à la demande.
   //
-  // Le wizard affichait une copie locale importée une fois : rien ne
-  // garantissait qu'elle corresponde encore à Google, et l'équipe ne
-  // pouvait pas voir ce qui était déjà en ligne. Il doit montrer l'état
-  // réel de la fiche, sinon « ce qui manque » ne veut rien dire.
+  // Le wizard doit montrer l'état réel de la fiche, sinon « ce qui
+  // manque » ne veut rien dire. Mais relire à chaque ouverture coûtait
+  // un appel pour rien : la fiche d'un client ne bouge pas entre deux
+  // visites du même écran. Le bouton de l'en-tête couvre le reste.
   //
   // La fusion ne réécrit jamais une saisie locale : ce qui a été
   // travaillé ici mais pas encore poussé reste intact.
   let profile = client.gbp_profile ?? {};
-  let syncedAt: string | null = null;
-  if (client.gbp_location_id) {
+  let syncedAt: string | null = profile.synced_at ?? null;
+  if (client.gbp_location_id && !profile.synced_at) {
     try {
       const location = await getGbpClient().getLocation(
         client.gbp_account_id ?? client.gbp_location_id,
         client.gbp_location_id,
       );
-      profile = mergeProfile(profile, locationToProfile(location));
       syncedAt = new Date().toISOString();
+      profile = {
+        ...mergeProfile(profile, locationToProfile(location)),
+        synced_at: syncedAt,
+      };
       await supabase
         .from("clients")
         .update({ gbp_profile: profile })
