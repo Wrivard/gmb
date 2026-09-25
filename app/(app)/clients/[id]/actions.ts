@@ -866,44 +866,6 @@ export async function updateBrandProfileAction(
   });
 }
 
-/**
- * Catalogue des attributs proposés pour la catégorie de la fiche, plus
- * ceux déjà posés. Sans ça, « entreprise gérée par une femme » ou un
- * lien Instagram n'étaient qu'une case à cocher dans le wizard, à faire
- * ailleurs — donc jamais faits.
- */
-export async function loadGbpAttributesAction(clientId: string): Promise<
-  ActionResult & {
-    catalog?: GbpAttributeMeta[];
-    current?: GbpAttributeValue[];
-  }
-> {
-  return runAction("La lecture des attributs a échoué.", async () => {
-    const { client } = await loadClientForMember(clientId);
-    if (!client.gbp_location_id) {
-      return { ok: false, error: "Aucune fiche Google liée à ce projet." };
-    }
-    const accountId = client.gbp_account_id ?? client.gbp_location_id;
-    const gbp = getGbpClient();
-
-    const location = await gbp.getLocation(accountId, client.gbp_location_id);
-    const categoryName = location.categories?.primaryCategory?.name;
-    if (!categoryName) {
-      return {
-        ok: false,
-        error:
-          "La fiche n'a pas de catégorie principale — les attributs en dépendent.",
-      };
-    }
-
-    const [catalog, current] = await Promise.all([
-      gbp.listAttributeMetadata(accountId, client.gbp_location_id, categoryName),
-      gbp.getAttributes(accountId, client.gbp_location_id),
-    ]);
-    return { ok: true, catalog, current };
-  });
-}
-
 /** Écrit les attributs modifiés — directement sur la fiche Google. */
 export async function saveGbpAttributesAction(
   clientId: string,
@@ -931,68 +893,6 @@ export async function saveGbpAttributesAction(
     });
     revalidatePath(`/clients/${clientId}/onboarding`);
     return { ok: true };
-  });
-}
-
-/**
- * Photos déjà publiées sur la fiche Google, avec cache.
- *
- * Le wizard ne montrait que les photos téléversées DANS l'app : une
- * fiche avec logo, couverture et galerie paraissait vide, et on
- * redemandait au client des images déjà en ligne.
- *
- * L'instantané est gardé dans `gbp_profile.google_media`. La page le
- * sert immédiatement ; cet appel ne sert qu'à détecter ce qui a été
- * ajouté ou retiré depuis, sans refaire l'aller-retour à chaque
- * ouverture de l'étape.
- */
-export async function syncGbpMediaAction(clientId: string): Promise<
-  ActionResult & {
-    items?: GbpMediaSnapshot[];
-    added?: number;
-    removed?: number;
-  }
-> {
-  return runAction("La lecture des photos a échoué.", async () => {
-    const { supabase, client } = await loadClientForMember(clientId);
-    if (!client.gbp_location_id) {
-      return { ok: false, error: "Aucune fiche Google liée à ce projet." };
-    }
-
-    const media = await getGbpClient().listMedia(
-      client.gbp_account_id ?? client.gbp_location_id,
-      client.gbp_location_id,
-    );
-    const items: GbpMediaSnapshot[] = media.map((item) => ({
-      name: item.name,
-      category: item.category,
-      url: item.googleUrl,
-      thumbnailUrl: item.thumbnailUrl,
-      createTime: item.createTime,
-    }));
-
-    // Diff sur le resource name : c'est l'identifiant stable. Comparer
-    // les URL donnerait de faux mouvements, Google les faisant tourner.
-    const profile: GbpProfileData = client.gbp_profile ?? {};
-    const known = new Set(
-      (profile.google_media?.items ?? []).map((item) => item.name),
-    );
-    const fresh = new Set(items.map((item) => item.name));
-    const added = items.filter((item) => !known.has(item.name)).length;
-    const removed = [...known].filter((name) => !fresh.has(name)).length;
-
-    const { error } = await supabase
-      .from("clients")
-      .update({
-        gbp_profile: {
-          ...profile,
-          google_media: { items, synced_at: new Date().toISOString() },
-        },
-      })
-      .eq("id", clientId);
-    if (error) throw new Error(error.message);
-
-    return { ok: true, items, added, removed };
   });
 }
 
@@ -1087,42 +987,61 @@ export async function pushGbpPhotosAction(
   });
 }
 
+export interface GbpSnapshot {
+  attributeCatalog: GbpAttributeMeta[];
+  attributes: GbpAttributeValue[];
+  serviceTypes: Array<{ id: string; label: string; category: string }>;
+  media: GbpMediaSnapshot[];
+}
+
 /**
- * Services PRÉDÉFINIS proposés par Google pour les catégories de la
- * fiche.
+ * UNE lecture de la fiche pour tout le wizard.
  *
- * Le wizard demandait de les cocher « sur Google » : une case à cocher
- * pour un critère pesant 4 points, le plus lourd des non modifiables.
- * Le catalogue voyage pourtant avec la catégorie dans le profil de la
- * fiche — il n'y avait qu'à le lire.
+ * Chaque étape allait chercher sa part de son côté : profil, catalogue
+ * d'attributs, services prédéfinis, photos. Quatre allers-retours, quatre
+ * attentes, et un budget d'appels consommé quatre fois pour un seul
+ * écran. Tout arrive maintenant d'un coup, au bouton de l'étape 1.
+ *
+ * Le profil et les photos sont persistés au passage : ils survivent à la
+ * fermeture du wizard, contrairement aux deux autres qui ne servent qu'à
+ * l'affichage.
  */
-export async function loadGbpServiceTypesAction(clientId: string): Promise<
-  ActionResult & {
-    serviceTypes?: Array<{ id: string; label: string; category: string }>;
-  }
-> {
-  return runAction("La lecture des services a échoué.", async () => {
-    const { client } = await loadClientForMember(clientId);
+export async function loadGbpSnapshotAction(
+  clientId: string,
+): Promise<ActionResult & { snapshot?: GbpSnapshot }> {
+  return runAction("La lecture de la fiche a échoué.", async () => {
+    const { supabase, client } = await loadClientForMember(clientId);
     if (!client.gbp_location_id) {
       return { ok: false, error: "Aucune fiche Google liée à ce projet." };
     }
 
-    const location = await getGbpClient().getLocation(
-      client.gbp_account_id ?? client.gbp_location_id,
-      client.gbp_location_id,
-    );
-    const categories = [
+    const gbp = getGbpClient();
+    const accountId = client.gbp_account_id ?? client.gbp_location_id;
+    const location = await gbp.getLocation(accountId, client.gbp_location_id);
+    const categoryName = location.categories?.primaryCategory?.name;
+
+    // En parallèle : ces trois-là ne dépendent que de la fiche déjà lue.
+    const [media, attributes, attributeCatalog] = await Promise.all([
+      gbp.listMedia(accountId, client.gbp_location_id),
+      gbp.getAttributes(accountId, client.gbp_location_id),
+      categoryName
+        ? gbp.listAttributeMetadata(
+            accountId,
+            client.gbp_location_id,
+            categoryName,
+          )
+        : Promise.resolve([]),
+    ]);
+
+    // Les services prédéfinis voyagent avec les catégories de la fiche.
+    const seen = new Set<string>();
+    const serviceTypes: GbpSnapshot["serviceTypes"] = [];
+    for (const category of [
       location.categories?.primaryCategory,
       ...(location.categories?.additionalCategories ?? []),
-    ].filter(Boolean);
-
-    const seen = new Set<string>();
-    const serviceTypes: Array<{ id: string; label: string; category: string }> =
-      [];
-    for (const category of categories) {
+    ]) {
       for (const type of category?.serviceTypes ?? []) {
         if (!type.serviceTypeId || !type.displayName) continue;
-        // Les catégories partagent des services : ne pas les doubler.
         if (seen.has(type.serviceTypeId)) continue;
         seen.add(type.serviceTypeId);
         serviceTypes.push({
@@ -1133,41 +1052,21 @@ export async function loadGbpServiceTypesAction(clientId: string): Promise<
       }
     }
 
-    return { ok: true, serviceTypes };
-  });
-}
+    const mediaItems: GbpMediaSnapshot[] = media.map((item) => ({
+      name: item.name,
+      category: item.category,
+      url: item.googleUrl,
+      thumbnailUrl: item.thumbnailUrl,
+      createTime: item.createTime,
+    }));
 
-/**
- * Relit la fiche Google à la demande.
- *
- * La lecture automatique n'a lieu qu'à la première ouverture du wizard :
- * une fiche ne bouge pas entre deux visites du même écran, et rappeler
- * Google à chaque fois coûtait un appel pour rien. Ce bouton couvre le
- * cas où quelqu'un a modifié la fiche entre-temps.
- *
- * La fusion garde la saisie locale : une description retravaillée ici
- * mais pas encore poussée ne doit pas disparaître parce qu'on a voulu
- * rafraîchir.
- */
-export async function refreshGbpProfileAction(
-  clientId: string,
-): Promise<ActionResult> {
-  return runAction("La relecture de la fiche a échoué.", async () => {
-    const { supabase, client } = await loadClientForMember(clientId);
-    if (!client.gbp_location_id) {
-      return { ok: false, error: "Aucune fiche Google liée à ce projet." };
-    }
-
-    const location = await getGbpClient().getLocation(
-      client.gbp_account_id ?? client.gbp_location_id,
-      client.gbp_location_id,
-    );
+    const now = new Date().toISOString();
     const current: GbpProfileData = client.gbp_profile ?? {};
     const merged: GbpProfileData = {
       ...mergeProfile(current, locationToProfile(location)),
-      synced_at: new Date().toISOString(),
+      google_media: { items: mediaItems, synced_at: now },
+      synced_at: now,
     };
-
     const { error } = await supabase
       .from("clients")
       .update({ gbp_profile: merged })
@@ -1175,6 +1074,9 @@ export async function refreshGbpProfileAction(
     if (error) throw new Error(error.message);
 
     revalidatePath(`/clients/${clientId}/onboarding`);
-    return { ok: true };
+    return {
+      ok: true,
+      snapshot: { attributeCatalog, attributes, serviceTypes, media: mediaItems },
+    };
   });
 }

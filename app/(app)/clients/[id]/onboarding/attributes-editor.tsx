@@ -1,17 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
-import { Loader2, Save, SlidersHorizontal } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
+import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { GbpAttributeMeta, GbpAttributeValue } from "@/lib/gbp/types";
-import {
-  loadGbpAttributesAction,
-  saveGbpAttributesAction,
-} from "../actions";
+import { saveGbpAttributesAction } from "../actions";
 
 // Attributs de la fiche, modifiables depuis le wizard.
 //
@@ -22,9 +19,11 @@ import {
 //
 // Le catalogue dépend de la CATÉGORIE : un couvreur et une agence
 // marketing n'ont pas les mêmes attributs. On affiche les libellés de
-// Google plutôt que les nôtres. Le chargement se fait à l'ouverture de
-// l'étape — ce composant n'est monté que là, donc les autres étapes ne
-// paient rien.
+// Google plutôt que les nôtres.
+//
+// Les données arrivent par le haut : une seule lecture de la fiche sert
+// tout le wizard (étape 1). Chaque étape allait auparavant chercher sa
+// part de son côté — quatre allers-retours pour un seul écran.
 
 type BoolState = Record<string, boolean>;
 type UrlState = Record<string, string>;
@@ -33,63 +32,50 @@ function groupOf(meta: GbpAttributeMeta): string {
   return meta.groupDisplayName ?? "Autres";
 }
 
-export function AttributesEditor({ clientId }: { clientId: string }) {
-  const [catalog, setCatalog] = useState<GbpAttributeMeta[] | null>(null);
+export function AttributesEditor({
+  clientId,
+  catalog,
+  current,
+}: {
+  clientId: string;
+  /** Catalogue de la catégorie — `null` tant que la fiche n'est pas lue. */
+  catalog: GbpAttributeMeta[] | null;
+  current: GbpAttributeValue[];
+}) {
   const [bools, setBools] = useState<BoolState>({});
   const [urls, setUrls] = useState<UrlState>({});
   const [dirty, setDirty] = useState<Set<string>>(new Set());
-  const [loading, startLoad] = useTransition();
   const [saving, startSave] = useTransition();
-  const [failed, setFailed] = useState(false);
-  const requested = useRef(false);
 
   const touch = (name: string) =>
     setDirty((current) => new Set(current).add(name));
 
-  const load = () =>
-    startLoad(async () => {
-      setFailed(false);
-      const result = await loadGbpAttributesAction(clientId);
-      if (!result.ok) {
-        setFailed(true);
-        toast.error(result.error);
-        return;
-      }
-      const nextBools: BoolState = {};
-      const nextUrls: UrlState = {};
-      for (const value of result.current ?? []) {
-        if (value.values?.length) nextBools[value.name] = value.values[0];
-        if (value.uriValues?.length) {
-          nextUrls[value.name] = value.uriValues[0].uri;
-        }
-      }
-      setBools(nextBools);
-      setUrls(nextUrls);
-      setDirty(new Set());
-      // On ne propose que ce qu'on sait écrire : les ENUM et listes
-      // d'enum demandent une UI dédiée, et mal les écrire effacerait
-      // des valeurs posées à la main sur la fiche.
-      setCatalog(
-        (result.catalog ?? []).filter(
-          (meta) => meta.valueType === "BOOL" || meta.valueType === "URL",
-        ),
-      );
-    });
+  // Les valeurs de la fiche deviennent l'état du formulaire à chaque
+  // nouvelle lecture — une saisie en cours non enregistrée est écrasée,
+  // ce qui est le comportement voulu : on vient de demander l'état réel.
+  useEffect(() => {
+    const nextBools: BoolState = {};
+    const nextUrls: UrlState = {};
+    for (const value of current) {
+      if (value.values?.length) nextBools[value.name] = value.values[0];
+      if (value.uriValues?.length) nextUrls[value.name] = value.uriValues[0].uri;
+    }
+    setBools(nextBools);
+    setUrls(nextUrls);
+    setDirty(new Set());
+  }, [current]);
 
   const save = () =>
     startSave(async () => {
       const payload: GbpAttributeValue[] = [];
       for (const name of dirty) {
-        const meta = catalog?.find((entry) => entry.name === name);
+        const meta = editable?.find((entry) => entry.name === name);
         if (!meta) continue;
         if (meta.valueType === "BOOL") {
           payload.push({ name, values: [Boolean(bools[name])] });
         } else {
           const uri = urls[name]?.trim();
-          payload.push({
-            name,
-            uriValues: uri ? [{ uri }] : [],
-          });
+          payload.push({ name, uriValues: uri ? [{ uri }] : [] });
         }
       }
       if (!payload.length) return;
@@ -105,35 +91,22 @@ export function AttributesEditor({ clientId }: { clientId: string }) {
       );
     });
 
-  // Monté uniquement sur l'étape Présentation : on charge à l'ouverture
-  // plutôt que d'exiger un clic pour voir ce qui est déjà posé.
-  useEffect(() => {
-    if (requested.current) return;
-    requested.current = true;
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // On ne propose que ce qu'on sait écrire : les ENUM et listes d'enum
+  // demandent une UI dédiée, et mal les écrire effacerait des valeurs
+  // posées à la main sur la fiche.
+  const editable = catalog?.filter(
+    (meta) => meta.valueType === "BOOL" || meta.valueType === "URL",
+  );
 
-  if (catalog === null) {
+  if (!editable) {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed p-3">
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          {loading && <Loader2 className="size-4 animate-spin" />}
-          {loading
-            ? "Lecture des attributs de la fiche…"
-            : "Attributs non chargés — accessibilité, identité, liens sociaux."}
-        </p>
-        {failed && (
-          <Button variant="outline" size="sm" onClick={load}>
-            <SlidersHorizontal />
-            Réessayer
-          </Button>
-        )}
-      </div>
+      <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+        Attributs non chargés — lis la fiche depuis l&apos;étape Catégories.
+      </p>
     );
   }
 
-  const groups = [...new Set(catalog.map(groupOf))];
+  const groups = [...new Set(editable.map(groupOf))];
 
   return (
     <div className="flex flex-col gap-4 rounded-md border p-3">
@@ -155,7 +128,7 @@ export function AttributesEditor({ clientId }: { clientId: string }) {
             {group}
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
-            {catalog
+            {editable
               .filter((meta) => groupOf(meta) === group)
               .map((meta) =>
                 meta.valueType === "BOOL" ? (

@@ -67,9 +67,9 @@ import {
 } from "../actions";
 import { toggleClientActiveAction } from "@/app/(app)/settings/actions";
 import {
-  syncGbpMediaAction,
   pushGbpPhotosAction,
-  refreshGbpProfileAction,
+  loadGbpSnapshotAction,
+  type GbpSnapshot,
 } from "../actions";
 import { AttributesEditor } from "./attributes-editor";
 import { PredefinedServices } from "./predefined-services";
@@ -208,7 +208,22 @@ export function OnboardingWizard({
   );
   const saveInFlight = useRef(false);
   const [pushing, startPush] = useTransition();
+  // UNE lecture de la fiche pour tout le wizard. Les étapes allaient
+  // chacune chercher sa part : quatre allers-retours pour un écran.
+  const [snapshot, setSnapshot] = useState<GbpSnapshot | null>(null);
   const [refreshing, startRefresh] = useTransition();
+
+  const loadSnapshot = () =>
+    startRefresh(async () => {
+      const result = await loadGbpSnapshotAction(clientId);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      setSnapshot(result.snapshot ?? null);
+      router.refresh();
+      toast.success("Fiche Google lue.");
+    });
   const [activating, startActivate] = useTransition();
 
   const ctx: OnboardingCtx = useMemo(
@@ -458,19 +473,9 @@ export function OnboardingWizard({
           <button
             type="button"
             disabled={refreshing}
-            onClick={() =>
-              startRefresh(async () => {
-                const result = await refreshGbpProfileAction(clientId);
-                if (!result.ok) {
-                  toast.error(result.error);
-                  return;
-                }
-                router.refresh();
-                toast.success("Fiche relue.");
-              })
-            }
+            onClick={loadSnapshot}
             className="font-medium text-primary underline-offset-2 hover:underline disabled:opacity-60"
-            title="Récupère les changements faits sur la fiche. Ta saisie en cours est conservée."
+            title="Relit toute la fiche : profil, attributs, services et photos. Ta saisie en cours est conservée."
           >
             {refreshing ? "Lecture…" : "Relire"}
           </button>
@@ -569,6 +574,28 @@ export function OnboardingWizard({
 
           {/* Éditeur de l'étape */}
           {step.key === "categories" && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed p-3">
+              <p className="text-sm text-muted-foreground">
+                {snapshot
+                  ? "Fiche lue : attributs, services prédéfinis et photos sont chargés pour toutes les étapes."
+                  : "Lis la fiche une fois pour alimenter toutes les étapes — attributs, services prédéfinis et photos."}
+              </p>
+              <Button
+                variant={snapshot ? "outline" : "default"}
+                size="sm"
+                disabled={refreshing}
+                onClick={loadSnapshot}
+              >
+                {refreshing ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <CloudUpload className="rotate-180" />
+                )}
+                {snapshot ? "Relire la fiche" : "Lire la fiche Google"}
+              </Button>
+            </div>
+          )}
+          {step.key === "categories" && (
             <CategoriesEditor profile={profile} onChange={setProfile} />
           )}
           {step.key === "identity" && (
@@ -579,7 +606,7 @@ export function OnboardingWizard({
               {/* Les prédéfinis d'abord : c'est eux qui bougent le
                   classement, le texte libre complète. */}
               <PredefinedServices
-                clientId={clientId}
+                types={snapshot?.serviceTypes ?? null}
                 profile={profile}
                 onChange={setProfile}
               />
@@ -592,7 +619,11 @@ export function OnboardingWizard({
               {/* Attributs d'identité, de service et liens sociaux :
                   trois critères de cette étape qui n'étaient que des
                   cases à cocher renvoyant chez Google. */}
-              <AttributesEditor clientId={clientId} />
+              <AttributesEditor
+                clientId={clientId}
+                catalog={snapshot?.attributeCatalog ?? null}
+                current={snapshot?.attributes ?? []}
+              />
             </>
           )}
           {step.key === "photos" && (
@@ -1347,30 +1378,9 @@ function PhotosEditor({
   const gallery = photos.filter((p) => p.role === "photo");
   const total = gallery.length + googleGallery.length;
   const [busy, setBusy] = useState<string | null>(null);
-  const [syncing, startSync] = useTransition();
   const [pushing, startPushPhotos] = useTransition();
-  const synced = useRef(false);
   // Déposée ici mais pas encore en ligne : c'est ce que l'envoi traite.
   const pending = photos.filter((photo) => !photo.google_name);
-
-  // Le cache s'affiche immédiatement ; cet appel ne sert qu'à repérer
-  // ce qui a été ajouté ou retiré sur la fiche depuis la dernière fois.
-  useEffect(() => {
-    if (synced.current) return;
-    synced.current = true;
-    startSync(async () => {
-      const result = await syncGbpMediaAction(clientId);
-      if (!result.ok) return; // silencieux : le cache reste affiché
-      onGoogleMedia(result.items ?? []);
-      if (result.added || result.removed) {
-        const parts = [];
-        if (result.added) parts.push(result.added + " ajoutée(s)");
-        if (result.removed) parts.push(result.removed + " retirée(s)");
-        toast.info(parts.join(" · ") + " sur la fiche Google.");
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   async function upload(role: GbpPhotoRole, files: FileList | null) {
     if (!files?.length || busy) return;
@@ -1447,8 +1457,10 @@ function PhotosEditor({
                     `${result.pushed} photo(s) publiée(s) sur la fiche.`,
                   );
                 }
-                const fresh = await syncGbpMediaAction(clientId);
-                if (fresh.ok) onGoogleMedia(fresh.items ?? []);
+                // La fiche vient de changer : on la relit en entier
+                // plutôt que de deviner l'état des photos.
+                const fresh = await loadGbpSnapshotAction(clientId);
+                if (fresh.ok) onGoogleMedia(fresh.snapshot?.media ?? []);
               })
             }
           >
@@ -1527,13 +1539,11 @@ function PhotosEditor({
         </div>
         <p className="text-xs tabular-nums text-muted-foreground">
           {busy ??
-            (syncing
-              ? "Lecture des photos de la fiche…"
-              : `${total}/10 photos${
-                  googleGallery.length
-                    ? ` (dont ${googleGallery.length} déjà sur Google)`
-                    : ""
-                }${total < 10 ? " — vise le lot initial complet" : ""}`)}
+            `${total}/10 photos${
+              googleGallery.length
+                ? ` (dont ${googleGallery.length} déjà sur Google)`
+                : ""
+            }${total < 10 ? " — vise le lot initial complet" : ""}`}
         </p>
       </div>
     </div>

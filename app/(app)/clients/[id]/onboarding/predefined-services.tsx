@@ -1,11 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
-import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { GbpProfileData } from "@/lib/types/database";
-import { loadGbpServiceTypesAction } from "../actions";
 
 // Services PRÉDÉFINIS de Google, cochables depuis le wizard.
 //
@@ -20,37 +16,19 @@ import { loadGbpServiceTypesAction } from "../actions";
 type ServiceType = { id: string; label: string; category: string };
 
 export function PredefinedServices({
-  clientId,
+  types,
   profile,
   onChange,
 }: {
-  clientId: string;
+  /** `null` tant que la fiche n'a pas été lue. */
+  types: ServiceType[] | null;
   profile: GbpProfileData;
   onChange: React.Dispatch<React.SetStateAction<GbpProfileData>>;
 }) {
-  const [types, setTypes] = useState<ServiceType[] | null>(null);
-  const [loading, startLoad] = useTransition();
-  const requested = useRef(false);
-
   const services = profile.services ?? [];
   const chosen = new Set(
     services.map((service) => service.service_type_id).filter(Boolean),
   );
-
-  useEffect(() => {
-    if (requested.current) return;
-    requested.current = true;
-    startLoad(async () => {
-      const result = await loadGbpServiceTypesAction(clientId);
-      if (!result.ok) {
-        toast.error(result.error);
-        setTypes([]);
-        return;
-      }
-      setTypes(result.serviceTypes ?? []);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   function toggle(type: ServiceType, next: boolean) {
     onChange((prev) => {
@@ -84,9 +62,9 @@ export function PredefinedServices({
 
   if (types === null) {
     return (
-      <p className="flex items-center gap-2 rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-        {loading && <Loader2 className="size-4 animate-spin" />}
-        Lecture des services proposés par Google…
+      <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+        Services prédéfinis non chargés — lis la fiche depuis l&apos;étape
+        Catégories.
       </p>
     );
   }
