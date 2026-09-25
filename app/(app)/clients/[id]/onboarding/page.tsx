@@ -5,7 +5,8 @@ import { supabaseConfigured } from "@/lib/env";
 import { isBrandProfileIncomplete } from "@/lib/clients/brand-profile";
 import { EmptyState } from "@/components/ui/empty-state";
 import { OnboardingWizard } from "./onboarding-wizard";
-import { ImportProfileButton } from "./import-profile-button";
+import { getGbpClient } from "@/lib/gbp/client";
+import { locationToProfile, mergeProfile } from "@/lib/gbp/profile-import";
 
 export const metadata = { title: "Optimisation de la fiche" };
 
@@ -31,17 +32,46 @@ export default async function OnboardingPage({
   const supabase = await getDb();
   const { data: client, error } = await supabase
     .from("clients")
-    .select("id, name, status, onboarding, gbp_profile, brand_profile")
+    .select(
+      "id, name, status, onboarding, gbp_profile, brand_profile, gbp_account_id, gbp_location_id",
+    )
     .eq("id", id)
     .eq("agency_id", member.agency_id)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!client) notFound();
 
-  // Fiche pas encore saisie ? Pré-remplir l'identité depuis ce que la
-  // découverte Google (ou la création manuelle) connaît déjà — on ne
-  // fait jamais retaper ce que l'app sait.
-  const profile = client.gbp_profile ?? {};
+  // Relire la fiche à CHAQUE ouverture.
+  //
+  // Le wizard affichait une copie locale importée une fois : rien ne
+  // garantissait qu'elle corresponde encore à Google, et l'équipe ne
+  // pouvait pas voir ce qui était déjà en ligne. Il doit montrer l'état
+  // réel de la fiche, sinon « ce qui manque » ne veut rien dire.
+  //
+  // La fusion ne réécrit jamais une saisie locale : ce qui a été
+  // travaillé ici mais pas encore poussé reste intact.
+  let profile = client.gbp_profile ?? {};
+  let syncedAt: string | null = null;
+  if (client.gbp_location_id) {
+    try {
+      const location = await getGbpClient().getLocation(
+        client.gbp_account_id ?? client.gbp_location_id,
+        client.gbp_location_id,
+      );
+      profile = mergeProfile(profile, locationToProfile(location));
+      syncedAt = new Date().toISOString();
+      await supabase
+        .from("clients")
+        .update({ gbp_profile: profile })
+        .eq("id", id);
+    } catch (error) {
+      // Google injoignable : on continue avec la dernière copie connue.
+      // Un wizard qui refuse de s'ouvrir parce qu'un tiers est en panne
+      // serait pire que des données d'hier.
+      console.error(`relecture de la fiche ${client.name}:`, error);
+    }
+  }
+
   if (!profile.identity) {
     const { data: base } = await supabase
       .from("clients")
@@ -62,22 +92,8 @@ export default async function OnboardingPage({
     }
   }
 
-  // Le profil ne porte encore ni description ni horaires : la fiche
-  // Google les a probablement, et le score serait faux sans elles.
-  const looksEmpty = !profile.description && !profile.hours;
-
   return (
     <div className="flex flex-col gap-4">
-      {looksEmpty && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed p-3">
-          <p className="text-sm text-muted-foreground">
-            Ce projet n&apos;a pas encore de profil dans l&apos;app. La fiche
-            Google contient sans doute déjà description, horaires et
-            catégories — inutile de les ressaisir.
-          </p>
-          <ImportProfileButton clientId={client.id} />
-        </div>
-      )}
       <OnboardingWizard
         clientId={client.id}
         clientName={client.name}
@@ -85,6 +101,7 @@ export default async function OnboardingPage({
         initialProfile={profile}
         initialChecks={client.onboarding?.items ?? {}}
         brandProfileComplete={!isBrandProfileIncomplete(client.brand_profile)}
+        syncedAt={syncedAt}
       />
     </div>
   );

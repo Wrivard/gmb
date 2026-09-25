@@ -181,6 +181,7 @@ export function OnboardingWizard({
   initialProfile,
   initialChecks,
   brandProfileComplete,
+  syncedAt,
 }: {
   clientId: string;
   clientName: string;
@@ -188,6 +189,8 @@ export function OnboardingWizard({
   initialProfile: GbpProfileData;
   initialChecks: Record<string, OnboardingItemState>;
   brandProfileComplete: boolean;
+  /** Horodatage de la relecture de la fiche — null si Google injoignable. */
+  syncedAt?: string | null;
 }) {
   const router = useRouter();
   const [profile, setProfile] = useState<GbpProfileData>(initialProfile);
@@ -430,6 +433,14 @@ export function OnboardingWizard({
                 : "Pousser sur Google"}
           </Button>
         </div>
+        {/* D'où viennent les valeurs affichées. Sans ça, impossible de
+            savoir si « ce qui manque » décrit la fiche d'aujourd'hui ou
+            une copie d'il y a trois semaines. */}
+        <p className="text-xs text-muted-foreground">
+          {syncedAt
+            ? "Fiche Google relue à l'ouverture — ce que tu vois est ce qui est en ligne."
+            : "Fiche Google injoignable : affichage de la dernière copie connue."}
+        </p>
       </div>
 
       {progress.complete && (
@@ -1179,6 +1190,13 @@ function ServicesEditor({ profile, onChange }: EditorProps) {
           />
         </div>
       ))}
+      {services.length === 0 && (
+        // Sans ce message, un écran ne montrant qu'« Ajouter » laisse
+        // croire que la liste est cachée quelque part.
+        <p className="text-sm text-muted-foreground">
+          Aucun service sur la fiche pour l&apos;instant.
+        </p>
+      )}
       <Button
         size="sm"
         variant="outline"

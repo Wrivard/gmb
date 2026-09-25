@@ -14,10 +14,6 @@ import { GEOGRID_MAX_KEYWORDS } from "@/lib/geogrid/grid";
 import { normalizeGbpResourceId } from "@/lib/gbp/resource-id";
 import { runGeogridScan } from "@/lib/geogrid/scan";
 import { getGbpClient } from "@/lib/gbp/client";
-import {
-  locationToProfile,
-  mergeProfile,
-} from "@/lib/gbp/profile-import";
 import { GBP_DESCRIPTION_MAX } from "@/lib/gbp/limits";
 import { GbpAccessPendingError } from "@/lib/gbp/types";
 import type {
@@ -863,51 +859,6 @@ export async function updateBrandProfileAction(
 
     revalidatePath(`/clients/${clientId}`);
     return { ok: true };
-  });
-}
-
-/**
- * Recharge le profil depuis la fiche Google. Les projets créés avant le
- * préremplissage automatique partaient avec un profil vide : le wizard
- * annonçait 0 % sur une fiche déjà remplie. Fusion, pas écrasement —
- * ce que l'équipe a saisi dans l'app gagne toujours.
- */
-export async function importGbpProfileAction(
-  clientId: string,
-): Promise<ActionResult & { filled?: number }> {
-  return runAction("L'import depuis Google a échoué.", async () => {
-    const { member, supabase, client } = await loadClientForMember(clientId);
-    if (!client.gbp_location_id) {
-      return {
-        ok: false,
-        error: "Aucune fiche Google liée à ce projet.",
-      };
-    }
-
-    const location = await getGbpClient().getLocation(
-      client.gbp_account_id ?? client.gbp_location_id,
-      client.gbp_location_id,
-    );
-    const current: GbpProfileData = client.gbp_profile ?? {};
-    const merged = mergeProfile(current, locationToProfile(location));
-
-    const { error } = await supabase
-      .from("clients")
-      .update({ gbp_profile: merged })
-      .eq("id", clientId);
-    if (error) throw new Error(error.message);
-
-    await logActivity({
-      agencyId: member.agency_id,
-      clientId,
-      actor: member.email,
-      action: "gbp_profile_imported",
-      payload: { sections: Object.keys(merged) },
-    });
-
-    revalidatePath(`/clients/${clientId}/onboarding`);
-    revalidatePath(`/clients/${clientId}`);
-    return { ok: true, filled: Object.keys(merged).length };
   });
 }
 
