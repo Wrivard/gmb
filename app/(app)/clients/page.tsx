@@ -5,7 +5,6 @@ import { getAgencyClients } from "@/lib/queries/agency";
 import { supabaseConfigured } from "@/lib/env";
 import { DemoBanner } from "@/components/layout/demo-banner";
 import { demoBoardClients, demoClientRows } from "@/lib/demo";
-import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
@@ -15,7 +14,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ClientActiveToggle } from "@/app/(app)/settings/client-toggle";
 import { Button } from "@/components/ui/button";
 import { GoldStar } from "@/components/reviews/star-rating";
 import { isBrandProfileIncomplete } from "@/lib/clients/brand-profile";
@@ -25,7 +23,6 @@ import { clientHealth, type ClientHealth } from "@/lib/clients/health";
 import { cn } from "@/lib/utils";
 import { Plus } from "lucide-react";
 import { AssigneeSelect } from "./assignee-select";
-import { CadenceSelect } from "./cadence-select";
 
 export const metadata = { title: "Projets" };
 
@@ -51,14 +48,6 @@ interface ProjectRow {
   /** Fiche + avis + publications — null en mode démo. */
   health: ClientHealth | null;
   status: "active" | "paused" | "disconnected";
-  cadence: {
-    id: string;
-    posts_per_month: number;
-    language: string;
-    auto_publish_replies: boolean;
-    auto_publish_posts: boolean;
-    status: string;
-  };
 }
 
 export default async function ClientsPage() {
@@ -94,14 +83,6 @@ export default async function ClientsPage() {
         onboardingPct: null,
         health: null,
         status: client.status,
-        cadence: {
-          id: client.id,
-          posts_per_month: client.posts_per_month,
-          language: "fr-CA",
-          auto_publish_replies: true,
-          auto_publish_posts: false,
-          status: client.status,
-        },
       };
     });
   } else {
@@ -264,14 +245,6 @@ export default async function ClientsPage() {
           },
         }),
         status: client.status as ProjectRow["status"],
-        cadence: {
-          id: client.id,
-          posts_per_month: client.posts_per_month,
-          language: client.language,
-          auto_publish_replies: client.auto_publish_replies,
-          auto_publish_posts: client.auto_publish_posts,
-          status: client.status,
-        },
       };
     });
   }
@@ -282,8 +255,8 @@ export default async function ClientsPage() {
       <div className="flex flex-wrap items-start gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Projets</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Une ligne par projet : sa note, son mandat, ce qui l&apos;attend.
+          <p className="mt-1 text-sm text-muted-foreground tabular-nums">
+            {rows.length} projet{rows.length > 1 ? "s" : ""}
           </p>
         </div>
         {!demo && (
@@ -303,138 +276,124 @@ export default async function ClientsPage() {
         // l'app ne flotte pas nue sur le fond de page.
         <div className="overflow-hidden rounded-lg border border-border bg-elevated">
         <Table>
-          <TableHeader className="bg-muted/40">
-            <TableRow>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent [&>th]:h-9 [&>th]:text-xs [&>th]:font-normal [&>th]:text-muted-foreground">
               <TableHead>Projet</TableHead>
-              <TableHead>Santé</TableHead>
-              <TableHead>Note</TableHead>
-              <TableHead>Mandat</TableHead>
-              <TableHead>Responsable</TableHead>
-              <TableHead>Couverture du mois</TableHead>
-              <TableHead>En attente</TableHead>
-              <TableHead className="text-right">Actif</TableHead>
+              <TableHead className="w-24">Santé</TableHead>
+              <TableHead className="w-28">Note</TableHead>
+              <TableHead className="w-28">Posts du mois</TableHead>
+              <TableHead>À faire</TableHead>
+              <TableHead className="w-32 text-right">Responsable</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((row) => (
-              <TableRow
-                key={row.id}
-                className={row.status !== "active" ? "opacity-60" : undefined}
-              >
-                <TableCell>
-                  <Link
-                    href={`/clients/${row.id}`}
-                    className="font-medium hover:underline"
-                  >
-                    {row.name}
-                  </Link>
-                  <div className="text-xs text-muted-foreground">
-                    {[row.category, row.address].filter(Boolean).join(" · ") ||
-                      "—"}
-                  </div>
-                  {row.onboardingPct !== null && (
-                    <Link
-                      href={`/clients/${row.id}/onboarding`}
-                      className="block text-xs text-warning underline-offset-2 hover:underline"
-                    >
-                      Fiche optimisée à {row.onboardingPct} % — continuer
-                    </Link>
-                  )}
-                  {row.profileIncomplete && (
-                    <Link
-                      href={`/clients/${row.id}?tab=settings`}
-                      className="block text-xs text-warning underline-offset-2 hover:underline"
-                    >
-                      Profil incomplet — les drafts AI seront génériques
-                    </Link>
-                  )}
-                </TableCell>
-                {/* Santé : fiche + avis + publications, d'un coup d'œil.
-                    Le détail du pilier le plus faible est au survol —
-                    scanner vingt clients ne doit pas demander vingt
-                    clics. */}
-                <TableCell>
-                  {row.health ? (
+            {rows.map((row) => {
+              // Une ligne = ce qu'il faut savoir pour décider où aller.
+              // Le détail (adresse, cadence, activation) vit sur la fiche
+              // du projet : répété sur chaque ligne, il noyait l'essentiel
+              // et forçait un défilement horizontal.
+              const todo = [
+                row.unreplied > 0 &&
+                  `${row.unreplied} avis`,
+                row.drafts > 0 &&
+                  `${row.drafts} brouillon${row.drafts > 1 ? "s" : ""}`,
+                row.profileIncomplete && "profil de marque",
+              ].filter(Boolean) as string[];
+              return (
+                <TableRow
+                  key={row.id}
+                  className={cn(row.status !== "active" && "opacity-55")}
+                >
+                  <TableCell className="py-3">
                     <Link
                       href={`/clients/${row.id}`}
-                      className="flex items-center gap-1.5"
-                      title={`${row.health.worst.label} — ${row.health.worst.detail}`}
+                      className="font-medium underline-offset-2 hover:underline"
                     >
+                      {row.name}
+                    </Link>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      {row.category ?? "—"}
+                      {row.status === "paused" && <span>· en pause</span>}
+                      {row.status === "disconnected" && (
+                        <span className="text-destructive">· déconnecté</span>
+                      )}
+                    </div>
+                  </TableCell>
+
+                  <TableCell>
+                    {row.health ? (
+                      <Link
+                        href={`/clients/${row.id}`}
+                        className="flex items-center gap-2"
+                        title={`${row.health.worst.label} — ${row.health.worst.detail}`}
+                      >
+                        <span
+                          className={cn(
+                            "size-1.5 shrink-0 rounded-full",
+                            row.health.status === "ok" && "bg-success",
+                            row.health.status === "warn" && "bg-warning",
+                            row.health.status === "critical" && "bg-destructive",
+                          )}
+                        />
+                        <span className="text-sm tabular-nums">
+                          {row.health.pct}
+                          <span className="text-muted-foreground"> %</span>
+                        </span>
+                      </Link>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+
+                  <TableCell>
+                    {row.avgRating !== null ? (
+                      <span className="flex items-center gap-1 text-sm tabular-nums">
+                        <GoldStar />
+                        {row.avgRating.toFixed(1)}
+                        <span className="text-xs text-muted-foreground">
+                          {row.reviewCount}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+
+                  <TableCell className="text-sm tabular-nums">
+                    {row.coverage ? (
                       <span
                         className={cn(
-                          "size-2 shrink-0 rounded-full",
-                          row.health.status === "ok" && "bg-success",
-                          row.health.status === "warn" && "bg-warning",
-                          row.health.status === "critical" && "bg-destructive",
+                          row.coverage.done >= row.coverage.target
+                            ? "text-foreground"
+                            : "text-muted-foreground",
                         )}
-                      />
-                      <span className="text-sm tabular-nums">
-                        {row.health.pct} %
+                      >
+                        {Math.min(row.coverage.done, row.coverage.target)}
+                        <span className="text-muted-foreground">
+                          /{row.coverage.target}
+                        </span>
                       </span>
-                    </Link>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {row.avgRating !== null ? (
-                    <span className="flex items-center gap-1 text-sm tabular-nums">
-                      <GoldStar />
-                      {row.avgRating.toFixed(1)}
-                      <span className="text-xs text-muted-foreground">
-                        ({row.reviewCount})
-                      </span>
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <CadenceSelect
-                    client={row.cadence}
-                    disabled={demo || row.status === "disconnected"}
-                  />
-                </TableCell>
-                <TableCell>
-                  <AssigneeSelect
-                    clientId={row.id}
-                    assigneeMemberId={row.assigneeMemberId}
-                    members={members}
-                    disabled={demo || row.status === "disconnected"}
-                  />
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground tabular-nums">
-                  {row.coverage
-                    ? `${Math.min(row.coverage.done, row.coverage.target)}/${row.coverage.target} posts`
-                    : "n/a"}
-                </TableCell>
-                <TableCell className="text-sm tabular-nums">
-                  {row.unreplied > 0 || row.drafts > 0 ? (
-                    <span className="text-muted-foreground">
-                      {row.unreplied > 0 &&
-                        `${row.unreplied} review${row.unreplied > 1 ? "s" : ""}`}
-                      {row.unreplied > 0 && row.drafts > 0 && " · "}
-                      {row.drafts > 0 &&
-                        `${row.drafts} brouillon${row.drafts > 1 ? "s" : ""}`}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  {row.status === "disconnected" ? (
-                    <Badge variant="destructive">Déconnecté</Badge>
-                  ) : (
-                    <ClientActiveToggle
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+
+                  <TableCell className="text-sm text-muted-foreground">
+                    {todo.length ? todo.join(" · ") : "—"}
+                  </TableCell>
+
+                  <TableCell className="text-right">
+                    <AssigneeSelect
                       clientId={row.id}
-                      active={row.status === "active"}
-                      disabled={demo}
-                      onboardingIncomplete={row.onboardingPct !== null}
+                      assigneeMemberId={row.assigneeMemberId}
+                      members={members}
+                      disabled={demo || row.status === "disconnected"}
+                      quiet
                     />
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
         </div>

@@ -27,11 +27,14 @@ export function AssigneeSelect({
   assigneeMemberId,
   members,
   disabled,
+  quiet,
 }: {
   clientId: string;
   assigneeMemberId: string | null;
   members: Array<{ id: string; email: string }>;
   disabled?: boolean;
+  /** Sans bordure ni fond : dans une liste, un menu par ligne pèse trop. */
+  quiet?: boolean;
 }) {
   const router = useRouter();
   const [value, setValue] = useState(assigneeMemberId ?? UNASSIGNED);
@@ -59,8 +62,25 @@ export function AssigneeSelect({
         });
       }}
     >
-      <SelectTrigger size="sm" className="w-fit min-w-24">
-        <SelectValue />
+      <SelectTrigger
+        size="sm"
+        className={
+          quiet
+            ? "ml-auto w-fit min-w-0 border-transparent bg-transparent text-muted-foreground shadow-none hover:bg-muted hover:text-foreground dark:bg-transparent"
+            : "w-fit min-w-24"
+        }
+      >
+        {/* Sans fonction de rendu, Base UI affiche la VALEUR brute : la
+            liste montrait « none » au lieu de « — ». */}
+        <SelectValue>
+          {(current: string) =>
+            current === UNASSIGNED
+              ? "—"
+              : memberShortName(
+                  members.find((m) => m.id === current)?.email ?? "",
+                ) || "—"
+          }
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={UNASSIGNED}>—</SelectItem>
